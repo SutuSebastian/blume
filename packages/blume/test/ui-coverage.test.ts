@@ -605,6 +605,30 @@ describe("layout chrome sources", () => {
       expect(source).not.toContain("localeSwitch.length > 1 ? locale");
     }
   });
+
+  it("defaults the document locale to Astro.currentLocale in every shell", async () => {
+    // A custom page under `/fr/` built on PageLayout has no manifest locale to
+    // pass, so the shells fall back to what Astro's i18n routing resolved for
+    // the URL rather than hard-coding `en`.
+    const shells = [
+      "PageLayout.astro",
+      "RootLayout.astro",
+      "ReferenceLayout.astro",
+    ];
+    const sources = await Promise.all(shells.map(layoutSource));
+    for (const source of sources) {
+      expect(source).toContain(
+        'import { pageDirection, pageLocale } from "./page-locale.ts";'
+      );
+      expect(source).toContain(
+        "const locale = pageLocale(data.config.i18n, localeProp, Astro.currentLocale);"
+      );
+      expect(source).toContain(
+        "const dir = dirProp ?? pageDirection(data.config.i18n, locale);"
+      );
+      expect(source).not.toContain('locale = "en",');
+    }
+  });
 });
 
 describe("searchLocaleFor", () => {

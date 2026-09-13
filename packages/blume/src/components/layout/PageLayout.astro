@@ -35,6 +35,7 @@ import {
 import { buildStructuredData } from "../../seo/jsonld.ts";
 import { normalizeXHandle } from "../../seo/x-handle.ts";
 import { withBase } from "../islands/base-path.ts";
+import { pageDirection, pageLocale } from "./page-locale.ts";
 import { searchLocaleFor } from "./search-locale.ts";
 import "blume:theme";
 import { ClientRouter } from "astro:transitions";
@@ -108,7 +109,11 @@ interface Props {
    */
   x?: { creator?: string; handle?: string };
   noindex?: boolean;
-  /** Active locale + direction for `<html lang>`/`<html dir>`. */
+  /**
+   * Active locale + direction for `<html lang>`/`<html dir>`. Default to the
+   * locale Astro resolved from the URL (`Astro.currentLocale`), then the site
+   * default, and to that locale's configured direction.
+   */
   locale?: string;
   dir?: "ltr" | "rtl";
   /** Resolved UI dictionary; English baseline when omitted. */
@@ -145,12 +150,18 @@ const {
   structuredDataEnabled,
   x,
   noindex,
-  locale = "en",
-  dir = "ltr",
+  locale: localeProp,
+  dir: dirProp,
   ui,
   localeSwitch,
   clientData,
 } = Astro.props;
+
+// The locale and direction: the page's own values when it passes them (the
+// content catch-all always does), else what Astro's i18n routing resolved for
+// this URL, else the site default (see `page-locale.ts`).
+const locale = pageLocale(data.config.i18n, localeProp, Astro.currentLocale);
+const dir = dirProp ?? pageDirection(data.config.i18n, locale);
 
 const clientDataJson = clientData
   ? JSON.stringify(clientData).replaceAll("<", "\\u003c")

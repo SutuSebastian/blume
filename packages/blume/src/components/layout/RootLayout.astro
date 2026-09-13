@@ -58,6 +58,7 @@ import {
 } from "./nav-utils.ts";
 import NavTree from "./NavTree.astro";
 import { resolveSlot } from "./overrides.ts";
+import { pageDirection, pageLocale } from "./page-locale.ts";
 import { searchLocaleFor } from "./search-locale.ts";
 import PageActions from "./PageActions.astro";
 import PageFeedback from "./PageFeedback.astro";
@@ -149,9 +150,12 @@ interface Props {
   lastModified?: string | null;
   noindex?: boolean;
   structuredDataEnabled?: boolean;
-  /** Active locale code for `<html lang>` (defaults to `en`). */
+  /**
+   * Active locale code for `<html lang>`. Defaults to the locale Astro
+   * resolved from the URL (`Astro.currentLocale`), then the site default.
+   */
   locale?: string;
-  /** Text direction for `<html dir>` (defaults to `ltr`). */
+  /** Text direction for `<html dir>`; defaults to the locale's configured direction. */
   dir?: "ltr" | "rtl";
   /**
    * Direction of the page content's own language — differs from `dir` on a
@@ -242,8 +246,8 @@ const {
   lastModified,
   noindex,
   structuredDataEnabled,
-  locale = "en",
-  dir = "ltr",
+  locale: localeProp,
+  dir: dirProp,
   contentDir,
   ui,
   localeAlternates,
@@ -258,6 +262,12 @@ const {
   dateFormat,
   contentLayout = "default",
 } = Astro.props;
+
+// The locale and direction: the page's own values when it passes them (the
+// content catch-all always does), else what Astro's i18n routing resolved for
+// this URL, else the site default (see `page-locale.ts`).
+const locale = pageLocale(data.config.i18n, localeProp, Astro.currentLocale);
+const dir = dirProp ?? pageDirection(data.config.i18n, locale);
 
 // Serialized once for island hooks; `<` escaped so content can't break the tag.
 const clientDataJson = clientData

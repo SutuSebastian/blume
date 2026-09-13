@@ -17,6 +17,7 @@ import {
   THEME_INIT_SCRIPT,
 } from "./head-scripts.ts";
 import Header from "./Header.astro";
+import { pageDirection, pageLocale } from "./page-locale.ts";
 import { searchLocaleFor } from "./search-locale.ts";
 
 // A minimal shell for the Scalar API/AsyncAPI reference: Blume's banner + navbar
@@ -66,9 +67,12 @@ interface Props {
   pageTitle: string;
   /** Keep the reference route out of crawler indexes. */
   noindex?: boolean;
-  /** Active locale code for `<html lang>` (defaults to `en`). */
+  /**
+   * Active locale code for `<html lang>`. Defaults to the locale Astro
+   * resolved from the URL (`Astro.currentLocale`), then the site default.
+   */
   locale?: string;
-  /** Text direction for `<html dir>` (defaults to `ltr`). */
+  /** Text direction for `<html dir>`; defaults to the locale's configured direction. */
   dir?: "ltr" | "rtl";
   /** Resolved UI dictionary; English baseline when omitted. */
   ui?: UIStrings;
@@ -88,10 +92,16 @@ const {
   searchEnabled,
   pageTitle,
   noindex = false,
-  locale = "en",
-  dir = "ltr",
+  locale: localeProp,
+  dir: dirProp,
   ui,
 } = Astro.props;
+
+// The locale and direction: the page's own values when it passes them (the
+// content catch-all always does), else what Astro's i18n routing resolved for
+// this URL, else the site default (see `page-locale.ts`).
+const locale = pageLocale(data.config.i18n, localeProp, Astro.currentLocale);
+const dir = dirProp ?? pageDirection(data.config.i18n, locale);
 
 const strings = ui ?? EN_UI;
 // Scope search to the reference page's language on a multi-locale site.

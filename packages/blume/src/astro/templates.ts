@@ -567,7 +567,9 @@ export const astroConfigTemplate = (options: {
     : "";
   const imageOption = renderImageOption(config);
 
-  // Astro's native i18n gives locale-aware helpers + `<html lang>` correctness.
+  // Astro's native i18n resolves `Astro.currentLocale` from the URL, which the
+  // document shells fall back to for `<html lang>`/`dir` on pages the content
+  // catch-all doesn't drive (custom pages, the 404, the reference shell).
   // Blume owns getStaticPaths and materializes fallback routes in the manifest,
   // so we deliberately omit Astro's `fallback` to keep one source of routing.
   const i18nOption = config.i18n
