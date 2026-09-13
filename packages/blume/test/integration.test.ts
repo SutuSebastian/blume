@@ -66,10 +66,8 @@ const handleOf = (stack: MiddlewareStack): MiddlewareHandle =>
   stack[0]?.handle as MiddlewareHandle;
 
 /** The markdown-negotiation handle is the only middleware in the stack. */
-const markdownHandle = (
-  contentRoutes: string[],
-  base?: string
-): MiddlewareHandle => handleOf(serverSetup({ base, contentRoutes }));
+const markdownHandle = (contentRoutes: string[]): MiddlewareHandle =>
+  handleOf(serverSetup({ contentRoutes }));
 
 /** Headers a handle stamped on the response. */
 interface CollectedHeaders {
@@ -216,8 +214,8 @@ describe("blumeIntegration markdown negotiation", () => {
 describe("blumeIntegration homepage Link header", () => {
   const LINK = '</llms.txt>; rel="describedby"; type="text/plain"';
 
-  const handleWith = (base?: string): MiddlewareHandle =>
-    handleOf(serverSetup({ base, contentRoutes: ["/"], homeLinkHeader: LINK }));
+  const handleWith = (): MiddlewareHandle =>
+    handleOf(serverSetup({ contentRoutes: ["/"], homeLinkHeader: LINK }));
 
   it("stamps the Link header on homepage requests only", () => {
     const handle = handleWith();
@@ -227,11 +225,12 @@ describe("blumeIntegration homepage Link header", () => {
     expect(runHandle(handle, "/", "POST").Link).toBeUndefined();
   });
 
-  it("matches the homepage under deployment.base, with or without a slash", () => {
-    const handle = handleWith("/base/");
-    expect(runHandle(handle, "/base").Link).toBe(LINK);
-    expect(runHandle(handle, "/base/").Link).toBe(LINK);
-    expect(runHandle(handle, "/").Link).toBeUndefined();
+  it("matches the root as Astro's base middleware rewrote it", () => {
+    // Under a `deployment.base`, Astro's dev base middleware runs first and
+    // rewrites `/<base>/` to `/`; the handler must not strip the base again.
+    const handle = handleWith();
+    expect(runHandle(handle, "/").Link).toBe(LINK);
+    expect(runHandle(handle, "/base/").Link).toBeUndefined();
     expect(runHandle(handle, "/other/").Link).toBeUndefined();
   });
 

@@ -711,7 +711,6 @@ export const astroConfigTemplate = (options: {
   // plus the homepage agent-discovery `Link` header.
   integrations.push(
     `blumeIntegration(${JSON.stringify({
-      base: deployment.base,
       contentRoutes,
       homeLinkHeader: buildHomeLinkHeader(config, contentRoutes) ?? undefined,
       pages,

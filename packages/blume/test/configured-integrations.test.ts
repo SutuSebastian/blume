@@ -488,3 +488,34 @@ it("passes invalid integration elements through to Astro validation", async () =
   expect(built.output).not.toContain("BLUME_CONFIG_INVALID");
   // Budget for a killed-and-retried 90s build attempt.
 }, 240_000);
+
+it("negotiates Markdown for content routes under deployment.base in dev", async () => {
+  // Astro's dev base middleware rewrites `/sub/guide` to `/guide` before the
+  // negotiation handler runs; stripping the base a second time left every
+  // request unmatched, so `Accept: text/markdown` served HTML on based sites.
+  const root = await writeProject({
+    "blume.config.ts": 'export default { deployment: { base: "/sub" } };\n',
+    "docs/guide.md": "---\ntitle: Guide\n---\n# Guide\n\nprobe body\n",
+    "docs/index.md": "# Home\n",
+  });
+  const { output, port, proc } = await startDevReady(root);
+  let failure: unknown;
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/sub/guide`, {
+      headers: { accept: "text/markdown" },
+      signal: AbortSignal.timeout(60_000),
+    });
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toContain("text/markdown");
+    expect(response.headers.get("vary")).toContain("Accept");
+    expect(await response.text()).toContain("probe body");
+  } catch (error) {
+    failure = error;
+  } finally {
+    await stopDev(proc);
+  }
+  const [stdout, stderr] = await drainOutput(output);
+  if (failure) {
+    throw new Error(`${String(failure)}\n${stdout}\n${stderr}`);
+  }
+}, 180_000);

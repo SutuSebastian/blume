@@ -87,8 +87,6 @@ export interface BlumeIntegrationOptions {
   pages: BlumePageRoute[];
   /** Page routes that have a raw-Markdown variant (the content manifest). */
   contentRoutes: string[];
-  /** Configured `deployment.base`, stripped from dev URLs before matching. */
-  base?: string;
   /**
    * Homepage `Link` header value for agent discovery (see
    * `ai/link-headers.ts`); the dev-server counterpart of the `_headers` /
@@ -100,21 +98,14 @@ export interface BlumeIntegrationOptions {
 
 /**
  * Whether a dev-server request URL is the homepage: the path (query dropped,
- * `deployment.base` stripped, trailing slash tolerated) is the root.
+ * trailing slash tolerated) is the root.
  */
-const isHomeUrl = (rawUrl: string | undefined, base?: string): boolean => {
+const isHomeUrl = (rawUrl: string | undefined): boolean => {
   if (!rawUrl) {
     return false;
   }
   const queryIndex = rawUrl.indexOf("?");
-  let path = queryIndex === -1 ? rawUrl : rawUrl.slice(0, queryIndex);
-  const prefix = base && base !== "/" ? base.replace(/\/$/u, "") : "";
-  if (prefix) {
-    if (path !== prefix && !path.startsWith(`${prefix}/`)) {
-      return false;
-    }
-    path = path.slice(prefix.length);
-  }
+  const path = queryIndex === -1 ? rawUrl : rawUrl.slice(0, queryIndex);
   return path === "" || path === "/";
 };
 
@@ -134,16 +125,22 @@ const isHomeUrl = (rawUrl: string | undefined, base?: string): boolean => {
  * page (see `markdownRoutePaths`). The same
  * middleware also stamps the homepage agent-discovery `Link` header, mirroring
  * what the deployed site sends via `_headers` / the Vercel routing config.
+ *
+ * Request URLs arrive base-less: Astro unshifts its own dev middlewares (base,
+ * trailing slash, route guard) ahead of this one from its post-`configureServer`
+ * hook, and its base middleware has already rewritten `/<base>/guide` to
+ * `/guide`. Stripping `deployment.base` here a second time would leave no
+ * request matching a content route.
  */
 const negotiateMarkdown =
-  (routes: ReadonlySet<string>, base?: string, homeLinkHeader?: string) =>
+  (routes: ReadonlySet<string>, homeLinkHeader?: string) =>
   (req: IncomingMessage, res: ServerResponse, next: () => void): void => {
     if (req.method === "GET" || req.method === "HEAD") {
-      if (homeLinkHeader && isHomeUrl(req.url, base)) {
+      if (homeLinkHeader && isHomeUrl(req.url)) {
         res.setHeader("Link", homeLinkHeader);
       }
       if (prefersMarkdown(req.headers.accept)) {
-        const variant = markdownVariantUrl(req.url, routes, base);
+        const variant = markdownVariantUrl(req.url, routes);
         if (variant) {
           res.setHeader("Vary", "Accept");
           req.url = variant;
@@ -181,7 +178,6 @@ export const blumeIntegration = (
       server.middlewares.stack.unshift({
         handle: negotiateMarkdown(
           new Set(options.contentRoutes),
-          options.base,
           options.homeLinkHeader
         ),
         route: "",
