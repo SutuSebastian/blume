@@ -100,6 +100,7 @@
     "dompurify": "^3.4.15",
     "dotenv": "^17.4.2",
     "epub-gen-memory": "^1.1.2",
+    "es-module-lexer": "^3.0.2",
     "fast-xml-parser": "^5.11.1",
     "github-slugger": "^2.0.0",
     "graphql": "^17.0.2",

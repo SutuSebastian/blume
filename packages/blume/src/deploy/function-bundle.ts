@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { readdir, readFile } from "node:fs/promises";
 import { builtinModules } from "node:module";
 
+import { init, parse } from "es-module-lexer";
 import { dirname, join, relative } from "pathe";
 import { z } from "zod";
 
@@ -65,32 +66,76 @@ export const packageName = (specifier: string): string | null => {
 };
 
 /**
- * Static specifiers: a side-effect `import "x"` or an `import`/`export … from
- * "x"` clause. Only `import` takes the bare-string form — `export "x"` is not
- * syntax, so a runtime message quoting `export 'ALL'` must not match. The
- * specifier quote must not be escaped either: a backslash-quoted `from \"zod\"`
- * is a code sample serialized into a string (the MCP snapshot carries page
- * Markdown), not module syntax.
+ * Fallback static specifiers for a module the lexer rejects: a side-effect
+ * `import "x"` or an `import`/`export … from "x"` clause. Only `import` takes
+ * the bare-string form — `export "x"` is not syntax, so a runtime message
+ * quoting `export 'ALL'` must not match.
  */
 const STATIC_IMPORT =
-  /(?:^|[;\s}])(?:import\s*(?<!\\)["'](?<bare>[^"'\n]+)["']|(?:import|export)\s*[\w$*{},\s]*?\s*from\s*(?<!\\)["'](?<from>[^"'\n]+)["'])/gu;
+  /(?:^|[;\s}])(?:import\s*["'](?<bare>[^"'\n]+)["']|(?:import|export)\s*[\w$*{},\s]*?\s*from\s*["'](?<from>[^"'\n]+)["'])/gu;
 
-/** Dynamic `import("…")` specifiers, same escaped-quote rule. */
-const DYNAMIC_IMPORT =
-  /\bimport\(\s*(?<!\\)["'](?<dynamic>[^"'\n]+)["']\s*\)/gu;
+/** Fallback dynamic `import("…")` specifiers. */
+const DYNAMIC_IMPORT = /\bimport\(\s*["'](?<dynamic>[^"'\n]+)["']\s*\)/gu;
 
-/** Every bare package name a module's source imports. */
-export const importedPackages = (source: string): string[] => {
-  const names = new Set<string>();
+/**
+ * Textual best effort for a module `es-module-lexer` cannot parse: every
+ * quoted specifier in import position, string contents included.
+ */
+const scannedSpecifiers = (source: string): string[] => {
+  const specifiers: string[] = [];
   for (const pattern of [STATIC_IMPORT, DYNAMIC_IMPORT]) {
     for (const match of source.matchAll(pattern)) {
       const groups = match.groups ?? {};
-      const name = packageName(
-        groups.bare ?? groups.from ?? groups.dynamic ?? ""
-      );
-      if (name) {
-        names.add(name);
-      }
+      specifiers.push(groups.bare ?? groups.from ?? groups.dynamic ?? "");
+    }
+  }
+  return specifiers;
+};
+
+/**
+ * Every specifier a module's syntax imports, read with `es-module-lexer` so
+ * text inside string literals never counts. That matters for Blume's data
+ * chunks: the MCP snapshot is `JSON.parse("…")` over every page's Markdown,
+ * and a code sample there reading `import { config } from 'dotenv'` is prose
+ * to a bundle audit, not a module the function needs. `import.meta` carries no
+ * specifier and a template-literal `import(\`pkg/${x}\`)` is a glob the
+ * bundler already resolved, so neither names a package.
+ */
+const lexedSpecifiers = (source: string, name: string): string[] => {
+  const [imports] = parse(source, name);
+  const specifiers: string[] = [];
+  for (const entry of imports) {
+    if (entry.type === "dynamic" && entry.glob) {
+      continue;
+    }
+    if (entry.specifier) {
+      specifiers.push(entry.specifier);
+    }
+  }
+  return specifiers;
+};
+
+/**
+ * Every bare package name a module's source imports. A module the lexer
+ * rejects (an unterminated string, an invalid escape in a specifier) falls
+ * back to the textual scan rather than going unaudited.
+ */
+export const importedPackages = async (
+  source: string,
+  name = "module"
+): Promise<string[]> => {
+  await init();
+  let specifiers: string[];
+  try {
+    specifiers = lexedSpecifiers(source, name);
+  } catch {
+    specifiers = scannedSpecifiers(source);
+  }
+  const names = new Set<string>();
+  for (const specifier of specifiers) {
+    const packageId = packageName(specifier);
+    if (packageId) {
+      names.add(packageId);
     }
   }
   return [...names];
@@ -164,7 +209,8 @@ export const auditFunctionBundle = async (
   for (const file of await listModules(serverDir)) {
     // oxlint-disable-next-line no-await-in-loop -- sequential read keeps the importer lists ordered
     const source = await readFile(file, "utf-8");
-    for (const name of importedPackages(source)) {
+    // oxlint-disable-next-line no-await-in-loop -- the lexer runs per file, in the same order
+    for (const name of await importedPackages(source, file)) {
       if (resolvable(name, dirname(file), funcDir)) {
         continue;
       }

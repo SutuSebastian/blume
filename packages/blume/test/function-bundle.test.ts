@@ -41,7 +41,7 @@ describe("packageName", () => {
 });
 
 describe("importedPackages", () => {
-  it("reads static, side-effect, re-export, and dynamic imports", () => {
+  it("reads static, side-effect, re-export, and dynamic imports", async () => {
     const source = [
       'import { Server } from "@modelcontextprotocol/sdk/server/index.js";',
       "import * as orama from '@orama/orama';",
@@ -52,7 +52,7 @@ describe("importedPackages", () => {
       'import { r as runtime } from "./rolldown-runtime.mjs";',
       'import { readFile } from "node:fs/promises";',
     ].join("\n");
-    expect(importedPackages(source)).toStrictEqual([
+    expect(await importedPackages(source)).toStrictEqual([
       "@modelcontextprotocol/sdk",
       "@orama/orama",
       "katex",
@@ -62,31 +62,63 @@ describe("importedPackages", () => {
     ]);
   });
 
-  it("handles minified statements with no whitespace", () => {
+  it("handles minified statements with no whitespace", async () => {
     expect(
-      importedPackages(';import{z}from"zod";export*from"ufo";import"katex"')
+      await importedPackages(
+        ';import{z}from"zod";export*from"ufo";import"katex"'
+      )
     ).toStrictEqual(["zod", "ufo", "katex"]);
   });
 
-  it("dedupes a package imported through several subpaths", () => {
+  it("dedupes a package imported through several subpaths", async () => {
     expect(
-      importedPackages('import "zod";\nimport { z } from "zod/v4";')
+      await importedPackages('import "zod";\nimport { z } from "zod/v4";')
     ).toStrictEqual(["zod"]);
   });
 
-  it("ignores code samples serialized into strings", () => {
-    // The MCP snapshot carries page Markdown as JSON, where every quote is
-    // escaped — `from \"zod\"` is prose to a bundle audit, not syntax.
-    const json = String.raw`{"page":"import { z } from \"zod\";\nimport \"katex\";\nimport(\"sharp\")"}`;
-    expect(importedPackages(json)).toStrictEqual([]);
+  it("ignores code samples inside a serialized data module", async () => {
+    // The MCP snapshot chunk is `JSON.parse("…")` over every page's Markdown
+    // and plain text. A docs page quoting `import { config } from 'dotenv'`
+    // (single quotes survive JSON unescaped) or `await import('bcryptjs')`
+    // is prose there, not a module the function needs.
+    const page = [
+      "Load env vars with import { config } from 'dotenv' first.",
+      "```ts",
+      "import { config } from 'dotenv'",
+      'import { hydrateRoot } from "react-dom/client";',
+      "const bcrypt = await import('bcryptjs');",
+      "export { PrismaClient } from 'prisma';",
+      "```",
+    ].join("\n");
+    const chunk = `var data = JSON.parse(${JSON.stringify(JSON.stringify({ documents: [{ content: page }] }))});\nexport { data as t };\n`;
+    expect(await importedPackages(chunk)).toStrictEqual([]);
   });
 
-  it("ignores a runtime message that quotes an export name", () => {
-    // Astro's handler-name hint (`did you mean to export 'ALL'?`) is not an
-    // export statement: only `import` takes the bare-string form.
+  it("ignores a runtime message that quotes an export name", async () => {
+    // Astro's handler-name hint (`did you mean to export 'ALL'?`) lives in a
+    // template literal, not an export statement.
     const source =
       "throw new Error(`One of the exported handlers is \"all\", did you mean to export 'ALL'?`);";
-    expect(importedPackages(source)).toStrictEqual([]);
+    expect(await importedPackages(source)).toStrictEqual([]);
+  });
+
+  it("ignores import.meta and template-literal dynamic imports", async () => {
+    // `import.meta` names nothing, and a glob like `import(\`@scope/${x}\`)`
+    // was already resolved by the bundler into concrete chunks.
+    const source = `console.log(import.meta.url);\nconst a = import(\`@scope/\${x}\`);\nconst b = import(name);\nimport "katex";`;
+    expect(await importedPackages(source)).toStrictEqual(["katex"]);
+  });
+
+  it("falls back to a textual scan when the lexer rejects the module", async () => {
+    // An unterminated string is a parse error to es-module-lexer; the module
+    // is still audited by the regex scan rather than skipped.
+    const source =
+      'import { z } from "zod";\nexport * from "ufo";\nconst lazy = () => import("sharp");\nconst broken = "oops\n';
+    expect(await importedPackages(source)).toStrictEqual([
+      "zod",
+      "ufo",
+      "sharp",
+    ]);
   });
 });
 
