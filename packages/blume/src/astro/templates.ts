@@ -923,6 +923,7 @@ const staged = defineCollection({
     base: ${JSON.stringify(astroGlobBase(stagedBase))},
     generateId: ({ entry }) => entry,
   }),
+  schema: pageCollectionSchema,
 });
 `
     : "";
@@ -931,16 +932,22 @@ const staged = defineCollection({
 import { defineCollection } from "astro:content";
 import { glob } from "astro/loaders";
 import { withIncludeRefresh } from "blume/astro";
+import { pageCollectionSchema } from "blume/core/schema.ts";
 
 // withIncludeRefresh keeps <include>-bearing pages fresh: plain .md entries
 // are rendered at sync time and digest-cached on the page file alone, so a
 // partial edit (or a warm-cache rebuild after one) would serve stale HTML.
+//
+// pageCollectionSchema is the scan's page front-matter schema, so entry.data
+// is typed and normalized the same way; it passes custom keys through and
+// falls back to defaults for a page the scan already dropped as invalid.
 const docs = defineCollection({
   loader: withIncludeRefresh(glob({
     pattern: ${JSON.stringify(docsPattern)},
     base: ${JSON.stringify(astroGlobBase(collectionBase))},
     generateId: ({ entry }) => entry,
   }), ${JSON.stringify(`${context.outDir}/src/generated/includes.json`)}),
+  schema: pageCollectionSchema,
 });
 ${stagedBlock}
 export const collections = { docs${options.staged ? ", staged" : ""} };
@@ -1882,9 +1889,9 @@ const headings =
   tocHidden.size > 0
     ? allHeadings.filter((heading) => !tocHidden.has(heading.slug))
     : allHeadings;
-const frontmatter = entry.data ?? {};
+const frontmatter = entry.data;
 
-const seo = frontmatter.seo ?? {};
+const seo = frontmatter.seo;
 const base = data.config.site ? data.config.site.replace(/\\/$/, "") : null;
 
 // Percent-encode the route-derived path (the sitemap convention): a Unicode

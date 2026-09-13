@@ -1505,6 +1505,11 @@ describe("contentConfigTemplate", () => {
     // bearing .md pages re-render instead of trusting the sync-time cache.
     expect(out).toContain('import { withIncludeRefresh } from "blume/astro";');
     expect(out).toContain("withIncludeRefresh(glob(");
+    // The scan's page schema types `entry.data` for the generated pages.
+    expect(out).toContain(
+      'import { pageCollectionSchema } from "blume/core/schema.ts";'
+    );
+    expect(out).toContain("schema: pageCollectionSchema,");
   });
 
   it("adds a staged collection when staged sources materialize", () => {

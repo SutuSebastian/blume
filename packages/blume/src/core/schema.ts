@@ -176,6 +176,25 @@ export const pageMetaSchema = pageMetaBaseSchema;
 export type PageMeta = z.infer<typeof pageMetaBaseSchema>;
 export type PageMetaInput = z.input<typeof pageMetaBaseSchema>;
 
+/** The fully-defaulted front matter of a page that declares nothing. */
+const EMPTY_PAGE_META: PageMeta = pageMetaBaseSchema.parse({});
+
+/**
+ * The page schema as the generated content collections declare it, so
+ * `entry.data` is typed and normalized (dates as ISO strings, X handles with
+ * their `@`) the same way the scan's `PageMeta` is. Two deliberate loosenings
+ * over {@link pageMetaSchema}: custom keys (`frontmatter.extend`, per-type
+ * maps) pass through instead of failing the strict parse, and a page the
+ * strict parse rejects resolves to the empty defaults instead of throwing.
+ * The scan has already dropped such a page with a `BLUME_FRONTMATTER_INVALID`
+ * diagnostic — Blume continues without it unless `--strict` — so the
+ * collection must not turn that dropped page into a failed content sync.
+ */
+export const pageCollectionSchema = pageMetaBaseSchema
+  .loose()
+  // oxlint-disable-next-line promise/prefer-await-to-then -- zod's catch, not a promise
+  .catch(() => EMPTY_PAGE_META);
+
 /** Built-in page frontmatter keys; custom keys must never redeclare one. */
 const BUILT_IN_PAGE_META_KEYS = new Set<string>(
   pageMetaBaseSchema.keyof().options

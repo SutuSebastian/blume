@@ -18,7 +18,11 @@ import { extractHeadings, slugify } from "../src/core/content.ts";
 import { buildContentGraph } from "../src/core/graph.ts";
 import { buildManifest } from "../src/core/manifest.ts";
 import type { BlumeProject } from "../src/core/project-graph.ts";
-import { blumeConfigSchema, pageMetaSchema } from "../src/core/schema.ts";
+import {
+  blumeConfigSchema,
+  pageCollectionSchema,
+  pageMetaSchema,
+} from "../src/core/schema.ts";
 import type { BlumeConfigInput, PageMetaInput } from "../src/core/schema.ts";
 import { scanBody } from "../src/core/sources/normalize.ts";
 import type {
@@ -505,6 +509,29 @@ describe("page meta schema", () => {
     expect(meta.type).toBeUndefined();
     expect(meta.draft).toBeFalsy();
     expect(meta.sidebar.hidden).toBeFalsy();
+  });
+});
+
+describe("page collection schema", () => {
+  it("normalizes built-in keys and passes custom keys through", () => {
+    const data = pageCollectionSchema.parse({
+      date: new Date("2026-01-02T00:00:00.000Z"),
+      product: "cli",
+      seo: { x: { creator: "blume" } },
+      title: "Guide",
+    });
+    expect(data.title).toBe("Guide");
+    expect(data.date).toBe("2026-01-02T00:00:00.000Z");
+    expect(data.seo.x?.creator).toBe("@blume");
+    expect(data.product).toBe("cli");
+    expect(data.draft).toBeFalsy();
+  });
+
+  it("falls back to the empty defaults for front matter the scan rejects", () => {
+    // The scan already dropped this page with a diagnostic; the collection
+    // must not fail Astro's content sync over it.
+    const data = pageCollectionSchema.parse({ draft: "yes", title: 5 });
+    expect(data).toEqual(pageMetaSchema.parse({}));
   });
 });
 
