@@ -65,9 +65,9 @@ export const includeHmrPlugin = (graphPath: string): IncludeHmrPlugin => ({
     }
     // Plain `.md` pages have no Vite module: their HTML lives in the
     // content-layer store, rendered at sync time. Ask Astro to re-run the
-    // loaders — the include-aware digest (`withIncludeRefresh`) then forces a
-    // fresh render that re-reads the edited partial. `false` only before the
-    // server's `astro:server:setup` has run, when there is no store to go
+    // loaders — `withIncludeRefresh` then evicts the includers whose partials
+    // changed, so the glob loader renders them afresh. `false` only before
+    // the server's `astro:server:setup` has run, when there is no store to go
     // stale yet.
     await refreshBlumeContent();
     ws.send({ type: "full-reload" });
