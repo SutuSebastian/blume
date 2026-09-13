@@ -36,6 +36,12 @@ export interface SitemapFile {
   xml: string;
 }
 
+/** The build log line for an emitted sitemap set: one file, or an index. */
+export const describeSitemapFiles = (files: readonly SitemapFile[]): string =>
+  files.length === 1
+    ? "Generated sitemap.xml"
+    : `Generated sitemap.xml (index of ${files.length - 1} sitemap files)`;
+
 /**
  * The sitemaps.org cap on `<url>` entries in a single file. Beyond it,
  * `sitemap.xml` becomes a sitemap index pointing at numbered chunk files —

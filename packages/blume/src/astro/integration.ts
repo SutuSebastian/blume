@@ -2,10 +2,15 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { fileURLToPath } from "node:url";
 
 import type { AstroIntegration } from "astro";
-import { join, relative } from "pathe";
+import { join, relative, resolve } from "pathe";
 
+import { loadEnvFiles } from "../cli/env.ts";
 import { enrichDiagnostic } from "../core/diagnostics.ts";
+import { scanProject } from "../core/project-graph.ts";
+import type { BlumeProject } from "../core/project-graph.ts";
 import type { Diagnostic } from "../core/types.ts";
+import { publishBuildArtifacts } from "../deploy/artifacts.ts";
+import type { ArtifactLogger } from "../deploy/artifacts.ts";
 import { markdownVariantUrl, prefersMarkdown } from "./markdown-negotiation.ts";
 import { runtimeModuleDeclarations } from "./module-types.ts";
 
@@ -50,12 +55,13 @@ interface DevNegotiation {
 }
 
 /**
- * The dev-server state shared between the CLI and the integration: the live
- * server (for the browser error overlay), Astro's `refreshContent` (so the
- * CLI's regeneration can re-sync the content store instead of restarting the
- * server), and the negotiation inputs the CLI publishes on every
- * regeneration (so a content-route change never rewrites the generated
- * config, which would restart the server in place).
+ * The state shared between the CLI and the integration: the live dev server
+ * (for the browser error overlay), Astro's `refreshContent` (so the CLI's
+ * regeneration can re-sync the content store instead of restarting the
+ * server), the negotiation inputs the CLI publishes on every regeneration (so
+ * a content-route change never rewrites the generated config, which would
+ * restart the server in place), and the scanned project a `blume build`
+ * hands over so `astro:build:done` can write the deploy artifacts.
  *
  * Kept on `globalThis` rather than in module state, for the same reason as
  * the runtime-module registry (see `runtime-modules.ts`): on a published
@@ -65,28 +71,65 @@ interface DevNegotiation {
  * the other, so the overlay never showed anything outside this repository.
  */
 interface DevServerRegistry {
+  buildProject: BlumeProject | null;
   negotiation: DevNegotiation | null;
   overlay: OverlayServer | null;
   refreshContent: RefreshContent | null;
 }
 
-const DEV_SERVER_KEY = Symbol.for("blume.dev-server");
+const REGISTRY_KEY = Symbol.for("blume.integration");
 
-type DevServerHost = typeof globalThis & {
-  [DEV_SERVER_KEY]?: DevServerRegistry;
+type RegistryHost = typeof globalThis & {
+  [REGISTRY_KEY]?: DevServerRegistry;
 };
 
-const devServer = (): DevServerRegistry => {
+const registry = (): DevServerRegistry => {
   // SAFETY: the registry is stashed on globalThis under a well-known symbol so
   // every copy of this module in the process shares it; the intersection only
   // names that slot.
-  const host = globalThis as DevServerHost;
-  host[DEV_SERVER_KEY] ??= {
+  const host = globalThis as RegistryHost;
+  host[REGISTRY_KEY] ??= {
+    buildProject: null,
     negotiation: null,
     overlay: null,
     refreshContent: null,
   };
-  return host[DEV_SERVER_KEY];
+  return host[REGISTRY_KEY];
+};
+
+/**
+ * Hand the scanned project to the integration ahead of `build()`, so its
+ * `astro:build:done` hook can write the deploy artifacts without scanning
+ * again. `blume build` publishes it for a real build and nothing for an
+ * isolated verify build, which produces no artifacts. `null` withdraws it.
+ */
+export const publishBuildProject = (project: BlumeProject | null): void => {
+  registry().buildProject = project;
+};
+
+/**
+ * The project an `astro build` with no CLI in front of it (an ejected app)
+ * writes artifacts for: scanned from `buildArtifactsRoot`, resolved against
+ * the Astro root recorded on `astro:config:done`. Scan diagnostics surface as
+ * warnings — there is no `--strict` to honor here, and the build itself has
+ * already succeeded. `null` when nothing asked for a scan.
+ */
+const scanForArtifacts = async (
+  astroRoot: URL | null,
+  artifactsRoot: string | undefined,
+  logger: ArtifactLogger
+): Promise<BlumeProject | null> => {
+  if (!(astroRoot && artifactsRoot)) {
+    return null;
+  }
+  const root = resolve(fileURLToPath(astroRoot), artifactsRoot);
+  // Remote sources read their tokens from the environment during the scan.
+  loadEnvFiles(root);
+  const project = await scanProject(root, { mode: "build" });
+  for (const diagnostic of project.diagnostics) {
+    logger.warn(`[${diagnostic.code}] ${diagnostic.message}`);
+  }
+  return project;
 };
 
 /**
@@ -103,7 +146,7 @@ export const publishDevNegotiation = (
     homeLinkHeader?: string;
   } | null
 ): void => {
-  devServer().negotiation = negotiation
+  registry().negotiation = negotiation
     ? {
         contentRoutes: new Set(negotiation.contentRoutes),
         homeLinkHeader: negotiation.homeLinkHeader,
@@ -121,7 +164,7 @@ export const publishDevNegotiation = (
  * stale store and the moved page 404s.
  */
 export const refreshBlumeContent = async (): Promise<boolean> => {
-  const { refreshContent } = devServer();
+  const { refreshContent } = registry();
   if (!refreshContent) {
     return false;
   }
@@ -132,7 +175,7 @@ export const refreshBlumeContent = async (): Promise<boolean> => {
 };
 
 const overlayChannel = (): OverlayChannel | undefined => {
-  const { overlay } = devServer();
+  const { overlay } = registry();
   return overlay?.ws ?? overlay?.hot;
 };
 
@@ -202,6 +245,14 @@ export interface BlumeIntegrationOptions {
    * deployed site will send. Published the same way as `contentRoutes`.
    */
   homeLinkHeader?: string;
+  /**
+   * Blume project root to scan on `astro:build:done` for the deploy artifacts
+   * (search index, llms.txt, sitemap, …) when no CLI has published the
+   * project — an ejected app running plain `astro build`. Relative to the
+   * Astro root. The hidden runtime leaves it unset: `blume build` publishes
+   * its already-scanned project instead.
+   */
+  buildArtifactsRoot?: string;
 }
 
 /**
@@ -246,7 +297,7 @@ const negotiateMarkdown =
     // Read per request: the CLI republishes on every regeneration, so a page
     // renamed while the server runs negotiates under its new route.
     const { contentRoutes, homeLinkHeader } =
-      devServer().negotiation ?? fallback;
+      registry().negotiation ?? fallback;
     if (req.method === "GET" || req.method === "HEAD") {
       if (homeLinkHeader && isHomeUrl(req.url)) {
         res.setHeader("Link", homeLinkHeader);
@@ -287,9 +338,30 @@ export const blumeIntegration = (
   // injected on `astro:config:done`, once `srcDir` is final, and the
   // `blume:examples` declaration needs the path between the two.
   let codegenDir: URL | null = null;
+  // The Astro root, kept for the build-artifacts scan: `astro:build:done`
+  // receives no config.
+  let astroRoot: URL | null = null;
   return {
     hooks: {
+      "astro:build:done": async ({ dir, logger }) => {
+        const project =
+          registry().buildProject ??
+          (await scanForArtifacts(
+            astroRoot,
+            options.buildArtifactsRoot,
+            logger
+          ));
+        if (!project) {
+          return;
+        }
+        // `dir` is what Astro reports as the client output — `dist/`, or
+        // `dist/client` for a server build — which is what the platform
+        // serves (the Vercel adapter copies it into its Build Output static
+        // tree in a later hook).
+        await publishBuildArtifacts(project, fileURLToPath(dir), logger);
+      },
       "astro:config:done": ({ config, injectTypes }) => {
+        astroRoot = config.root;
         const from = fileURLToPath(
           codegenDir ?? defaultCodegenDir(config.root)
         );
@@ -317,9 +389,9 @@ export const blumeIntegration = (
         // to its browser error overlay (see `showBlumeErrorOverlay`), and on
         // Astro's content re-sync so a route-set change needs no restart
         // (see `refreshBlumeContent`).
-        const registry = devServer();
-        registry.overlay = server;
-        registry.refreshContent = refreshContent ?? null;
+        const shared = registry();
+        shared.overlay = server;
+        shared.refreshContent = refreshContent ?? null;
         // Prepend so the rewrite happens before Astro's own request handler,
         // letting the rewritten URL resolve to the `.md` endpoint.
         server.middlewares.stack.unshift({

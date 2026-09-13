@@ -948,6 +948,9 @@ describe("astroConfigTemplate", () => {
     // in memory, so a route change never rewrites (and restarts on) this file.
     expect(out).not.toContain("contentRoutes");
     expect(out).not.toContain("homeLinkHeader");
+    // `blume build` publishes its scanned project for the deploy artifacts;
+    // only an ejected app asks the hook to scan.
+    expect(out).not.toContain("buildArtifactsRoot");
     // The prerender dep-link plugin is wired into the Vite config so isolated
     // linkers can resolve externalized deps when generating static pages, the
     // include-HMR plugin turns a partial edit into an invalidation of the
@@ -1972,6 +1975,8 @@ describe("package / tsconfig templates", () => {
     // No CLI publishes the negotiation inputs after eject, so they are baked
     // into the integration call.
     expect(out).toContain('"contentRoutes":["/guide"]');
+    // Plain `astro build` scans the project root for the deploy artifacts.
+    expect(out).toContain('"buildArtifactsRoot":"."');
     expect(out).toContain(
       'import { blumeIntegration, includeHmrPlugin, prerenderDepsPlugin } from "blume/astro"'
     );

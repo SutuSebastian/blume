@@ -5,6 +5,7 @@ export { withIncludeRefresh } from "./include-refresh.ts";
 export type { GenerateResult } from "./generate.ts";
 export {
   blumeIntegration,
+  publishBuildProject,
   publishDevNegotiation,
   refreshBlumeContent,
 } from "./integration.ts";

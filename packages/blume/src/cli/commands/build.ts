@@ -1,19 +1,16 @@
 import { existsSync } from "node:fs";
-import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
+import { readdir, readFile, stat, writeFile } from "node:fs/promises";
 
 import { build } from "astro";
 import { defineCommand } from "citty";
-import { dirname, join, resolve } from "pathe";
+import { join } from "pathe";
 
-import { buildAgentReadability } from "../../ai/agent-readability.ts";
 import {
   API_CATALOG_PATH,
   API_CATALOG_TYPE,
-  buildApiCatalog,
   hasApiCatalog,
 } from "../../ai/api-catalog.ts";
 import { buildHomeLinkHeader } from "../../ai/link-headers.ts";
-import { buildLlmsFiles } from "../../ai/llms.ts";
 import {
   agentMarkdown,
   buildRawMarkdown,
@@ -21,16 +18,10 @@ import {
   markdownTokenCount,
 } from "../../ai/markdown.ts";
 import {
-  AGENT_SKILLS_DIR,
-  buildSkillsIndex,
-  collectSkills,
-} from "../../ai/skills.ts";
-import type { SkillArtifact } from "../../ai/skills.ts";
-import {
-  buildSignaturesDirectory,
   SIGNATURES_DIRECTORY_PATH,
   SIGNATURES_DIRECTORY_TYPE,
 } from "../../ai/web-bot-auth.ts";
+import { publishBuildProject } from "../../astro/integration.ts";
 import { ensureGitignore } from "../../core/gitignore.ts";
 import type { BlumeProject } from "../../core/project-graph.ts";
 import type { ResolvedConfig } from "../../core/schema.ts";
@@ -39,7 +30,6 @@ import type { ProjectContext } from "../../core/types.ts";
 import {
   ADAPTER_IGNORE_DIRS,
   deployStaticDir,
-  readsHeaderFiles,
   servesClientSubdir,
   surfaceAdapterOutput,
 } from "../../deploy/adapter-output.ts";
@@ -52,18 +42,8 @@ import {
   blumeDependencyNames,
   functionBundleVerdict,
 } from "../../deploy/function-bundle.ts";
-import { buildNetlifyHeaders } from "../../deploy/headers.ts";
-import {
-  buildNetlifyRedirects,
-  buildRedirectManifest,
-  buildVercelConfig,
-  platformRedirects,
-} from "../../deploy/redirects.ts";
-import { buildRobots } from "../../deploy/robots.ts";
-import { buildSitemapFiles } from "../../deploy/sitemap.ts";
+import { platformRedirects } from "../../deploy/redirects.ts";
 import { injectNegotiationRoutes } from "../../deploy/vercel-negotiation.ts";
-import { buildSearchIndex } from "../../search/build.ts";
-import { syncSearchProvider } from "../../search/sync/index.ts";
 import { refuseIfDevRunning } from "../dev-lock.ts";
 import { logger } from "../log.ts";
 import { prepareProject } from "../prepare.ts";
@@ -99,208 +79,6 @@ const validateBudgetFlags = (args: BudgetArgs): void => {
       );
       process.exit(1);
     }
-  }
-};
-
-/**
- * Emit platform redirect files for a static build (adapters wire redirects
- * natively). Always writes the manifest; writes `_redirects`/`vercel.json` only
- * when the user hasn't shipped one via public/. Note that Vercel's
- * git-integration builds read `vercel.json` from the repository root only —
- * the copy emitted here takes effect when the dist folder itself is deployed
- * directly via the Vercel CLI.
- */
-const emitRedirectFiles = async (
-  config: ResolvedConfig,
-  distDir: string
-): Promise<void> => {
-  const redirects = platformRedirects(config);
-  if (redirects.length === 0 || config.deployment.output !== "static") {
-    return;
-  }
-  await writeFile(
-    join(distDir, "blume-redirects.json"),
-    buildRedirectManifest(redirects),
-    "utf-8"
-  );
-  const platformFiles = [
-    { content: buildNetlifyRedirects(redirects), name: "_redirects" },
-    { content: buildVercelConfig(redirects), name: "vercel.json" },
-  ];
-  await Promise.all(
-    platformFiles.map((file) =>
-      existsSync(join(distDir, file.name))
-        ? Promise.resolve()
-        : writeFile(join(distDir, file.name), file.content, "utf-8")
-    )
-  );
-  logger.success(`Emitted redirect files for ${redirects.length} redirect(s)`);
-};
-
-/**
- * Emit a `_headers` file so Netlify / Cloudflare serve the raw AI-ready
- * endpoints (`*.md`, `*.mdx`, `*.txt`) with an explicit `charset=utf-8`. Without
- * it those hosts send `text/markdown` / `text/plain` with no charset and
- * browsers fall back to Windows-1252, garbling any non-ASCII docs (#82).
- *
- * The same file carries the rest of the agent-discovery surface that only a
- * response header can express: the homepage `Link` header (RFC 8288, see
- * `ai/link-headers.ts`), and the registered media types for the extensionless
- * well-known files — `application/linkset+json` for the API catalog, the
- * signatures directory, and the Agent Skills archives. A static host serves
- * those as `octet-stream` or nothing at all without a rule.
- *
- * A `_headers` shipped in `public/` wins, exactly like `_redirects` — the opt-out
- * is checked at its source rather than in `dist`, because on Cloudflare the file
- * in `dist` is not necessarily the user's: `@astrojs/cloudflare` writes its own
- * `_headers` (an immutable `Cache-Control` rule for `/_astro/*`) during the
- * build, before this runs. Testing `dist` therefore read an adapter-generated
- * file as a user opt-out and skipped silently. When both exist, the adapter's
- * rules are preserved and ours are appended.
- *
- * Gated on {@link readsHeaderFiles}, not on `output === "static"`. A **Cloudflare
- * server** build serves `dist/client` through the Worker's ASSETS binding, and
- * Workers static assets honor `_headers` from that directory — so the file
- * applies there too, and skipping it left every Cloudflare server build with no
- * `Link` header and no media type on its own discovery files. The charset half
- * of this file *is* redundant on a server build, because the runtime endpoint
- * sets Content-Type on the Response itself; the `Link` and well-known halves are
- * not, and one conclusion about the first was applied to all three.
- *
- * Exported for the test suite, which exercises it in a subprocess like the
- * other command helpers.
- */
-export const emitHeaderFiles = async (
-  project: BlumeProject,
-  distDir: string
-): Promise<void> => {
-  const { config } = project;
-  if (
-    !readsHeaderFiles(config.deployment) ||
-    existsSync(join(project.context.root, "public", "_headers"))
-  ) {
-    return;
-  }
-  const ours = buildNetlifyHeaders(
-    config,
-    buildHomeLinkHeader(config, markdownRoutePaths(project))
-  );
-  // An adapter may have written its own rules here already (Cloudflare adds an
-  // immutable Cache-Control for /_astro/*). Keep them and append ours: both
-  // sets are wanted, and `_headers` has no merge semantics beyond order.
-  const target = join(distDir, "_headers");
-  const existing = existsSync(target) ? await readFile(target, "utf-8") : "";
-  await writeFile(
-    target,
-    existing ? `${existing.trimEnd()}\n${ours}` : ours,
-    "utf-8"
-  );
-  logger.success(
-    "Emitted _headers (UTF-8 Content-Type + homepage Link header)"
-  );
-};
-
-/**
- * Collect the Agent Skills `ai.skills` publishes, once per build, so both the
- * skills surface and llms.txt (which lists them) read the same set. Empty
- * when the feature is off, the directory is missing, nothing in it is
- * publishable (each with a warning), or a user-shipped
- * `public/.well-known/agent-skills/index.json` already owns the surface.
- */
-const collectConfiguredSkills = async (
-  project: BlumeProject,
-  distDir: string
-): Promise<SkillArtifact[]> => {
-  const configured = project.config.ai.skills;
-  if (!configured) {
-    return [];
-  }
-  const dir = resolve(project.context.root, configured);
-  if (!existsSync(dir)) {
-    logger.warn(
-      `ai.skills points at "${configured}" (${dir}), which does not exist; no skills published.`
-    );
-    return [];
-  }
-  if (existsSync(join(distDir, AGENT_SKILLS_DIR.slice(1), "index.json"))) {
-    return [];
-  }
-  const { skills, warnings } = await collectSkills(dir);
-  for (const warning of warnings) {
-    logger.warn(warning);
-  }
-  if (skills.length === 0) {
-    logger.warn(`ai.skills: no publishable skills found in "${configured}".`);
-  }
-  return skills;
-};
-
-/**
- * Publish the collected Agent Skills: copy each skill artifact under
- * `.well-known/agent-skills/` and emit the discovery index. A user-shipped
- * `public/.well-known/agent-skills/index.json` takes over the whole surface
- * (the collector returns nothing then), matching every other generated
- * artifact.
- */
-const emitAgentSkills = async (
-  project: BlumeProject,
-  distDir: string,
-  skills: readonly SkillArtifact[]
-): Promise<void> => {
-  if (skills.length === 0) {
-    return;
-  }
-  const outDir = join(distDir, AGENT_SKILLS_DIR.slice(1));
-  await Promise.all(
-    skills.map(async (skill) => {
-      const target = join(outDir, skill.path);
-      await mkdir(dirname(target), { recursive: true });
-      await writeFile(target, skill.content);
-    })
-  );
-  await writeFile(
-    join(outDir, "index.json"),
-    buildSkillsIndex(skills, project.config),
-    "utf-8"
-  );
-  logger.success(
-    `Published ${skills.length} agent skill(s) (.well-known/agent-skills/index.json)`
-  );
-};
-
-/**
- * Emit the generated `.well-known` discovery files — the RFC 9727 API catalog
- * and the Web Bot Auth signature directory — each skipped when the feature is
- * off or when the user ships their own copy via public/ (already in dist by
- * the time this runs).
- */
-const emitWellKnownFiles = async (
-  config: ResolvedConfig,
-  distDir: string
-): Promise<void> => {
-  const files = [
-    {
-      content: buildSignaturesDirectory(config),
-      label: "Web Bot Auth",
-      path: SIGNATURES_DIRECTORY_PATH,
-    },
-    {
-      content: buildApiCatalog(config),
-      label: "RFC 9727",
-      path: API_CATALOG_PATH,
-    },
-  ];
-  for (const file of files) {
-    const target = join(distDir, file.path.slice(1));
-    if (!file.content || existsSync(target)) {
-      continue;
-    }
-    // Sequential by nature: both files share the .well-known dir creation.
-    // oxlint-disable-next-line no-await-in-loop
-    await mkdir(join(distDir, ".well-known"), { recursive: true });
-    // oxlint-disable-next-line no-await-in-loop
-    await writeFile(target, file.content, "utf-8");
-    logger.success(`Generated ${file.path.slice(1)} (${file.label})`);
   }
 };
 
@@ -616,118 +394,22 @@ export const isolatedStaticDir = (
 };
 
 /**
- * Generate `llms.txt`/`llms-full.txt` into the dist dir. A user's own file in
- * `public/` (copied into dist by Astro before this runs, like the sitemap and
- * robots.txt) wins over the generated one — each file is checked and replaced
- * independently, so a custom `llms.txt` still gets a generated `llms-full.txt`.
+ * Print the build summary box and run the optional bundle report / budget
+ * gate against the served static dir. The deploy artifacts themselves
+ * (search index, llms.txt, sitemap, robots, redirect and header files, …)
+ * were written by the integration's `astro:build:done` hook during
+ * `build()` — see `deploy/artifacts.ts`. Exits non-zero if a budget is
+ * exceeded.
  */
-const publishLlmsFiles = async (
-  project: BlumeProject,
-  distDir: string,
-  skills: readonly SkillArtifact[]
-): Promise<void> => {
-  const indexPath = join(distDir, "llms.txt");
-  const fullPath = join(distDir, "llms-full.txt");
-  const writeIndex = !existsSync(indexPath);
-  const writeFull = !existsSync(fullPath);
-  if (!(writeIndex || writeFull)) {
-    return;
-  }
-  const { index, full } = await buildLlmsFiles(project, { skills });
-  const writes: Promise<void>[] = [];
-  if (writeIndex) {
-    writes.push(writeFile(indexPath, index, "utf-8"));
-  }
-  if (writeFull) {
-    writes.push(writeFile(fullPath, full, "utf-8"));
-  }
-  await Promise.all(writes);
-  logger.success(
-    `Generated ${[
-      writeIndex ? "llms.txt" : null,
-      writeFull ? "llms-full.txt" : null,
-    ]
-      .filter(Boolean)
-      .join(" and ")}`
-  );
-};
-
-/**
- * Run every deploy post-step of a real (non-isolated) build: the search index +
- * hosted-provider sync, llms.txt, sitemap/robots, redirect files, the summary
- * box, and the optional bundle report / budget gate. Exits non-zero if a budget
- * is exceeded. Isolated verify builds skip all of this except the bundle
- * report / budget gate, which they run against their own output.
- */
-const publishBuildArtifacts = async (
+const reportBuild = async (
   project: BlumeProject,
   distDir: string,
   args: { analyze?: boolean } & BudgetArgs
 ): Promise<void> => {
-  if (project.config.search.provider === "pagefind") {
-    logger.start("Building search index");
-    const indexed = await buildSearchIndex(distDir);
-    logger.success(`Indexed ${indexed} page(s) for search`);
-  }
-
-  // Upload the index to a hosted provider (Algolia, Orama Cloud, Typesense).
-  // Skipped with a warning when its admin key isn't configured.
-  await syncSearchProvider(project, {
-    start: (message) => logger.start(message),
-    success: (message) => logger.success(message),
-    warn: (message) => logger.warn(message),
-  });
-
-  // Collected once: llms.txt lists the skills the build publishes below.
-  const skills = await collectConfiguredSkills(project, distDir);
-  if (project.config.ai.llmsTxt.enabled) {
-    await publishLlmsFiles(project, distDir, skills);
-  }
-
-  // A user's own public/ file (copied into dist by Astro) always wins.
-  const sitemapFiles = buildSitemapFiles(project);
-  if (sitemapFiles && !existsSync(join(distDir, "sitemap.xml"))) {
-    await Promise.all(
-      sitemapFiles.map((file) =>
-        writeFile(join(distDir, file.name), file.xml, "utf-8")
-      )
-    );
-    logger.success(
-      sitemapFiles.length === 1
-        ? "Generated sitemap.xml"
-        : `Generated sitemap.xml (index of ${sitemapFiles.length - 1} sitemap files)`
-    );
-  }
-
-  const robots = buildRobots(project);
-  if (robots && !existsSync(join(distDir, "robots.txt"))) {
-    await writeFile(join(distDir, "robots.txt"), robots, "utf-8");
-    logger.success("Generated robots.txt");
-  }
-
-  const agentReadability = buildAgentReadability(project);
-  if (
-    agentReadability &&
-    !existsSync(join(distDir, "agent-readability.json"))
-  ) {
-    await writeFile(
-      join(distDir, "agent-readability.json"),
-      `${JSON.stringify(agentReadability, null, 2)}\n`,
-      "utf-8"
-    );
-    logger.success("Generated agent-readability.json");
-  }
-
-  await emitWellKnownFiles(project.config, distDir);
-  await emitAgentSkills(project, distDir, skills);
-
-  await emitRedirectFiles(project.config, distDir);
-  await emitHeaderFiles(project, distDir);
-
   const { config } = project;
   const features = serverFeatures(config);
-  // `buildSitemapFiles` returns null both when the sitemap is disabled and when no
-  // `site` is configured — only the latter deserves the remediation hint.
+  // The sitemap needs both the flag and a `site` (absolute URLs) — only the
+  // latter deserves the remediation hint.
   const sitemapNote = config.seo.sitemap
     ? "no (set deployment.site)"
     : "no (seo.sitemap is false)";
@@ -738,9 +420,9 @@ const publishBuildArtifacts = async (
       `Site       ${config.deployment.site ?? "not set"}`,
       `Search     ${config.search.provider}`,
       `Redirects  ${config.redirects.length}`,
-      `Sitemap    ${sitemapFiles ? "yes" : sitemapNote}`,
-      `Robots     ${robots ? "yes" : "no"}`,
-      `Agent JSON ${agentReadability ? "yes" : "no"}`,
+      `Sitemap    ${config.deployment.site && config.seo.sitemap ? "yes" : sitemapNote}`,
+      `Robots     ${config.seo.robots ? "yes" : "no"}`,
+      `Agent JSON ${config.seo.agentReadability ? "yes" : "no"}`,
       `LLM files  ${config.ai.llmsTxt.enabled ? "yes" : "no"}`,
       `Server features  ${features.length > 0 ? features.join(", ") : "none"}`,
     ].join("\n")
@@ -852,18 +534,24 @@ export const buildCommand = defineCommand({
       `Building ${project.graph.pages.length} page(s) (${project.config.deployment.output} output)`
     );
 
+    // Hand the scanned project to the integration: its `astro:build:done`
+    // hook writes the deploy artifacts (search index, llms.txt, sitemap, …)
+    // into Astro's client output during the build. An isolated build is a
+    // throwaway verify that only needs to confirm the site compiles and
+    // renders, so it publishes nothing — no network post-steps (a hosted
+    // search sync would push), no deploy artifacts.
+    if (!runtimeDir) {
+      publishBuildProject(project);
+    }
+
     await build({
       logLevel: "info",
       root: project.context.outDir,
     });
 
-    // An isolated build is a throwaway verify: it only needs to confirm the site
-    // compiles and renders. Skip the network post-steps (search sync) and
-    // deploy artifacts (index/llms/sitemap/robots/redirects) that only matter
-    // for a real publish and would push to hosted providers. The bundle report
-    // and budget gate still run, though — `blume build --isolated --budget-js
-    // 100` exiting 0 without measuring anything would be a silent false pass
-    // in CI.
+    // The bundle report and budget gate still run for an isolated build —
+    // `blume build --isolated --budget-js 100` exiting 0 without measuring
+    // anything would be a silent false pass in CI.
     if (runtimeDir) {
       if (
         project.config.deployment.output === "server" &&
@@ -918,7 +606,7 @@ export const buildCommand = defineCommand({
       await emitCloudflareNegotiation(project, markdownRoutePaths(project));
     }
 
-    await publishBuildArtifacts(
+    await reportBuild(
       project,
       deployStaticDir(project.config, project.context),
       args

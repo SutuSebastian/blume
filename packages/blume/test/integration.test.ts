@@ -1,11 +1,19 @@
-import { afterEach, describe, expect, it } from "bun:test";
+import { afterAll, afterEach, describe, expect, it } from "bun:test";
+import { existsSync } from "node:fs";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { pathToFileURL } from "node:url";
+
+import { dirname, join } from "pathe";
 
 import {
   blumeIntegration,
+  publishBuildProject,
   publishDevNegotiation,
   refreshBlumeContent,
   showBlumeErrorOverlay,
 } from "../src/astro/integration.ts";
+import { scanProject } from "../src/core/project-graph.ts";
 import type { Diagnostic } from "../src/core/types.ts";
 
 interface OverlayPayload {
@@ -69,6 +77,131 @@ const serverSetup = (
 // The registry lives on globalThis, so a publication would outlive its test.
 afterEach(() => {
   publishDevNegotiation(null);
+  publishBuildProject(null);
+});
+
+const fixtureDirs: string[] = [];
+
+afterAll(async () => {
+  await Promise.all(
+    fixtureDirs.map((dir) => rm(dir, { force: true, recursive: true }))
+  );
+});
+
+/** A zero-config docs project on disk, plus an empty build output dir. */
+const projectFixture = async (
+  files: Record<string, string>
+): Promise<{ dist: string; root: string }> => {
+  const root = await mkdtemp(join(tmpdir(), "blume-integration-"));
+  fixtureDirs.push(root);
+  await Promise.all(
+    Object.entries(files).map(async ([path, content]) => {
+      const target = join(root, path);
+      await mkdir(dirname(target), { recursive: true });
+      await writeFile(target, content, "utf-8");
+    })
+  );
+  const dist = join(root, "dist");
+  await mkdir(dist, { recursive: true });
+  return { dist, root };
+};
+
+/** What the hooks logged, by level. */
+interface HookLog {
+  info: string[];
+  warn: string[];
+}
+
+/**
+ * Run `astro:build:done` for a build rooted at `root` writing to `dist`, after
+ * `astro:config:done` (which records the Astro root) unless `configured` is
+ * false. Returns what the hook logged.
+ */
+const buildDone = async (
+  options: Partial<Parameters<typeof blumeIntegration>[0]>,
+  root: string,
+  dist: string,
+  configured = true
+): Promise<HookLog> => {
+  const integration = blumeIntegration({ pages: [], ...options });
+  if (configured) {
+    // SAFETY: the done hook only reads `config.root`/`config.srcDir` and
+    // calls `injectTypes`, all provided by the fixture.
+    integration.hooks["astro:config:done"]?.({
+      config: {
+        root: pathToFileURL(`${root}/`),
+        srcDir: pathToFileURL(`${root}/src/`),
+      },
+      injectTypes: () => pathToFileURL(`${root}/.astro/x.d.ts`),
+    } as never);
+  }
+  const log: HookLog = { info: [], warn: [] };
+  // SAFETY: the build hook only reads `dir` and logs through `logger`.
+  await integration.hooks["astro:build:done"]?.({
+    dir: pathToFileURL(`${dist}/`),
+    logger: {
+      info: (message: string) => log.info.push(message),
+      warn: (message: string) => log.warn.push(message),
+    },
+  } as never);
+  return log;
+};
+
+const HOME = "---\ntitle: Home\n---\n# Home\n";
+
+describe("blumeIntegration astro:build:done", () => {
+  it("writes the deploy artifacts for the project blume build published", async () => {
+    const { dist, root } = await projectFixture({ "docs/index.md": HOME });
+    publishBuildProject(await scanProject(root, { mode: "build" }));
+    const log = await buildDone({}, root, dist);
+    // Zero-config defaults: llms.txt, robots.txt, and the agent manifest are
+    // on; the sitemap needs a `site` and the redirect files a redirect.
+    expect(existsSync(join(dist, "llms.txt"))).toBe(true);
+    expect(existsSync(join(dist, "llms-full.txt"))).toBe(true);
+    expect(existsSync(join(dist, "robots.txt"))).toBe(true);
+    expect(existsSync(join(dist, "agent-readability.json"))).toBe(true);
+    expect(existsSync(join(dist, "sitemap.xml"))).toBe(false);
+    expect(log.info).toContain("Generated robots.txt");
+  });
+
+  it("scans buildArtifactsRoot when no project was published (an ejected app)", async () => {
+    const { dist, root } = await projectFixture({
+      "blume.config.ts":
+        'export default { deployment: { site: "https://docs.example.com" } };\n',
+      "docs/index.md": HOME,
+    });
+    const log = await buildDone({ buildArtifactsRoot: "." }, root, dist);
+    expect(existsSync(join(dist, "sitemap.xml"))).toBe(true);
+    expect(existsSync(join(dist, "robots.txt"))).toBe(true);
+    expect(log.warn).toEqual([]);
+  });
+
+  it("surfaces scan diagnostics as warnings instead of failing the build", async () => {
+    const { dist, root } = await projectFixture({
+      // A page whose front matter fails validation is dropped with an error
+      // diagnostic; a plain `astro build` has no --strict to honor.
+      "docs/bad.md": "---\ntitle: [1, 2]\n---\n# Bad\n",
+      "docs/index.md": HOME,
+    });
+    const log = await buildDone({ buildArtifactsRoot: "." }, root, dist);
+    expect(log.warn.some((line) => line.startsWith("[BLUME_"))).toBe(true);
+    expect(existsSync(join(dist, "robots.txt"))).toBe(true);
+  });
+
+  it("does nothing without a published project or an artifacts root", async () => {
+    const { dist, root } = await projectFixture({ "docs/index.md": HOME });
+    const log = await buildDone({}, root, dist);
+    expect(existsSync(join(dist, "robots.txt"))).toBe(false);
+    expect(log.info).toEqual([]);
+  });
+
+  it("does nothing for an artifacts root when config:done never ran", async () => {
+    // Astro always runs config:done first; the guard only keeps a bare hook
+    // call from resolving a path against nothing.
+    const { dist, root } = await projectFixture({ "docs/index.md": HOME });
+    await buildDone({ buildArtifactsRoot: "." }, root, dist, false);
+    expect(existsSync(join(dist, "robots.txt"))).toBe(false);
+  });
 });
 
 /** The single middleware `astro:server:setup` registered. */
@@ -495,7 +628,7 @@ describe("showBlumeErrorOverlay", () => {
       },
     };
     serverSetup({}, { hot: channel });
-    const key = Symbol.for("blume.dev-server");
+    const key = Symbol.for("blume.integration");
     // SAFETY: the registry lives on globalThis under that symbol; the
     // intersection only names the slot the test inspects.
     const host = globalThis as typeof globalThis & {

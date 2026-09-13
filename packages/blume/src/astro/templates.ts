@@ -463,8 +463,10 @@ const renderRuntimeModuleWiring = (
  * The hidden runtime gets the content routes and homepage `Link` header from
  * the CLI in memory (`publishDevNegotiation`, republished on every
  * regeneration), so a content-route change never rewrites the config — Astro
- * restarts the dev server in place on a config change. An ejected project has
- * no CLI, so they are baked in.
+ * restarts the dev server in place on a config change — and its scanned
+ * project from `blume build` for the deploy artifacts. An ejected project has
+ * no CLI, so the negotiation inputs are baked in and `astro:build:done` scans
+ * the project root (the Astro root, after eject) for the artifacts.
  */
 const blumeIntegrationOptions = (options: {
   config: ResolvedConfig;
@@ -474,6 +476,7 @@ const blumeIntegrationOptions = (options: {
 }): BlumeIntegrationOptions =>
   options.ejected
     ? {
+        buildArtifactsRoot: ".",
         contentRoutes: options.contentRoutes,
         homeLinkHeader:
           buildHomeLinkHeader(options.config, options.contentRoutes) ??

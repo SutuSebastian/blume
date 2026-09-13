@@ -1,6 +1,6 @@
 import { afterAll, describe, expect, it } from "bun:test";
 import { existsSync } from "node:fs";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 
 import { dirname, join } from "pathe";
@@ -112,23 +112,24 @@ describe("blume eject", () => {
     expect(output).toContain("npm run build");
   });
 
-  it("lists the blume-build artifacts the ejected app stops producing", async () => {
+  it("keeps the deploy artifacts through the integration's build hook", async () => {
     const root = await fixture({
       "blume.config.ts":
         'export default { search: { provider: "pagefind" } };\n',
       "docs/index.md": "---\ntitle: Home\n---\n# Home\n",
     });
-    // The confirmation (no --yes) already carries the config-aware notice, so
-    // the decision is informed before anything is written.
-    const { exitCode, output } = await runEject(root);
-    expect(exitCode).toBe(0);
-    expect(output).toContain("astro build && pagefind --site dist");
-    expect(output).toContain("llms.txt");
-    expect(output).toContain("robots.txt");
-    // No deployment.site, so no sitemap was being produced — an inactive
-    // artifact must not be listed.
-    expect(output).not.toContain("sitemap.xml");
+    // The confirmation (no --yes) writes nothing.
+    const confirm = await runEject(root);
+    expect(confirm.exitCode).toBe(0);
     expect(existsSync(join(root, "astro.config.mjs"))).toBe(false);
+
+    const { exitCode } = await runEject(root, undefined, "--yes");
+    expect(exitCode).toBe(0);
+    // The ejected config tells `astro:build:done` to scan the project root, so
+    // plain `astro build` still produces the search index, llms.txt, sitemap,
+    // robots, and the platform files — nothing to warn about on the way out.
+    const config = await readFile(join(root, "astro.config.mjs"), "utf-8");
+    expect(config).toContain('"buildArtifactsRoot":"."');
   });
 
   it("surfaces generation warnings like the runtime path does", async () => {

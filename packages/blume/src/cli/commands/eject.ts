@@ -1,33 +1,11 @@
 import { defineCommand } from "citty";
 import { relative } from "pathe";
 
-import { loadConfig } from "../../core/config.ts";
 import { eject } from "../../registry/eject.ts";
 import { refuseIfDevRunning } from "../dev-lock.ts";
-import {
-  droppedArtifactNotices,
-  updatePackageScripts,
-} from "../eject-scripts.ts";
+import { updatePackageScripts } from "../eject-scripts.ts";
 import { commandsFor, detectProjectPackageManager } from "../init/scaffold.ts";
 import { logger } from "../log.ts";
-
-/**
- * Warn which `blume build` post-build artifacts the ejected app stops
- * producing. Printed both at the confirmation (so the decision is informed)
- * and after `--yes` (so a direct eject still sees it). No-op when the config
- * activates none of them.
- */
-const reportDroppedArtifacts = (notices: string[]): void => {
-  if (notices.length === 0) {
-    return;
-  }
-  logger.warn(
-    [
-      "The ejected build script runs plain `astro build`, which stops producing these `blume build` artifacts:",
-      ...notices.map((notice) => `  - ${notice}`),
-    ].join("\n")
-  );
-};
 
 export const ejectCommand = defineCommand({
   args: {
@@ -41,23 +19,10 @@ export const ejectCommand = defineCommand({
     const root = process.cwd();
     refuseIfDevRunning(root, "ejecting");
 
-    // Config-aware drop list: only the artifacts this project actually
-    // produces are mentioned (e.g. the Pagefind index only for
-    // `search.provider: "pagefind"`).
-    let notices: string[] = [];
-    try {
-      const { config } = await loadConfig(root);
-      notices = droppedArtifactNotices(config);
-    } catch {
-      // A config that fails to load can't gate the notice; the eject itself
-      // surfaces the load error.
-    }
-
     if (!args.yes) {
       logger.warn(
         "Eject is one-way: it writes astro.config.mjs, src/, and (if absent) tsconfig.json, rewrites your package.json scripts, and removes .blume. An existing tsconfig.json is left untouched."
       );
-      reportDroppedArtifacts(notices);
       logger.info("Re-run with --yes to proceed.");
       return;
     }
@@ -75,7 +40,6 @@ export const ejectCommand = defineCommand({
     for (const file of files) {
       process.stdout.write(`  ${relative(root, file)}\n`);
     }
-    reportDroppedArtifacts(notices);
     // Print run commands matching the project's package manager (lockfile
     // detection, since eject runs inside an existing project).
     const pm = await detectProjectPackageManager(root);

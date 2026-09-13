@@ -5,7 +5,9 @@ import { tmpdir } from "node:os";
 
 import { join } from "pathe";
 
+import { blumeConfigSchema } from "../src/core/schema.ts";
 import type { BlumeConfigInput } from "../src/core/schema.ts";
+import { emitHeaderFiles } from "../src/deploy/artifacts.ts";
 
 /**
  * `emitHeaderFiles` behavior that the `readsHeaderFiles` predicate tests can't
@@ -14,13 +16,8 @@ import type { BlumeConfigInput } from "../src/core/schema.ts";
  * Cloudflare server fix — `@astrojs/cloudflare` writes its own `_headers`
  * (an immutable `Cache-Control` for `/_astro/*`) during the build, so reading
  * the opt-out from `dist` skipped silently and the feature never fired.
- * Exercised in subprocesses so the command module stays out of the coverage
- * run, like the other command suites.
+ * Exercised in subprocesses like the command suites.
  */
-
-const PKG_ROOT = join(import.meta.dir, "..");
-const BUILD = join(PKG_ROOT, "src", "cli", "commands", "build.ts");
-const SCHEMA = join(PKG_ROOT, "src", "core", "schema.ts");
 
 const ADAPTER_RULE =
   "/_astro/*\n  Cache-Control: public, max-age=31536000, immutable\n";
@@ -57,37 +54,23 @@ const projectFixture = async (options: {
   return { root, staticDir };
 };
 
-/** Run `emitHeaderFiles` in a subprocess against a minimal fake project. */
+/** Run `emitHeaderFiles` against a minimal fake project. */
 const emit = async (
   root: string,
   staticDir: string,
   deployment: BlumeConfigInput["deployment"]
 ): Promise<void> => {
-  const proc = Bun.spawn(
-    [
-      "bun",
-      "-e",
-      `
-      const { emitHeaderFiles } = await import(${JSON.stringify(BUILD)});
-      const { blumeConfigSchema } = await import(${JSON.stringify(SCHEMA)});
-      const project = {
-        config: blumeConfigSchema.parse({
-          deployment: ${JSON.stringify(deployment)},
-        }),
-        context: { root: ${JSON.stringify(root)} },
-        manifest: { routes: [{ path: "/docs/intro" }] },
-      };
-      await emitHeaderFiles(project, ${JSON.stringify(staticDir)});
-      `,
-    ],
-    { cwd: PKG_ROOT, stderr: "pipe", stdout: "ignore" }
-  );
-  const [exitCode, stderr] = await Promise.all([
-    proc.exited,
-    new Response(proc.stderr).text(),
-  ]);
-  expect(stderr).toBe("");
-  expect(exitCode).toBe(0);
+  const project = {
+    config: blumeConfigSchema.parse({ deployment }),
+    context: { root },
+    manifest: { routes: [{ path: "/docs/intro" }] },
+  };
+  // SAFETY: the writer reads only the config, the project root, and the
+  // manifest routes, all of which the fixture provides.
+  await emitHeaderFiles(project as never, staticDir, {
+    info: () => {},
+    warn: () => {},
+  });
 };
 
 const CLOUDFLARE_SERVER = {
