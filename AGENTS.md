@@ -30,7 +30,7 @@ bun run check          # lint + format check (ultracite → oxlint/oxfmt)
 bun run fix            # auto-fix lint/format
 bun run typecheck      # tsgo --noEmit across workspaces
 bun run test           # bun test via turbo
-bun run test:coverage  # tests with the coverage gate (what CI and pre-commit run)
+bun run test:coverage  # tests with the coverage gate (a required PR check; not run pre-commit)
 bun run build          # builds everything except packages/video
 ```
 
@@ -38,7 +38,7 @@ In `apps/docs`, scripts are the Blume CLI itself: `blume dev`, `blume build`, `b
 
 - **TypeScript is pinned to `^6.0.3`. Never bump to 7** — the Go rewrite has no JS API (`ts.sys` is gone) and Blume's tooling depends on it. Speed comes from `tsgo`, not a TS upgrade.
 - **Never run `npx oxfmt` or `npx oxlint`.** The repo patches `oxfmt` (fence/directive preservation); `npx` resolves an unpatched copy that mangles `:::` directives. Always use `bun run check` / `bun run fix`. If oxlint fails with ENOENT, run `bun install` and retry.
-- The husky pre-commit hook runs `check`, `typecheck`, `test:coverage`, and the blume build — **commits take minutes**. Use generous timeouts (600s) when committing from a tool; a hanging commit is usually the suite, not signing.
+- The husky pre-commit hook runs `check`, `typecheck`, and the blume build — **not the test suite**. `bun run test` and `bun run test:coverage` run in CI (`test.yml`) as required PR checks, so run `bun run test:coverage` yourself before pushing. Commits still take a minute or two; use generous timeouts (600s) when committing from a tool.
 
 ## Testing and coverage
 

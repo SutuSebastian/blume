@@ -19,3 +19,14 @@ jobs:
       - run: bun install --frozen-lockfile
       - name: Test
         run: bun run test
+
+  coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.0
+      - run: bun install --frozen-lockfile
+      - name: Test with coverage gate
+        run: bun run test:coverage
