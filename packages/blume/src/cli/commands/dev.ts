@@ -179,10 +179,9 @@ export const devCommand = defineCommand({
         // route it to the non-structural branch with the server still down.
         lastSignature = nextSignature;
         // Surface any content/config errors in the terminal AND the browser
-        // overlay. The terminal report must not be skipped: on a published
-        // install the CLI bundle holds its own copy of the integration module,
-        // separate from the Vite module graph that registers the overlay, so
-        // the overlay call below can be a no-op there.
+        // overlay. The terminal report is not redundant: the overlay only
+        // shows once the browser has connected, and it clears on the next HMR
+        // update.
         reportDiagnostics(next.diagnostics, root);
         showBlumeErrorOverlay(next.diagnostics);
       } catch (error) {

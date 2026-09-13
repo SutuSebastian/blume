@@ -26,13 +26,41 @@ interface OverlayServer {
   ws?: OverlayChannel;
 }
 
-// Set on `astro:server:setup`; read by `showBlumeErrorOverlay` so the CLI's
-// regeneration can push Blume diagnostics into Vite's browser error overlay.
-// Same-process module singleton (dev and the integration share the instance).
-let overlayServer: OverlayServer | null = null;
+/**
+ * The live dev server, recorded on `astro:server:setup` and read by
+ * `showBlumeErrorOverlay` so the CLI's regeneration can push Blume
+ * diagnostics into Vite's browser error overlay.
+ *
+ * Kept on `globalThis` rather than in module state, for the same reason as
+ * the runtime-module registry (see `runtime-modules.ts`): on a published
+ * install the CLI bundle (`dist/cli`) carries its own copy of this module,
+ * while the hook runs in the copy Vite loads from `blume/astro` for the
+ * generated config. A module-level variable is set in one copy and read in
+ * the other, so the overlay never showed anything outside this repository.
+ */
+interface DevServerRegistry {
+  overlay: OverlayServer | null;
+}
 
-const overlayChannel = (): OverlayChannel | undefined =>
-  overlayServer?.ws ?? overlayServer?.hot;
+const DEV_SERVER_KEY = Symbol.for("blume.dev-server");
+
+type DevServerHost = typeof globalThis & {
+  [DEV_SERVER_KEY]?: DevServerRegistry;
+};
+
+const devServer = (): DevServerRegistry => {
+  // SAFETY: the registry is stashed on globalThis under a well-known symbol so
+  // every copy of this module in the process shares it; the intersection only
+  // names that slot.
+  const host = globalThis as DevServerHost;
+  host[DEV_SERVER_KEY] ??= { overlay: null };
+  return host[DEV_SERVER_KEY];
+};
+
+const overlayChannel = (): OverlayChannel | undefined => {
+  const { overlay } = devServer();
+  return overlay?.ws ?? overlay?.hot;
+};
 
 /**
  * Surface Blume's own diagnostics (config/frontmatter/content errors) in the
@@ -172,7 +200,7 @@ export const blumeIntegration = (
     "astro:server:setup": ({ server }) => {
       // Keep a handle on the dev server so Blume diagnostics can be pushed to
       // its browser error overlay (see `showBlumeErrorOverlay`).
-      overlayServer = server;
+      devServer().overlay = server;
       // Prepend so the rewrite happens before Astro's own request handler,
       // letting the rewritten URL resolve to the `.md` endpoint.
       server.middlewares.stack.unshift({

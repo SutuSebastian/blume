@@ -346,4 +346,23 @@ describe("showBlumeErrorOverlay", () => {
 
     expect(() => showBlumeErrorOverlay(diagnostics)).not.toThrow();
   });
+
+  it("shares the dev-server handle across module copies through globalThis", () => {
+    // The CLI bundle and the copy of `blume/astro` Vite loads are separate
+    // module instances on a published install; the handle the hook records
+    // must be the one `showBlumeErrorOverlay` reads from either copy.
+    const channel: OverlayChannelStub = {
+      send: () => {
+        // Presence is what matters here, not the payload.
+      },
+    };
+    serverSetup({}, { hot: channel });
+    const key = Symbol.for("blume.dev-server");
+    // SAFETY: the registry lives on globalThis under that symbol; the
+    // intersection only names the slot the test inspects.
+    const host = globalThis as typeof globalThis & {
+      [key]?: { overlay: DevServerStub | null };
+    };
+    expect(host[key]?.overlay?.hot).toBe(channel);
+  });
 });
