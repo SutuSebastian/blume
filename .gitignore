@@ -37,3 +37,6 @@ out/
 
 # Claude Code isolated worktrees (EnterWorktree)
 .claude/worktrees/
+
+# Benchmark fixtures (bench/fixture.ts), on the package realpath like the e2e ones
+packages/blume/blume-bench-*

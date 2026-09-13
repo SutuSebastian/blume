@@ -48,6 +48,12 @@ In `apps/docs`, scripts are the Blume CLI itself: `blume dev`, `blume build`, `b
 - For dev/build e2e tests, reuse the helpers in `test/configured-integrations.test.ts`. Known flake patterns: double config restarts, startup wedges, readiness fetches that hang, builds that never exit, pipe drains that never EOF after a kill. Never use fixed sleeps or bare drain awaits.
 - Tests write fixtures to `os.tmpdir()` under `blume-*` prefixes; coverage ignores those paths already.
 
+## Benchmarks
+
+- `bun run bench` (root or `packages/blume`) times `blume build` over a synthetic docs project with hyperfine and the in-process hot paths with mitata (`packages/blume/bench/`). `--base <ref>` checks that ref out as a throwaway worktree and A/Bs both on the same machine; a median more than 20% slower (`--threshold`) fails. CI runs this against the merge base (`bench.yml`), so a PR that slows the build gets a red check and a table in the job summary.
+- Absolute numbers vary by machine; only same-run comparisons mean anything. Keep the fixture deterministic (seeded content, no network at measure time) so both sides see identical bytes.
+- Needs `hyperfine` on PATH (`brew install hyperfine`).
+
 ## Architecture rules
 
 - **`.blume/` is shared state** between `blume dev` and `blume build`. Never run a destructive build or `rm -rf .blume` while a dev server is running against it.

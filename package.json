@@ -8,6 +8,7 @@
   "type": "module",
   "scripts": {
     "build": "turbo run build --filter=!video",
+    "bench": "cd packages/blume && bun run bench",
     "dev": "turbo run dev",
     "test": "turbo run test",
     "test:coverage": "turbo run test:coverage",

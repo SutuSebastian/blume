@@ -1,0 +1,48 @@
+name: Bench
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+# A superseded push to the same ref has nothing left to measure.
+concurrency:
+  group: bench-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  bench:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # The baseline is checked out as a worktree, so its ref must be here.
+          fetch-depth: 0
+      # `blume build` is timed on the Node CLI bundle, the way it ships.
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.0
+      - name: Install hyperfine
+        run: sudo apt-get update && sudo apt-get install -y hyperfine
+      - run: bun install --frozen-lockfile
+      # A pull request is measured against its base branch; a push to main
+      # against the commit it replaced. Both sides run on this same runner,
+      # so the comparison holds even though runner speed varies day to day
+      # (see packages/blume/bench/run.ts). The report also lands in the job
+      # summary.
+      - name: Benchmark against the base
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if [ -z "$BASE_SHA" ] || ! git cat-file -e "$BASE_SHA^{commit}" 2>/dev/null; then
+            echo "No base commit to compare against; measuring this checkout alone."
+            bun run bench
+          else
+            bun run bench --base "$BASE_SHA"
+          fi

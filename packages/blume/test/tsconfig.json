@@ -3,5 +3,10 @@
   "compilerOptions": {
     "types": ["bun-types"]
   },
-  "include": [".", "../src/blume-modules.d.ts", "../src/vite-env.d.ts"]
+  "include": [
+    ".",
+    "../bench",
+    "../src/blume-modules.d.ts",
+    "../src/vite-env.d.ts"
+  ]
 }
