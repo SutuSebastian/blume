@@ -3,6 +3,7 @@
 // at build time (no client JS). Pass `owner`/`repo`, or omit them to use the
 // repo from blume.config. A `GITHUB_TOKEN` env var lifts the API rate limit.
 // If the API is unreachable the card still renders, just without counts.
+import { getSecret } from "astro:env/server";
 import { apiUrl, PUBLIC_HOST_URL } from "../../core/github.ts";
 import { resolveIcon } from "../../theme/icons.ts";
 import data from "blume:data";
@@ -38,7 +39,9 @@ interface Props {
 const configured = data.config.github;
 const owner = Astro.props.owner ?? configured?.owner;
 const repo = Astro.props.repo ?? configured?.repo;
-const token = Astro.props.token ?? process.env.GITHUB_TOKEN;
+// Read through Astro's `getSecret` so the adapter's secret store is honored
+// (the card renders at build time, where that is the environment).
+const token = Astro.props.token ?? getSecret("GITHUB_TOKEN");
 // A `host` prop is reduced to its origin, as the config field is, so a
 // trailing slash or a path never lands mid-link.
 const host = Astro.props.host

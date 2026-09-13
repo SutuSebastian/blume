@@ -1586,9 +1586,13 @@ describe("stagedContentDir", () => {
 describe("askEndpointTemplate", () => {
   it("uses the AI gateway (core model id) by default", () => {
     const out = askEndpointTemplate(resolveAskBackend(), true);
-    expect(out).toContain('import { streamText } from "ai"');
-    expect(out).toContain('model: "openai/gpt-5.5"');
+    expect(out).toContain('import { createGateway, streamText } from "ai";');
+    expect(out).toContain(
+      'const gateway = createGateway({ apiKey: getSecret("AI_GATEWAY_API_KEY") });'
+    );
+    expect(out).toContain('model: gateway("openai/gpt-5.5")');
     expect(out).not.toContain("createOpenRouter");
+    expect(out).not.toContain("process.env");
   });
 
   it("wires the OpenRouter provider", () => {
@@ -1604,7 +1608,8 @@ describe("askEndpointTemplate", () => {
       true
     );
     expect(out).toContain("createOpenRouter");
-    expect(out).toContain('process.env["OR_KEY"]');
+    expect(out).toContain('import { getSecret } from "astro:env/server"');
+    expect(out).toContain('getSecret("OR_KEY")');
     expect(out).toContain('openrouter("x/y")');
   });
 

@@ -170,7 +170,7 @@ Set `apiKeyEnv` (and, for the named providers, `baseUrl`) on any backend to poin
 **Inkeep** answers from the content you've indexed in the Inkeep dashboard — it runs its own retrieval — so Blume leaves it ungrounded. Every other backend is [grounded](#grounding) in this site's pages.
 :::
 
-Keys are read with `process.env`, which covers the Node, Vercel, and Netlify adapters. On Cloudflare, expose the key through the platform's [runtime binding](https://docs.astro.build/en/guides/integrations-guide/cloudflare/#environment-variables-and-secrets). Enabling Ask AI also turns on React for the in-page island — see [Customization](/docs/configuration/customization#interactive-islands).
+Keys are read through Astro's [`getSecret()`](https://docs.astro.build/en/guides/environment-variables/#retrieving-secrets-programmatically), so each adapter supplies them its own way: environment variables on Node, Vercel, and Netlify, and the Worker's [bindings](https://docs.astro.build/en/guides/integrations-guide/cloudflare/#environment-variables-and-secrets) on Cloudflare. Enabling Ask AI also turns on React for the in-page island — see [Customization](/docs/configuration/customization#interactive-islands).
 
 ## Rate limiting
 

@@ -314,7 +314,8 @@ describe("searchClientTemplate", () => {
 describe("mixedbreadSearchEndpointTemplate", () => {
   it("reads the secret from the environment and bakes the store id", () => {
     const endpoint = mixedbreadSearchEndpointTemplate("store-123");
-    expect(endpoint).toContain("process.env.MIXEDBREAD_API_KEY");
+    expect(endpoint).toContain('import { getSecret } from "astro:env/server"');
+    expect(endpoint).toContain('getSecret("MIXEDBREAD_API_KEY")');
     expect(endpoint).toContain('"store-123"');
     expect(endpoint).toContain("export const prerender = false;");
   });

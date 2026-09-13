@@ -1642,10 +1642,10 @@ describe("ai.ask schema", () => {
 describe("askEndpointTemplate", () => {
   it("grounds the gateway endpoint and imports the retrieval helper", () => {
     const out = askEndpointTemplate(resolveAskBackend(), true);
-    expect(out).toContain('import { streamText } from "ai";');
+    expect(out).toContain('import { createGateway, streamText } from "ai";');
     expect(out).not.toContain("@openrouter/ai-sdk-provider");
     expect(out).not.toContain("@ai-sdk/openai-compatible");
-    expect(out).toContain('model: "openai/gpt-5.5"');
+    expect(out).toContain('model: gateway("openai/gpt-5.5")');
     expect(out).toContain(
       'import { createAskContext } from "blume/ai/ask-context.ts";'
     );
@@ -1670,7 +1670,7 @@ describe("askEndpointTemplate", () => {
     // handler's try/catch never sees a missing key: the guard must run before
     // streamText or the client gets a 200 whose stream aborts mid-flight.
     expect(out).toContain(
-      "if (!(process.env.AI_GATEWAY_API_KEY || process.env.VERCEL_OIDC_TOKEN))"
+      'if (!(getSecret("AI_GATEWAY_API_KEY") || getSecret("VERCEL_OIDC_TOKEN")))'
     );
     expect(out).toContain("Ask AI is not configured: set AI_GATEWAY_API_KEY");
     expect(out.indexOf("Ask AI is not configured")).toBeLessThan(
@@ -1686,7 +1686,7 @@ describe("askEndpointTemplate", () => {
       resolveAskBackend(askConfig({ provider: "openrouter" })),
       true
     );
-    expect(openrouter).toContain('if (!process.env["OPENROUTER_API_KEY"])');
+    expect(openrouter).toContain('if (!getSecret("OPENROUTER_API_KEY"))');
     expect(openrouter).toContain(
       "Ask AI is not configured: set OPENROUTER_API_KEY."
     );
@@ -1698,7 +1698,7 @@ describe("askEndpointTemplate", () => {
       resolveAskBackend(askConfig({ provider: "inkeep" })),
       false
     );
-    expect(inkeep).toContain('if (!process.env["INKEEP_API_KEY"])');
+    expect(inkeep).toContain('if (!getSecret("INKEEP_API_KEY"))');
     expect(inkeep).toContain("onError({ error })");
   });
 
@@ -1726,7 +1726,7 @@ describe("askEndpointTemplate", () => {
     expect(out).toContain(
       'import { createOpenRouter } from "@openrouter/ai-sdk-provider";'
     );
-    expect(out).toContain('process.env["OPENROUTER_API_KEY"]');
+    expect(out).toContain('getSecret("OPENROUTER_API_KEY")');
     expect(out).toContain('model: openrouter("anthropic/x")');
   });
 
@@ -1739,7 +1739,7 @@ describe("askEndpointTemplate", () => {
       'import { createOpenAICompatible } from "@ai-sdk/openai-compatible";'
     );
     expect(out).toContain('baseURL: "https://api.llmgateway.io/v1"');
-    expect(out).toContain('process.env["LLMGATEWAY_API_KEY"]');
+    expect(out).toContain('getSecret("LLMGATEWAY_API_KEY")');
   });
 });
 
