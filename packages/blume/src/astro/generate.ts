@@ -121,7 +121,6 @@ import {
   changelogIndexTemplate,
   contentAssetsEndpointTemplate,
   contentConfigTemplate,
-  envTemplate,
   exampleMapTemplate,
   exampleWrapperTemplate,
   examplesPageTemplate,
@@ -2080,7 +2079,6 @@ export const generateRuntime = async (
         )
       ),
       write(join(out, "tsconfig.json"), runtimeTsconfigTemplate()),
-      write(join(srcDir, "env.d.ts"), envTemplate()),
       write(
         join(srcDir, "content.config.ts"),
         contentConfigTemplate({

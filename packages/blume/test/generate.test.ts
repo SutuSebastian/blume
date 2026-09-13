@@ -1389,7 +1389,6 @@ describe("generateRuntime", () => {
     expect(has("astro.config.mjs")).toBe(true);
     expect(has("package.json")).toBe(true);
     expect(has("tsconfig.json")).toBe(true);
-    expect(has("src/env.d.ts")).toBe(true);
     expect(has("src/content.config.ts")).toBe(true);
     expect(has("src/pages/[...slug].astro")).toBe(true);
     expect(has("src/generated/components.ts")).toBe(true);

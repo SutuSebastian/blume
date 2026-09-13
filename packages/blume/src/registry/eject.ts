@@ -30,7 +30,6 @@ import {
   catchAllPageTemplate,
   changelogIndexTemplate,
   contentConfigTemplate,
-  envTemplate,
   exampleMapTemplate,
   exampleWrapperTemplate,
   examplesPageTemplate,
@@ -427,7 +426,6 @@ export const eject = async (
       // Never clobber a hand-tuned tsconfig; only write ours if none exists.
       skipIfExists: true,
     },
-    { content: envTemplate(), path: join(srcDir, "env.d.ts") },
     {
       content: contentConfigTemplate({
         config,

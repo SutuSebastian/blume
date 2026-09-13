@@ -102,10 +102,73 @@ interface InjectedPageRoute {
   prerender: boolean;
 }
 
+/** The `injectTypes` call `astro:config:done` makes. */
+interface InjectedTypes {
+  content: string;
+  filename: string;
+}
+
+/** A project root + codegen dir pair for the config hooks. */
+const CONFIG_ROOT = "file:///proj/.blume/";
+const CODEGEN_DIR = new URL(".astro/integrations/blume/", CONFIG_ROOT);
+
+/**
+ * Run `astro:config:done` against a config rooted at {@link CONFIG_ROOT}, after
+ * `astro:config:setup` when `withSetup` is set (so the integration has asked
+ * Astro for its codegen dir), and return the injected types.
+ */
+const configDone = (withSetup: boolean): InjectedTypes | undefined => {
+  const integration = blumeIntegration({ contentRoutes: [], pages: [] });
+  if (withSetup) {
+    // SAFETY: the setup hook only calls `createCodegenDir` and `injectRoute`,
+    // both of which the fixture provides.
+    integration.hooks["astro:config:setup"]?.({
+      createCodegenDir: () => CODEGEN_DIR,
+      injectRoute: () => {
+        // No pages configured, so this is never reached.
+      },
+    } as never);
+  }
+  let injected: InjectedTypes | undefined;
+  // SAFETY: the done hook only reads `config.root`/`config.srcDir` and calls
+  // `injectTypes`, all of which the fixture provides.
+  integration.hooks["astro:config:done"]?.({
+    config: {
+      root: new URL(CONFIG_ROOT),
+      srcDir: new URL("src/", CONFIG_ROOT),
+    },
+    injectTypes: (types: InjectedTypes) => {
+      injected = types;
+      return new URL(types.filename, CODEGEN_DIR);
+    },
+  } as never);
+  return injected;
+};
+
+describe("blumeIntegration astro:config:done", () => {
+  it("injects the blume:* module declarations, typing examples from src/generated", () => {
+    const injected = configDone(true);
+    expect(injected?.filename).toBe("modules.d.ts");
+    expect(injected?.content).toContain('declare module "blume:data"');
+    // From `.astro/integrations/blume/` up to the project's `src/generated/`.
+    expect(injected?.content).toContain(
+      'typeof import("../../../src/generated/examples.ts").examples'
+    );
+  });
+
+  it("falls back to Astro's codegen-dir convention without a setup run", () => {
+    const injected = configDone(false);
+    expect(injected?.content).toContain(
+      'typeof import("../../../src/generated/examples.ts").examples'
+    );
+  });
+});
+
 describe("blumeIntegration astro:config:setup", () => {
   it("injects each user page route as a prerendered route", () => {
     const injected: InjectedPageRoute[] = [];
-    // SAFETY: the hook only calls `injectRoute`, which the fixture provides.
+    // SAFETY: the hook only calls `createCodegenDir` and `injectRoute`, which
+    // the fixture provides.
     blumeIntegration({
       contentRoutes: [],
       pages: [
@@ -113,6 +176,7 @@ describe("blumeIntegration astro:config:setup", () => {
         { entrypoint: "/abs/example.astro", pattern: "/examples/[slug]" },
       ],
     }).hooks["astro:config:setup"]?.({
+      createCodegenDir: () => CODEGEN_DIR,
       injectRoute: (route: InjectedPageRoute) => injected.push(route),
     } as never);
 

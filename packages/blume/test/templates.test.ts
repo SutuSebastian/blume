@@ -22,7 +22,6 @@ import {
   changelogIndexTemplate,
   contentAssetsEndpointTemplate,
   contentConfigTemplate,
-  envTemplate,
   exampleMapTemplate,
   exampleSlug,
   examplesPageTemplate,
@@ -1795,7 +1794,7 @@ describe("mcp templates", () => {
   });
 
   it("imports the data snapshot from the runtime module", () => {
-    // The module is declared as `McpData` in env.d.ts, so no cast is needed
+    // The module is declared as `McpData` in the injected types, so no cast is needed
     // at the boundary — the id is the same at any route depth.
     const out = mcpEndpointTemplate();
     expect(out).toContain('import data from "blume:mcp-data"');
@@ -1936,21 +1935,7 @@ describe("static endpoint templates", () => {
   });
 });
 
-describe("env / package / tsconfig templates", () => {
-  it("references the Astro client types", () => {
-    expect(envTemplate()).toContain('types="astro/client"');
-  });
-
-  it("types the blume:data module from the public BlumeData type", () => {
-    const out = envTemplate();
-    expect(out).toContain('declare module "blume:data"');
-    expect(out).toContain('import("blume").BlumeData');
-  });
-
-  it("declares the blume:ask module the header imports", () => {
-    expect(envTemplate()).toContain('declare module "blume:ask"');
-  });
-
+describe("package / tsconfig templates", () => {
   it("aliases the runtime data modules to files for an ejected project", () => {
     // Eject has no CLI to publish the modules in memory, so every id points
     // at the JSON snapshot eject writes, and the in-memory plugin stays out.
@@ -1977,18 +1962,6 @@ describe("env / package / tsconfig templates", () => {
     expect(out).not.toContain("cacheDir:");
     expect(out).toContain(
       'import { blumeIntegration, includeHmrPlugin, prerenderDepsPlugin } from "blume/astro"'
-    );
-  });
-
-  it("declares every runtime data module the generated pages import", () => {
-    const out = envTemplate();
-    for (const id of RUNTIME_MODULE_FILES.keys()) {
-      expect(out).toContain(`declare module ${JSON.stringify(id)}`);
-    }
-    // Typed at the boundary so the endpoints need no casts under `blume check`.
-    expect(out).toContain('import("blume/ai/mcp/data.ts").McpData');
-    expect(out).toContain(
-      'import("blume/search/documents.ts").SearchDocument[]'
     );
   });
 

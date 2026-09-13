@@ -1,10 +1,13 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { fileURLToPath } from "node:url";
 
 import type { AstroIntegration } from "astro";
+import { join, relative } from "pathe";
 
 import { enrichDiagnostic } from "../core/diagnostics.ts";
 import type { Diagnostic } from "../core/types.ts";
 import { markdownVariantUrl, prefersMarkdown } from "./markdown-negotiation.ts";
+import { runtimeModuleDeclarations } from "./module-types.ts";
 
 /** The `{ type: "error" }` payload Vite's browser overlay renders. */
 interface OverlayErrorPayload {
@@ -178,39 +181,71 @@ const negotiateMarkdown =
     next();
   };
 
+/** The `.d.ts` the integration injects for the `blume:*` virtual modules. */
+const MODULE_TYPES_FILE = "modules.d.ts";
+
+/**
+ * Where Astro writes an integration's injected types when the integration
+ * never asked for its codegen dir (a config run whose `astro:config:setup`
+ * was skipped — the test fixtures). Mirrors Astro's own convention.
+ */
+const defaultCodegenDir = (root: URL): URL =>
+  new URL(".astro/integrations/blume/", root);
+
 /**
  * Blume's Astro integration. Mounts user-authored pages from `pages/` into the
  * generated runtime via `injectRoute`, keeping each file in its original
- * location so relative imports and `getStaticPaths` keep working, and teaches
- * the dev server to honor `Accept: text/markdown`.
+ * location so relative imports and `getStaticPaths` keep working; declares
+ * the `blume:*` virtual modules' types through `injectTypes`; and teaches the
+ * dev server to honor `Accept: text/markdown`.
  */
 export const blumeIntegration = (
   options: BlumeIntegrationOptions
-): AstroIntegration => ({
-  hooks: {
-    "astro:config:setup": ({ injectRoute }) => {
-      for (const page of options.pages) {
-        injectRoute({
-          entrypoint: page.entrypoint,
-          pattern: page.pattern,
-          prerender: true,
+): AstroIntegration => {
+  // Astro hands out the codegen dir on `astro:config:setup`; the types are
+  // injected on `astro:config:done`, once `srcDir` is final, and the
+  // `blume:examples` declaration needs the path between the two.
+  let codegenDir: URL | null = null;
+  return {
+    hooks: {
+      "astro:config:done": ({ config, injectTypes }) => {
+        const from = fileURLToPath(
+          codegenDir ?? defaultCodegenDir(config.root)
+        );
+        const examplesModule = relative(
+          from,
+          join(fileURLToPath(config.srcDir), "generated", "examples.ts")
+        );
+        injectTypes({
+          content: runtimeModuleDeclarations(examplesModule),
+          filename: MODULE_TYPES_FILE,
         });
-      }
+      },
+      "astro:config:setup": ({ createCodegenDir, injectRoute }) => {
+        codegenDir = createCodegenDir();
+        for (const page of options.pages) {
+          injectRoute({
+            entrypoint: page.entrypoint,
+            pattern: page.pattern,
+            prerender: true,
+          });
+        }
+      },
+      "astro:server:setup": ({ server }) => {
+        // Keep a handle on the dev server so Blume diagnostics can be pushed to
+        // its browser error overlay (see `showBlumeErrorOverlay`).
+        devServer().overlay = server;
+        // Prepend so the rewrite happens before Astro's own request handler,
+        // letting the rewritten URL resolve to the `.md` endpoint.
+        server.middlewares.stack.unshift({
+          handle: negotiateMarkdown(
+            new Set(options.contentRoutes),
+            options.homeLinkHeader
+          ),
+          route: "",
+        });
+      },
     },
-    "astro:server:setup": ({ server }) => {
-      // Keep a handle on the dev server so Blume diagnostics can be pushed to
-      // its browser error overlay (see `showBlumeErrorOverlay`).
-      devServer().overlay = server;
-      // Prepend so the rewrite happens before Astro's own request handler,
-      // letting the rewritten URL resolve to the `.md` endpoint.
-      server.middlewares.stack.unshift({
-        handle: negotiateMarkdown(
-          new Set(options.contentRoutes),
-          options.homeLinkHeader
-        ),
-        route: "",
-      });
-    },
-  },
-  name: "blume",
-});
+    name: "blume",
+  };
+};
