@@ -29,6 +29,7 @@ import { OPENAPI_PATH } from "../ai/api/paths.ts";
 import { buildApiSpec } from "../ai/api/spec.ts";
 import { buildAskData } from "../ai/ask-data.ts";
 import { askBackendRuntimeDep, resolveAskBackend } from "../ai/ask.ts";
+import { buildHomeLinkHeader } from "../ai/link-headers.ts";
 import { buildRawMarkdown, markdownRoutePaths } from "../ai/markdown.ts";
 import { buildMcpData } from "../ai/mcp/data.ts";
 import type { McpData } from "../ai/mcp/data.ts";
@@ -104,6 +105,7 @@ import {
   exampleMarkdownLookup,
   exampleScanRoots,
 } from "./examples.ts";
+import { publishDevNegotiation } from "./integration.ts";
 import { discoverIslands } from "./islands.ts";
 import {
   customOgRoutes,
@@ -1936,6 +1938,13 @@ export const generateRuntime = async (
 
   const depsLinkWarning = await ensureDepsLink(out);
 
+  // The dev negotiation inputs. Published in memory (below) rather than baked
+  // into the generated config, so a content-route change never rewrites
+  // `astro.config.mjs` — which would restart the dev server in place.
+  const contentRoutes = markdownRoutePaths(project);
+  const homeLinkHeader =
+    buildHomeLinkHeader(config, contentRoutes) ?? undefined;
+
   const askEnabled = config.ai.ask?.enabled ?? false;
   const exportPdf = config.export.pdf;
   const exportEpub = config.export.epub;
@@ -2058,7 +2067,7 @@ export const generateRuntime = async (
           askPath,
           config,
           contentRoot: docsCollection.base,
-          contentRoutes: markdownRoutePaths(project),
+          contentRoutes,
           context,
           examplesPath,
           examplesThemePath,
@@ -2389,6 +2398,7 @@ export const generateRuntime = async (
   // Publish last, once every page that imports a module is on disk: a live
   // dev server invalidates the changed modules and reloads the browser against
   // the finished tree, never a half-written one.
+  publishDevNegotiation({ contentRoutes, homeLinkHeader });
   publishRuntimeModules(modules);
 
   return { structuralChange: structural.some(Boolean), warnings };

@@ -4,6 +4,7 @@ import {
   mkdir,
   mkdtemp,
   readFile,
+  rename,
   rm,
   symlink,
   writeFile,
@@ -487,6 +488,55 @@ it("passes invalid integration elements through to Astro validation", async () =
   expect(built.output).toMatch(/integrations?/iu);
   expect(built.output).not.toContain("BLUME_CONFIG_INVALID");
   // Budget for a killed-and-retried 90s build attempt.
+}, 240_000);
+
+it("serves a renamed content folder in dev without restarting the server", async () => {
+  // Astro's glob watcher misses directory renames. Rather than restart the
+  // dev server, the regenerate loop asks Astro's content layer to re-sync
+  // (`refreshContent`), so the moved page answers under its new route while
+  // the server stays up — its startup banner prints exactly once.
+  const root = await writeProject({
+    "docs/guides/setup.md":
+      "---\ntitle: Setup\n---\n# Setup\n\nrenamed probe\n",
+    "docs/index.md": "# Home\n",
+  });
+  const { output, port, proc } = await startDevReady(root);
+  const page = (path: string, timeout: number) =>
+    fetch(`http://127.0.0.1:${port}${path}`, {
+      signal: AbortSignal.timeout(timeout),
+    });
+  let failure: unknown;
+  try {
+    const before = await page("/guides/setup", 60_000);
+    expect(before.status).toBe(200);
+    await rename(join(root, "docs/guides"), join(root, "docs/handbook"));
+    await waitUntil(
+      async () => {
+        try {
+          const response = await page("/handbook/setup", 5000);
+          const body = await response.text();
+          return response.status === 200 && body.includes("renamed probe");
+        } catch {
+          return false;
+        }
+      },
+      "Timed out waiting for the renamed page to be served.",
+      90_000
+    );
+    const gone = await page("/guides/setup", 10_000);
+    expect(gone.status).toBe(404);
+  } catch (error) {
+    failure = error;
+  } finally {
+    await stopDev(proc);
+  }
+  const [stdout, stderr] = await drainOutput(output);
+  if (failure) {
+    throw new Error(`${String(failure)}\n${stdout}\n${stderr}`);
+  }
+  // Astro prints its `ready in` banner once per `dev()` call; a second one
+  // would mean the loop fell back to a cold restart.
+  expect(`${stdout}${stderr}`.match(/ready in/gu) ?? []).toHaveLength(1);
 }, 240_000);
 
 it("negotiates Markdown for content routes under deployment.base in dev", async () => {

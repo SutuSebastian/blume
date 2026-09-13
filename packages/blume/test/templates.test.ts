@@ -944,6 +944,10 @@ describe("astroConfigTemplate", () => {
     );
     expect(out).not.toContain('import react from "@astrojs/react"');
     expect(out).toContain("blumeIntegration(");
+    // The hidden runtime gets its content routes and Link header from the CLI
+    // in memory, so a route change never rewrites (and restarts on) this file.
+    expect(out).not.toContain("contentRoutes");
+    expect(out).not.toContain("homeLinkHeader");
     // The prerender dep-link plugin is wired into the Vite config so isolated
     // linkers can resolve externalized deps when generating static pages, the
     // include-HMR plugin turns a partial edit into an invalidation of the
@@ -1947,7 +1951,7 @@ describe("package / tsconfig templates", () => {
     const out = astroConfigTemplate({
       askPath: "./src/generated/Ask.astro",
       config,
-      contentRoutes: [],
+      contentRoutes: ["/guide"],
       context: context(),
       examplesPath: "./src/generated/examples.ts",
       examplesThemePath: "./src/generated/examples.css",
@@ -1965,6 +1969,9 @@ describe("package / tsconfig templates", () => {
     expect(out).not.toContain("runtimeModulesPlugin");
     // Real node_modules after eject: Astro and Vite keep their default caches.
     expect(out).not.toContain("cacheDir:");
+    // No CLI publishes the negotiation inputs after eject, so they are baked
+    // into the integration call.
+    expect(out).toContain('"contentRoutes":["/guide"]');
     expect(out).toContain(
       'import { blumeIntegration, includeHmrPlugin, prerenderDepsPlugin } from "blume/astro"'
     );

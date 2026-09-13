@@ -1,5 +1,5 @@
 import { afterAll, describe, expect, it } from "bun:test";
-import { mkdir, mkdtemp, rm, stat, utimes, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { pathToFileURL } from "node:url";
 
@@ -7,6 +7,7 @@ import { dirname, join } from "pathe";
 
 import { buildRawMarkdown } from "../src/ai/markdown.ts";
 import { includeHmrPlugin } from "../src/astro/include-hmr.ts";
+import { blumeIntegration } from "../src/astro/integration.ts";
 import {
   advanceHtmlCommentState,
   buildIncludeGraph,
@@ -862,6 +863,18 @@ describe("includePlugin", () => {
   });
 });
 
+/**
+ * Register (or, with no argument, withdraw) a content-layer refresh through
+ * the integration's `astro:server:setup`, as Astro's dev server would.
+ */
+const registerRefresh = (refreshContent?: () => Promise<void>) =>
+  // SAFETY: the hook only touches the middleware stack and the refresh
+  // handle, both provided by the fixture.
+  blumeIntegration({ pages: [] }).hooks["astro:server:setup"]?.({
+    refreshContent,
+    server: { middlewares: { stack: [] } },
+  } as never);
+
 /** A fake Vite dev server capturing invalidations and websocket sends. */
 const fakeServer = (modulesByFile: Record<string, unknown[]>) => {
   const invalidated: unknown[] = [];
@@ -928,23 +941,39 @@ describe("includeHmrPlugin", () => {
     expect(result).toBeUndefined();
   });
 
-  it("bumps each includer's mtime so the content layer re-syncs it", async () => {
+  it("re-syncs the content layer before reloading so .md includers re-render", async () => {
+    // Plain `.md` pages have no Vite module to invalidate: their HTML sits in
+    // the content store, so the plugin asks Astro to re-run the loaders (the
+    // include-aware digest then forces the fresh render).
     const root = await fixture({ "docs/a.md": "# A\n" });
     const graphPath = join(root, "includes.json");
     const partial = join(root, "docs", "_s.md");
     const pageA = join(root, "docs", "a.md");
     await writeFile(graphPath, JSON.stringify({ [partial]: [pageA] }));
-    // Rewind the page's mtime so the bump is observable even on coarse
-    // filesystem timestamp resolution.
-    const past = new Date(Date.now() - 60_000);
-    await utimes(pageA, past, past);
-    const { server } = fakeServer({});
-    await includeHmrPlugin(graphPath).handleHotUpdate({
-      file: partial,
-      server,
+    const { server, sent } = fakeServer({});
+    const order: string[] = [];
+    registerRefresh(() => {
+      order.push("refresh");
+      return Promise.resolve();
     });
-    const after = await stat(pageA);
-    expect(after.mtimeMs).toBeGreaterThan(past.getTime());
+    try {
+      await includeHmrPlugin(graphPath).handleHotUpdate({
+        file: partial,
+        server: {
+          ...server,
+          ws: {
+            send: (payload: { type: "full-reload" }) => {
+              order.push(payload.type);
+              sent.push(payload);
+            },
+          },
+        },
+      });
+    } finally {
+      // The registry lives on globalThis; leave no refresh behind.
+      registerRefresh();
+    }
+    expect(order).toEqual(["refresh", "full-reload"]);
   });
 });
 

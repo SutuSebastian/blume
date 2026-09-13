@@ -19,7 +19,7 @@ import { hasScalarReferences } from "../openapi/references.ts";
 import { searchProviderMeta } from "../search/providers.ts";
 import { buildFontEntries, fontLocaleCodes } from "../theme/fonts.ts";
 import type { ExampleSpec } from "./examples.ts";
-import type { BlumePageRoute } from "./integration.ts";
+import type { BlumeIntegrationOptions, BlumePageRoute } from "./integration.ts";
 import type { IslandSpec } from "./islands.ts";
 import type { OgCustomRoute } from "./pages.ts";
 import { RUNTIME_MODULE_FILES } from "./runtime-modules.ts";
@@ -458,6 +458,30 @@ const renderRuntimeModuleWiring = (
   return { aliasLines, imports: [], pluginEntry: "" };
 };
 
+/**
+ * The options baked into the generated config's `blumeIntegration(...)` call.
+ * The hidden runtime gets the content routes and homepage `Link` header from
+ * the CLI in memory (`publishDevNegotiation`, republished on every
+ * regeneration), so a content-route change never rewrites the config — Astro
+ * restarts the dev server in place on a config change. An ejected project has
+ * no CLI, so they are baked in.
+ */
+const blumeIntegrationOptions = (options: {
+  config: ResolvedConfig;
+  contentRoutes: string[];
+  ejected: boolean;
+  pages: BlumePageRoute[];
+}): BlumeIntegrationOptions =>
+  options.ejected
+    ? {
+        contentRoutes: options.contentRoutes,
+        homeLinkHeader:
+          buildHomeLinkHeader(options.config, options.contentRoutes) ??
+          undefined,
+        pages: options.pages,
+      }
+    : { pages: options.pages };
+
 export const astroConfigTemplate = (options: {
   context: ProjectContext;
   config: ResolvedConfig;
@@ -712,11 +736,14 @@ export const astroConfigTemplate = (options: {
   // up dev-server `Accept: text/markdown` negotiation over the content routes,
   // plus the homepage agent-discovery `Link` header.
   integrations.push(
-    `blumeIntegration(${JSON.stringify({
-      contentRoutes,
-      homeLinkHeader: buildHomeLinkHeader(config, contentRoutes) ?? undefined,
-      pages,
-    })})`
+    `blumeIntegration(${JSON.stringify(
+      blumeIntegrationOptions({
+        config,
+        contentRoutes,
+        ejected: generatedModulesDir !== undefined,
+        pages,
+      })
+    )})`
   );
 
   const {

@@ -29,20 +29,45 @@ interface OverlayServer {
   ws?: OverlayChannel;
 }
 
+/** The parameters Astro hands `astro:server:setup`. */
+type ServerSetupParams = Parameters<
+  NonNullable<AstroIntegration["hooks"]["astro:server:setup"]>
+>[0];
+
 /**
- * The live dev server, recorded on `astro:server:setup` and read by
- * `showBlumeErrorOverlay` so the CLI's regeneration can push Blume
- * diagnostics into Vite's browser error overlay.
+ * Astro's `refreshContent`: re-runs every content-layer loader against the
+ * live store, the sanctioned way to re-sync content that changed outside
+ * Astro's own file watcher.
+ */
+type RefreshContent = NonNullable<ServerSetupParams["refreshContent"]>;
+
+/** What the dev negotiation middleware needs per request. */
+interface DevNegotiation {
+  /** Page routes that have a raw-Markdown variant (the content manifest). */
+  contentRoutes: ReadonlySet<string>;
+  /** Homepage agent-discovery `Link` header, when the site has one. */
+  homeLinkHeader?: string;
+}
+
+/**
+ * The dev-server state shared between the CLI and the integration: the live
+ * server (for the browser error overlay), Astro's `refreshContent` (so the
+ * CLI's regeneration can re-sync the content store instead of restarting the
+ * server), and the negotiation inputs the CLI publishes on every
+ * regeneration (so a content-route change never rewrites the generated
+ * config, which would restart the server in place).
  *
  * Kept on `globalThis` rather than in module state, for the same reason as
  * the runtime-module registry (see `runtime-modules.ts`): on a published
  * install the CLI bundle (`dist/cli`) carries its own copy of this module,
- * while the hook runs in the copy Vite loads from `blume/astro` for the
+ * while the hooks run in the copy Vite loads from `blume/astro` for the
  * generated config. A module-level variable is set in one copy and read in
  * the other, so the overlay never showed anything outside this repository.
  */
 interface DevServerRegistry {
+  negotiation: DevNegotiation | null;
   overlay: OverlayServer | null;
+  refreshContent: RefreshContent | null;
 }
 
 const DEV_SERVER_KEY = Symbol.for("blume.dev-server");
@@ -56,8 +81,54 @@ const devServer = (): DevServerRegistry => {
   // every copy of this module in the process shares it; the intersection only
   // names that slot.
   const host = globalThis as DevServerHost;
-  host[DEV_SERVER_KEY] ??= { overlay: null };
+  host[DEV_SERVER_KEY] ??= {
+    negotiation: null,
+    overlay: null,
+    refreshContent: null,
+  };
   return host[DEV_SERVER_KEY];
+};
+
+/**
+ * Publish the dev negotiation inputs for the running server: the content
+ * routes with a Markdown variant and the homepage `Link` header. Called by
+ * `generateRuntime` on every pass, so the middleware follows a route rename
+ * without the generated config changing. `null` withdraws a publication, so
+ * the middleware falls back to the options baked into the integration call
+ * (an ejected project has no CLI to publish).
+ */
+export const publishDevNegotiation = (
+  negotiation: {
+    contentRoutes: readonly string[];
+    homeLinkHeader?: string;
+  } | null
+): void => {
+  devServer().negotiation = negotiation
+    ? {
+        contentRoutes: new Set(negotiation.contentRoutes),
+        homeLinkHeader: negotiation.homeLinkHeader,
+      }
+    : null;
+};
+
+/**
+ * Re-run Astro's content-layer loaders against the live dev server. Returns
+ * `false` when no server has registered one — before the first
+ * `astro:server:setup`, or outside `blume dev` — so the caller can fall back.
+ * A route-set change (a page added, removed, or a folder renamed) is what
+ * needs this: Astro's glob watcher misses directory renames, and its in-place
+ * config restart never re-globs, so without a re-sync `getEntry` reads a
+ * stale store and the moved page 404s.
+ */
+export const refreshBlumeContent = async (): Promise<boolean> => {
+  const { refreshContent } = devServer();
+  if (!refreshContent) {
+    return false;
+  }
+  // No loader filter: every collection re-syncs (the docs glob and any
+  // staged collection alike).
+  await refreshContent({});
+  return true;
 };
 
 const overlayChannel = (): OverlayChannel | undefined => {
@@ -116,13 +187,19 @@ export interface BlumePageRoute {
 
 export interface BlumeIntegrationOptions {
   pages: BlumePageRoute[];
-  /** Page routes that have a raw-Markdown variant (the content manifest). */
-  contentRoutes: string[];
+  /**
+   * Page routes that have a raw-Markdown variant (the content manifest). The
+   * hidden runtime leaves this out: the CLI publishes the live set through
+   * `publishDevNegotiation` on every regeneration, so a route change never
+   * rewrites the generated config. An ejected project, which has no CLI,
+   * bakes it in here.
+   */
+  contentRoutes?: string[];
   /**
    * Homepage `Link` header value for agent discovery (see
    * `ai/link-headers.ts`); the dev-server counterpart of the `_headers` /
    * Vercel-config emission, so `curl -I` against `blume dev` shows what the
-   * deployed site will send.
+   * deployed site will send. Published the same way as `contentRoutes`.
    */
   homeLinkHeader?: string;
 }
@@ -164,14 +241,18 @@ const isHomeUrl = (rawUrl: string | undefined): boolean => {
  * request matching a content route.
  */
 const negotiateMarkdown =
-  (routes: ReadonlySet<string>, homeLinkHeader?: string) =>
+  (fallback: DevNegotiation) =>
   (req: IncomingMessage, res: ServerResponse, next: () => void): void => {
+    // Read per request: the CLI republishes on every regeneration, so a page
+    // renamed while the server runs negotiates under its new route.
+    const { contentRoutes, homeLinkHeader } =
+      devServer().negotiation ?? fallback;
     if (req.method === "GET" || req.method === "HEAD") {
       if (homeLinkHeader && isHomeUrl(req.url)) {
         res.setHeader("Link", homeLinkHeader);
       }
       if (prefersMarkdown(req.headers.accept)) {
-        const variant = markdownVariantUrl(req.url, routes);
+        const variant = markdownVariantUrl(req.url, contentRoutes);
         if (variant) {
           res.setHeader("Vary", "Accept");
           req.url = variant;
@@ -231,17 +312,21 @@ export const blumeIntegration = (
           });
         }
       },
-      "astro:server:setup": ({ server }) => {
-        // Keep a handle on the dev server so Blume diagnostics can be pushed to
-        // its browser error overlay (see `showBlumeErrorOverlay`).
-        devServer().overlay = server;
+      "astro:server:setup": ({ refreshContent, server }) => {
+        // Keep a handle on the dev server so Blume diagnostics can be pushed
+        // to its browser error overlay (see `showBlumeErrorOverlay`), and on
+        // Astro's content re-sync so a route-set change needs no restart
+        // (see `refreshBlumeContent`).
+        const registry = devServer();
+        registry.overlay = server;
+        registry.refreshContent = refreshContent ?? null;
         // Prepend so the rewrite happens before Astro's own request handler,
         // letting the rewritten URL resolve to the `.md` endpoint.
         server.middlewares.stack.unshift({
-          handle: negotiateMarkdown(
-            new Set(options.contentRoutes),
-            options.homeLinkHeader
-          ),
+          handle: negotiateMarkdown({
+            contentRoutes: new Set(options.contentRoutes),
+            homeLinkHeader: options.homeLinkHeader,
+          }),
           route: "",
         });
       },

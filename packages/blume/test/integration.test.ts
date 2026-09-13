@@ -1,7 +1,9 @@
-import { describe, expect, it } from "bun:test";
+import { afterEach, describe, expect, it } from "bun:test";
 
 import {
   blumeIntegration,
+  publishDevNegotiation,
+  refreshBlumeContent,
   showBlumeErrorOverlay,
 } from "../src/astro/integration.ts";
 import type { Diagnostic } from "../src/core/types.ts";
@@ -41,23 +43,33 @@ interface DevServerStub {
   ws?: OverlayChannelStub;
 }
 
-/** Run `astro:server:setup` and return the resulting middleware stack. */
+/**
+ * Run `astro:server:setup` and return the resulting middleware stack. The
+ * optional `refreshContent` stands in for Astro's content re-sync.
+ */
 const serverSetup = (
   options: Partial<Parameters<typeof blumeIntegration>[0]> = {},
-  server: DevServerStub = {}
+  server: DevServerStub = {},
+  refreshContent?: () => Promise<void>
 ): MiddlewareStack => {
   const stack: MiddlewareStack = [];
-  // SAFETY: the hook only touches `server.middlewares.stack` and the ws/hot
-  // overlay channel, all of which the fixture provides.
+  // SAFETY: the hook only touches `server.middlewares.stack`, the ws/hot
+  // overlay channel, and `refreshContent`, all of which the fixture provides.
   blumeIntegration({
     contentRoutes: [],
     pages: [],
     ...options,
   }).hooks["astro:server:setup"]?.({
+    refreshContent,
     server: { middlewares: { stack }, ...server },
   } as never);
   return stack;
 };
+
+// The registry lives on globalThis, so a publication would outlive its test.
+afterEach(() => {
+  publishDevNegotiation(null);
+});
 
 /** The single middleware `astro:server:setup` registered. */
 const handleOf = (stack: MiddlewareStack): MiddlewareHandle =>
@@ -308,6 +320,68 @@ describe("blumeIntegration homepage Link header", () => {
   it("sends no Link header when none is configured", () => {
     const handle = handleOf(serverSetup({ contentRoutes: ["/"] }));
     expect(runHandle(handle, "/").Link).toBeUndefined();
+  });
+});
+
+describe("publishDevNegotiation", () => {
+  it("lets the CLI's published routes and Link header override the baked-in options", () => {
+    // The hidden runtime bakes nothing in; the CLI publishes on every
+    // regeneration, so a page renamed while the server runs negotiates under
+    // its new route without the generated config changing.
+    const handle = handleOf(serverSetup({ contentRoutes: ["/old"] }));
+    publishDevNegotiation({
+      contentRoutes: ["/", "/new"],
+      homeLinkHeader: '</llms.txt>; rel="describedby"',
+    });
+    const req: DevRequest = {
+      headers: { accept: "text/markdown" },
+      method: "GET",
+      url: "/new",
+    };
+    handle(req, { setHeader: () => {} }, () => {});
+    expect(req.url).toBe("/new.md");
+    expect(runHandle(handle, "/").Link).toBe('</llms.txt>; rel="describedby"');
+    const stale: DevRequest = {
+      headers: { accept: "text/markdown" },
+      method: "GET",
+      url: "/old",
+    };
+    handle(stale, { setHeader: () => {} }, () => {});
+    expect(stale.url).toBe("/old");
+  });
+
+  it("falls back to the baked-in options once withdrawn", () => {
+    // An ejected project has no CLI to publish, so the options in the
+    // generated config are what the middleware reads.
+    const handle = handleOf(serverSetup({ contentRoutes: ["/guide"] }));
+    publishDevNegotiation({ contentRoutes: [] });
+    publishDevNegotiation(null);
+    const req: DevRequest = {
+      headers: { accept: "text/markdown" },
+      method: "GET",
+      url: "/guide",
+    };
+    handle(req, { setHeader: () => {} }, () => {});
+    expect(req.url).toBe("/guide.md");
+  });
+});
+
+describe("refreshBlumeContent", () => {
+  it("re-runs the content loaders through the server's refreshContent", async () => {
+    let calls = 0;
+    serverSetup({}, {}, () => {
+      calls += 1;
+      return Promise.resolve();
+    });
+    expect(await refreshBlumeContent()).toBe(true);
+    expect(calls).toBe(1);
+  });
+
+  it("reports false when no server has registered a refresh", async () => {
+    // Before the first `astro:server:setup`, or outside `blume dev`: the
+    // caller (the dev loop) falls back to a cold restart.
+    serverSetup();
+    expect(await refreshBlumeContent()).toBe(false);
   });
 });
 

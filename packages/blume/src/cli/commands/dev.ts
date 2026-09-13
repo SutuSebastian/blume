@@ -4,7 +4,10 @@ import { defineCommand } from "citty";
 import { debounce } from "perfect-debounce";
 
 import { generateRuntime } from "../../astro/generate.ts";
-import { showBlumeErrorOverlay } from "../../astro/integration.ts";
+import {
+  refreshBlumeContent,
+  showBlumeErrorOverlay,
+} from "../../astro/integration.ts";
 import { scanProject } from "../../core/project-graph.ts";
 import { resolveRuntimeDir } from "../../core/project.ts";
 import { parsePort } from "../args.ts";
@@ -34,7 +37,7 @@ export const normalizeHost = (host: string | undefined): boolean | string =>
  * A fingerprint of the route set: the sorted `path entryId` pairs. It changes
  * when a page is added, removed, or renamed (a folder rename shifts many at
  * once) but stays equal across pure body edits — so the dev loop can tell a
- * "structural" change (needs a cold restart) from a hot-reloadable one.
+ * "structural" change (needs a content re-sync) from a hot-reloadable one.
  */
 const routeSignature = (
   routes: readonly { entryId: string; path: string }[]
@@ -110,10 +113,10 @@ export const devCommand = defineCommand({
       strict: args.strict,
     });
 
-    // A factory so `runRegenerate` can recreate the server on a structural
-    // (route-set) change: only a cold container re-globs Astro's content store,
-    // which its in-place config restart doesn't. `open` is honored on first
-    // boot only — a restart must not reopen the browser.
+    // A factory so the regenerate loop can recreate the server when a
+    // structural (route-set) change can't be re-synced in place (see below).
+    // `open` is honored on first boot only — a restart must not reopen the
+    // browser.
     const createServer = (listenPort: number | undefined, open: boolean) =>
       dev({
         logLevel: args.debug ? "debug" : "info",
@@ -141,14 +144,16 @@ export const devCommand = defineCommand({
     let lastSignature = routeSignature(project.manifest.routes);
 
     // Watch user inputs and regenerate the runtime data on change. A body edit
-    // hot-reloads via Vite (fast path). A route-set change instead forces a cold
-    // server restart: Astro's in-place content sync never re-globs on a Blume
-    // route change (it strips `integrations` from its cache digest) and its glob
-    // watcher misses directory renames, so a renamed page 404s (`getEntry` reads
-    // a stale in-memory store) until the server is restarted. We restart it
-    // ourselves — stop, regenerate while down (no watcher races), then bring up
-    // a fresh container whose cold sync re-globs everything. perfect-debounce
-    // both debounces the watch burst (80ms) and single-flights the scan: a
+    // hot-reloads via Vite (fast path). A route-set change also needs Astro's
+    // content store re-synced: its glob watcher misses directory renames, so a
+    // renamed page would 404 (`getEntry` reads a stale store). Astro hands the
+    // integration `refreshContent` for exactly that — a full loader run
+    // against the live server, after which Astro's own store watcher clears
+    // the route cache and reloads the browser. Only a server that registered
+    // no refresh (none since Astro 5) falls back to a cold restart: stop,
+    // then bring up a fresh container whose cold sync re-globs everything.
+    // perfect-debounce both debounces the watch burst (80ms) and
+    // single-flights the scan: a
     // trigger during a run never starts a second run, only marks one trailing
     // rerun after the current settles. Both halves are load-bearing — a plain
     // debounce once let bursts stack overlapping scans until the heap was
@@ -166,17 +171,16 @@ export const devCommand = defineCommand({
         });
         const nextSignature = routeSignature(next.manifest.routes);
         const structural = nextSignature !== lastSignature;
-        if (structural) {
+        // Generate first: the new runtime data (and any staged remote content)
+        // is on disk and published before the store re-syncs against it.
+        await generateRuntime(next);
+        if (structural && !(await refreshBlumeContent())) {
           await server.stop();
-          await generateRuntime(next);
           server = await createServer(boundPort, false);
-        } else {
-          await generateRuntime(next);
         }
         // Commit the signature only after the (re)generation succeeded. If the
-        // restart above throws mid-sequence, the signature stays stale so the
-        // next watch event retries the structural path — committing early would
-        // route it to the non-structural branch with the server still down.
+        // re-sync or restart above throws mid-sequence, the signature stays
+        // stale so the next watch event retries the structural path.
         lastSignature = nextSignature;
         // Surface any content/config errors in the terminal AND the browser
         // overlay. The terminal report is not redundant: the overlay only
