@@ -1217,10 +1217,12 @@ describe("astroConfigTemplate", () => {
       searchClientPath: SEARCH_CLIENT_PATH,
       themePath: THEME_PATH,
     });
+    // Astro's opt-out keeps the adapter from declaring a SESSION KV binding
+    // Blume never reads; no driver import is needed for it.
     expect(out).toContain(
-      'import { defineConfig, fontProviders, sessionDrivers } from "astro/config";'
+      'import { defineConfig, fontProviders } from "astro/config";'
     );
-    expect(out).toContain("session: { driver: sessionDrivers.memory() },");
+    expect(out).toContain("session: false,");
     expect(out).toContain('imageService: "compile"');
   });
 

@@ -125,29 +125,23 @@ const resolveCloudflareAdapterArgs = (context: ProjectContext): string => {
  * Without a configured driver, `@astrojs/cloudflare` force-enables KV-backed
  * sessions and declares a `SESSION` kv_namespaces entry in the generated
  * wrangler config — which `wrangler deploy` then requires a real KV namespace
- * for, even though Blume never reads `Astro.session`. An explicit in-memory
- * driver keeps the binding out. Swap for Astro's session opt-out once
- * withastro/astro#16871 ships in the supported range.
+ * for, even though Blume never reads `Astro.session`. Astro's `session: false`
+ * opts the project out, and the adapter checks for it before adding the
+ * binding. (An in-memory driver used to stand in before the opt-out existed.)
  */
 const resolveSessionOption = (deployment: {
   adapter: string | null;
   output: string;
 }): string =>
   deployment.output === "server" && deployment.adapter === "cloudflare"
-    ? "\n  session: { driver: sessionDrivers.memory() },"
+    ? "\n  session: false,"
     : "";
 
 /** The named imports the generated config pulls from `astro/config`. */
-const astroConfigImportLine = (options: {
-  hasFonts: boolean;
-  hasSession: boolean;
-}): string => {
+const astroConfigImportLine = (options: { hasFonts: boolean }): string => {
   const names = ["defineConfig"];
   if (options.hasFonts) {
     names.push("fontProviders");
-  }
-  if (options.hasSession) {
-    names.push("sessionDrivers");
   }
   return `import { ${names.join(", ")} } from "astro/config";`;
 };
@@ -682,7 +676,6 @@ export const astroConfigTemplate = (options: {
     : "";
   const defineConfigImport = astroConfigImportLine({
     hasFonts: fontEntries.length > 0,
-    hasSession: sessionOption.length > 0,
   });
 
   // Framework renderers are only wired in when an island (or Ask AI, for React)
