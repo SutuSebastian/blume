@@ -1,11 +1,11 @@
 import { readFile } from "node:fs/promises";
 
-import { imageSize } from "image-size";
 import { render } from "takumi-js";
 import type { RenderOptions } from "takumi-js";
 import { container, googleFonts, image, text } from "takumi-js/helpers";
 import type { FontSubset, GoogleFontFamily, Node } from "takumi-js/helpers";
 
+import { svgDimensions } from "../core/svg-dimensions.ts";
 import { ACCENTS, isAccentPreset } from "../theme/palette.ts";
 import { OG_IMAGE_HEIGHT, OG_IMAGE_WIDTH } from "./dimensions.ts";
 
@@ -234,19 +234,13 @@ const MARK_HEIGHT = 32;
 const MARK_MAX_WIDTH = 240;
 /**
  * The SVG's aspect ratio (w/h), or null when no usable dimensions exist (the
- * caller falls back to a square mark). image-size (already a dependency)
- * reads explicit width/height and falls back to the viewBox, tolerating the
- * quote/whitespace/attribute spellings the old regex silently missed —
- * `viewBox = "…"`, newline-separated values — which shipped visibly-squashed
- * marks instead of failing loudly.
+ * caller falls back to a square mark). The shared root-tag parser reads
+ * explicit width/height and falls back to the viewBox, so the card and the
+ * header measure one logo the same way.
  */
 const logoAspect = (svg: string): number | null => {
-  try {
-    const { height, width } = imageSize(Buffer.from(svg));
-    return width && height ? width / height : null;
-  } catch {
-    return null;
-  }
+  const size = svgDimensions(svg);
+  return size ? size.width / size.height : null;
 };
 
 // Render the configured logo as the brand mark. A `currentColor` logo carries

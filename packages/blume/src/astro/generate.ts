@@ -12,7 +12,6 @@ import {
 import { createRequire } from "node:module";
 import { pathToFileURL } from "node:url";
 
-import { imageSize } from "image-size";
 import pMap from "p-map";
 import {
   basename,
@@ -65,6 +64,7 @@ import { packageRoot } from "../core/package-root.ts";
 import type { BlumeProject } from "../core/project-graph.ts";
 import type { ResolvedConfig } from "../core/schema.ts";
 import { resolveDocsCollection } from "../core/sources/resolve.ts";
+import { svgDimensions } from "../core/svg-dimensions.ts";
 import { trimChar } from "../core/trim.ts";
 import { resolveTsconfigAliases } from "../core/tsconfig-aliases.ts";
 import type { Diagnostic, Navigation } from "../core/types.ts";
@@ -907,24 +907,13 @@ interface LogoDimensions {
 }
 
 /**
- * Read dimensions from an SVG's explicit size or its view box. Measured with
- * image-size — the same parser og/card.ts uses for the OG brand mark, so the
- * header and the card can't disagree about one logo — which also tolerates
- * the spellings the old regex missed (unquoted values, `em`/`pt` lengths, a
- * `>` inside another attribute). An SVG with no usable size returns partial
- * dimensions or throws; both collapse to undefined.
+ * Read dimensions from an SVG's explicit size or its view box, with the same
+ * root-tag parser og/card.ts uses for the OG brand mark so the header and the
+ * card can't disagree about one logo. An SVG with no usable size collapses to
+ * undefined.
  */
-const svgDimensions = (svg: string | undefined): LogoDimensions | undefined => {
-  if (!svg) {
-    return;
-  }
-  try {
-    const { height, width } = imageSize(Buffer.from(svg));
-    return height && width ? { height, width } : undefined;
-  } catch {
-    return undefined;
-  }
-};
+const logoDimensions = (svg: string | undefined): LogoDimensions | undefined =>
+  svg ? (svgDimensions(svg) ?? undefined) : undefined;
 
 /** Read a local SVG logo from the project root or public directory. */
 const readLogoSvg = (
@@ -989,8 +978,8 @@ const resolveLogo = (project: BlumeProject): BlumeLogo | null => {
     return { alt, href: brandHref, svg: lightSvg, text };
   }
 
-  const lightDimensions = svgDimensions(lightSvg);
-  const darkDimensions = svgDimensions(darkSvg);
+  const lightDimensions = logoDimensions(lightSvg);
+  const darkDimensions = logoDimensions(darkSvg);
   const dimensions =
     lightDimensions || darkDimensions
       ? { dark: darkDimensions, light: lightDimensions }

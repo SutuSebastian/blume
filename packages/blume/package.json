@@ -105,7 +105,6 @@
     "graphql": "^17.0.2",
     "gray-matter": "^4.0.3",
     "html-escaper": "^3.0.3",
-    "image-size": "^2.0.2",
     "jiti": "^2.7.0",
     "js-yaml": "^5.4.1",
     "katex": "^0.18.7",

@@ -983,7 +983,7 @@ describe("buildRuntimeData", () => {
         "docs/index.md": "# Home\n",
         // Legal but unmeasurable: comma-only viewBox parses to no width.
         "public/dark.svg": '<svg viewBox="0,0,24,24"></svg>',
-        // No size attributes at all: image-size throws instead of measuring.
+        // No size attributes at all: nothing to measure.
         "public/light.svg": "<svg><path /></svg>",
       })
     );
