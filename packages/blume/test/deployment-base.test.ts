@@ -21,7 +21,7 @@ describe("prefixBase", () => {
     expect(prefixBase("/sub", "/guide")).toBe("/sub/guide");
     expect(prefixBase("/sub", "/")).toBe("/sub");
     expect(prefixBase("/sub", "/sub/guide")).toBe("/sub/guide");
-    // A trailing slash on BASE_URL (Astro's `trailingSlash: "ignore"`) is fine.
+    // A trailing slash on BASE_URL (an owned config's `trailingSlash`) is fine.
     expect(prefixBase("/sub/", "/guide")).toBe("/sub/guide");
   });
 

@@ -6,8 +6,9 @@ import {
   withTrailingSlash,
 } from "../src/components/islands/base-path.ts";
 
-// Astro's default trailingSlash: "ignore" passes deployment.base through
-// as-is, so BASE_URL may be "/docs" or "/docs/". Both must behave alike:
+// Astro normalizes deployment.base by its trailingSlash setting (the generated
+// config pins "never"; an owned config may not), so BASE_URL may be "/docs" or
+// "/docs/". Both must behave alike:
 // naive `${base}api/ask` under a bare "/docs" produced /docsapi/ask (404).
 describe("island base-path helpers", () => {
   it("guarantees a trailing slash", () => {

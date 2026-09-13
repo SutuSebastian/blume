@@ -236,21 +236,6 @@ export const buildNegotiationRoutes = (
 const HOME_SRC = "^/$";
 
 /**
- * Permanent redirect from any trailing-slash URL to its slashless twin, so
- * `/docs/` and `/docs` don't serve as duplicate URLs (canonicals, sitemap, and
- * hreflang all use the slashless form; the root `/` is untouched — `.+`
- * requires a non-empty path). Spliced into the main phase before `handle:
- * "filesystem"`, after the Markdown rewrites, so an agent's `Accept:
- * text/markdown` request on a slashed URL still rewrites without the extra
- * hop. Vercel carries the query string over to the `Location` target itself.
- */
-export const TRAILING_SLASH_REDIRECT: VercelRoute = {
-  headers: { Location: "/$1" },
-  src: "^/(.+)/$",
-  status: 308,
-};
-
-/**
  * Whether a route is one this module previously injected, so re-injection
  * replaces rather than duplicates. Rewrites are identified by their `accept`
  * condition; the `Vary` routes by their exact three-field shape (a
@@ -273,9 +258,7 @@ const isNegotiationRoute = (route: VercelRoute): boolean =>
   (route.continue === true &&
     isString(route.headers?.link) &&
     route.src === HOME_SRC &&
-    Object.keys(route).length === 3) ||
-  (route.status === TRAILING_SLASH_REDIRECT.status &&
-    route.src === TRAILING_SLASH_REDIRECT.src);
+    Object.keys(route).length === 3);
 
 /**
  * Splice the negotiation routes into a Build Output `config.json`, plus — when
@@ -285,9 +268,11 @@ const isNegotiationRoute = (route: VercelRoute): boolean =>
  * rides on the prerendered homepage response. `contentTypeOverrides` maps static-dir
  * relative paths to media types via the Build Output `overrides` field — the
  * platform's mechanism for extensionless static files (e.g. the Web Bot Auth
- * signature directory). The trailing-slash 308 redirect is always spliced in
- * alongside, so slashed duplicates of every page collapse onto the canonical
- * slashless URL. For each 404 twin the build emitted (`notFound.markdown` for
+ * signature directory). The trailing-slash redirect that collapses `/docs/`
+ * onto `/docs` is not spliced here: the generated config sets Astro's
+ * `trailingSlash: "never"`, which the adapter turns into the platform's own
+ * 308 route ahead of everything below (so a slashed Markdown request takes
+ * that hop first, then negotiates). For each 404 twin the build emitted (`notFound.markdown` for
  * `404.md`, `notFound.json` for `404.json`), its routes go into the miss
  * phase right before the adapter's `/404.html` fallback — and nowhere when
  * that fallback is absent, since a `dest` with no file behind it would serve
@@ -342,15 +327,8 @@ export const injectNegotiationRoutes = (
   }
   // Headers first: `continue` routes accumulate, so a request the rewrite
   // route then terminates (Markdown negotiation on the homepage) still carries
-  // the Link header. The trailing-slash redirect goes last so a slashed URL's
-  // Markdown negotiation still rewrites directly instead of bouncing.
-  routes.splice(
-    filesystemIndex,
-    0,
-    ...headerRoutes,
-    ...rewriteRoutes,
-    TRAILING_SLASH_REDIRECT
-  );
+  // the Link header.
+  routes.splice(filesystemIndex, 0, ...headerRoutes, ...rewriteRoutes);
   const notFoundRoutes = [
     ...(notFound.markdown ? NOT_FOUND_MARKDOWN_ROUTES : []),
     ...(notFound.json ? NOT_FOUND_JSON_ROUTES : []),

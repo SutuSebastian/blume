@@ -789,6 +789,14 @@ ${userConfigSetup}export default defineConfig({
     },
   },
   devToolbar: { enabled: false },
+  // One canonical URL per page: canonicals, the sitemap, and hreflang all use
+  // the slashless form, so the slashed spelling is not a second address. Astro
+  // applies this itself — its dev server answers a slashed URL with a 404 that
+  // names the setting, an on-demand route redirects — and the Vercel adapter
+  // turns it into the platform's 308 route, so the Build Output config needs
+  // no hand-spliced redirect (see deploy/vercel-negotiation.ts). Static hosts
+  // serve the \`index.html\` directory layout as they always did.
+  trailingSlash: "never",
   // The layouts render Astro's <ClientRouter />, and its in-place swaps read
   // from the prefetch cache — fetching every link on hover/viewport hides the
   // request latency behind the user's intent, so most navigations swap
@@ -1226,8 +1234,9 @@ const searchClientImport = (module: string): string =>
   `import { createSearch as create } from "blume/components/layout/search/${module}.ts";\n`;
 
 // Joins a base-relative path onto BASE_URL, which arrives with or without a
-// trailing slash (Astro's default trailingSlash: "ignore" passes `/docs`
-// through bare — naive concatenation would yield `/docsblume-search.json`).
+// trailing slash (Astro normalizes `base` by `trailingSlash`, which the
+// generated config pins to "never" but an owned config may set either way —
+// naive concatenation of a bare `/docs` would yield `/docsblume-search.json`).
 const SEARCH_BASE_IMPORT =
   'import { joinBase } from "blume/components/islands/base-path.ts";\n';
 

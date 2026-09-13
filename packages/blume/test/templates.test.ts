@@ -938,6 +938,8 @@ describe("astroConfigTemplate", () => {
       themePath: THEME_PATH,
     });
     expect(out).toContain('output: "static"');
+    // One canonical URL per page; Astro and the adapters enforce it from here.
+    expect(out).toContain('trailingSlash: "never"');
     expect(out).toContain("fontProviders.google()");
     expect(out).toContain(
       'import { defineConfig, fontProviders } from "astro/config"'
