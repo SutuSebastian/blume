@@ -38,7 +38,7 @@ In `apps/docs`, scripts are the Blume CLI itself: `blume dev`, `blume build`, `b
 
 - **TypeScript is pinned to `^6.0.3`. Never bump to 7** — the Go rewrite has no JS API (`ts.sys` is gone) and Blume's tooling depends on it. Speed comes from `tsgo`, not a TS upgrade.
 - **Never run `npx oxfmt` or `npx oxlint`.** The repo patches `oxfmt` (fence/directive preservation); `npx` resolves an unpatched copy that mangles `:::` directives. Always use `bun run check` / `bun run fix`. If oxlint fails with ENOENT, run `bun install` and retry.
-- The husky pre-commit hook runs `check`, `typecheck`, and the blume build — **not the test suite**. `bun run test` and `bun run test:coverage` run in CI (`test.yml`) as required PR checks, so run `bun run test:coverage` yourself before pushing. Commits still take a minute or two; use generous timeouts (600s) when committing from a tool.
+- The husky pre-commit hook runs `check`, `typecheck`, and the blume build — **not the test suite**. `bun run test` and `bun run test:coverage` run in CI (`test.yml`) as required PR checks, so run `bun run test:coverage` yourself before pushing.
 
 ## Testing and coverage
 
