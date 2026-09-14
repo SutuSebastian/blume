@@ -20,6 +20,27 @@ const PACKAGE_ROOT = packageRoot();
 const CLI = join(PACKAGE_ROOT, "bin", "blume.mjs");
 const roots: string[] = [];
 
+/**
+ * Every fixture pins the theme's font roles to a local file so no dev or
+ * build start reaches Google Fonts. Astro's fonts plugin resolves remote
+ * families in `buildStart`, which Vite awaits before the dev server listens,
+ * and unifont's metadata fetch has no timeout — a stalled fonts.google.com
+ * held startup past the readiness budget (and its retry) on CI, and the same
+ * pipeline fails builds with `CannotFetchFontFile` when Google hands out
+ * gstatic URLs that 404 mid-rollout. KaTeX, a Blume dependency, ships a real
+ * font file to point at.
+ */
+const LOCAL_FONT = join(
+  PACKAGE_ROOT,
+  "node_modules/katex/dist/fonts/KaTeX_Main-Regular.woff2"
+);
+const localFont = { name: "Probe", variants: [{ src: LOCAL_FONT }] };
+const offlineFontsSource = `theme: { fonts: ${JSON.stringify({
+  body: localFont,
+  display: localFont,
+  mono: localFont,
+})} }`;
+
 const writeProject = async (files: Record<string, string>): Promise<string> => {
   // Keep Blume's source files on one realpath so Astro's compiler metadata uses
   // the same module identities throughout the fixture build.
@@ -57,6 +78,7 @@ import probe from "site-integration";
 const marker = new URL("./integration-markers.log", import.meta.url);
 export default {
   integrations: ${JSON.stringify(labels)}.map((label) => probe({ label, marker })),
+  ${offlineFontsSource},
 };
 `;
 
@@ -285,9 +307,10 @@ const stopDev = async (
 };
 
 /**
- * Astro's dev startup occasionally wedges after `astro:server:setup` and never
- * reaches listen (observed intermittently on macOS). One relaunch gets past the
- * transient wedge; a persistent startup failure still surfaces after the retry.
+ * Relaunch once if the dev server never reaches listen. The fixtures' local
+ * fonts (see `offlineFontsSource`) remove the known cause — Astro waiting on
+ * Google Fonts before listening — so this only guards a persistent startup
+ * failure, which still surfaces after the retry.
  */
 const startDevReady = async (
   root: string,
@@ -357,16 +380,8 @@ const runCli = async (
 /**
  * `blume build --isolated` on CI occasionally wedges after Astro logs
  * `Complete!`: the build succeeds but the process never exits, and without a
- * guard the runner kills it at the test timeout (exit 143) — the build-side
- * sibling of the dev startup wedge above. Kill the hung process and rebuild
- * once; a persistent hang still surfaces after the retry.
- *
- * A second CI flake lives in Astro's fonts pipeline: the default theme fonts
- * download from Google at build time, and Google's CSS API occasionally hands
- * out gstatic URLs that 404 mid-rollout, failing the build with
- * `CannotFetchFontFile`. Drop the runtime's font cache (a cached stale URL
- * list would just re-404) and rebuild once; a real outage still surfaces
- * after the retry.
+ * guard the runner kills it at the test timeout (exit 143). Kill the hung
+ * process and rebuild once; a persistent hang still surfaces after the retry.
  */
 const runIsolatedBuild = async (
   root: string,
@@ -379,17 +394,6 @@ const runIsolatedBuild = async (
     if (!(error instanceof CliTimeoutError) || attemptsLeft <= 1) {
       throw error;
     }
-    return runIsolatedBuild(root, attemptsLeft - 1);
-  }
-  if (
-    result.exitCode !== 0 &&
-    result.output.includes("CannotFetchFontFile") &&
-    attemptsLeft > 1
-  ) {
-    await rm(join(root, ".blume-verify/.astro/fonts"), {
-      force: true,
-      recursive: true,
-    });
     return runIsolatedBuild(root, attemptsLeft - 1);
   }
   return result;
@@ -478,7 +482,7 @@ it("runs configured integrations in order for build and dev, regenerates once on
 
 it("passes invalid integration elements through to Astro validation", async () => {
   const root = await writeProject({
-    "blume.config.ts": 'export default { integrations: ["invalid"] };\n',
+    "blume.config.ts": `export default { integrations: ["invalid"], ${offlineFontsSource} };\n`,
     "docs/index.md": "# Home\n",
   });
 
@@ -496,6 +500,7 @@ it("serves a renamed content folder in dev without restarting the server", async
   // (`refreshContent`), so the moved page answers under its new route while
   // the server stays up — its startup banner prints exactly once.
   const root = await writeProject({
+    "blume.config.ts": `export default { ${offlineFontsSource} };\n`,
     "docs/guides/setup.md":
       "---\ntitle: Setup\n---\n# Setup\n\nrenamed probe\n",
     "docs/index.md": "# Home\n",
@@ -544,7 +549,7 @@ it("negotiates Markdown for content routes under deployment.base in dev", async 
   // negotiation handler runs; stripping the base a second time left every
   // request unmatched, so `Accept: text/markdown` served HTML on based sites.
   const root = await writeProject({
-    "blume.config.ts": 'export default { deployment: { base: "/sub" } };\n',
+    "blume.config.ts": `export default { deployment: { base: "/sub" }, ${offlineFontsSource} };\n`,
     "docs/guide.md": "---\ntitle: Guide\n---\n# Guide\n\nprobe body\n",
     "docs/index.md": "# Home\n",
   });
