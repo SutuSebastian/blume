@@ -9,6 +9,7 @@ import { packageRoot } from "../../core/package-root.ts";
 import { scanProject } from "../../core/project-graph.ts";
 import { serverFeatures } from "../../core/server-features.ts";
 import type { Diagnostic } from "../../core/types.ts";
+import { commandMeta } from "../command-meta.ts";
 import { reportInternalError } from "../internal-error.ts";
 import {
   flushStdout,
@@ -41,10 +42,7 @@ export const doctorCommand = defineCommand({
       type: "boolean",
     },
   },
-  meta: {
-    description: "Diagnose common configuration and content problems.",
-    name: "doctor",
-  },
+  meta: commandMeta.doctor,
   async run({ args }) {
     const root = process.cwd();
     const diagnostics: Diagnostic[] = [];

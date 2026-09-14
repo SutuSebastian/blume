@@ -26,6 +26,7 @@ import {
 } from "../../translate/report.ts";
 import { runTranslate } from "../../translate/run.ts";
 import { computeWorkList } from "../../translate/work-list.ts";
+import { commandMeta } from "../command-meta.ts";
 import { reportInternalError } from "../internal-error.ts";
 import { flushStdout, logger } from "../log.ts";
 
@@ -181,11 +182,7 @@ export const translateCommand = defineCommand({
       type: "string",
     },
   },
-  meta: {
-    description:
-      "Translate docs into the configured locales with a local agent CLI.",
-    name: "translate",
-  },
+  meta: commandMeta.translate,
   async run({ args }) {
     const root = process.cwd();
     const { agent, concurrency, timeoutS } = parseFlags(args);

@@ -13,6 +13,7 @@ import type { AuditResult } from "../../audit/run.ts";
 import { BlumeError } from "../../core/diagnostics.ts";
 import { scanProject } from "../../core/project-graph.ts";
 import type { DiagnosticSeverity } from "../../core/types.ts";
+import { commandMeta } from "../command-meta.ts";
 import { reportInternalError } from "../internal-error.ts";
 import { flushStdout, logger } from "../log.ts";
 
@@ -115,10 +116,7 @@ export const auditCommand = defineCommand({
       type: "boolean",
     },
   },
-  meta: {
-    description: "Audit the built site for SEO and site-health issues.",
-    name: "audit",
-  },
+  meta: commandMeta.audit,
   async run({ args }) {
     if (args["list-checks"]) {
       process.stdout.write(formatCatalog());

@@ -13,6 +13,7 @@ import { validateLinks } from "../../core/links.ts";
 import { buildManifest } from "../../core/manifest.ts";
 import { scanProject } from "../../core/project-graph.ts";
 import type { Diagnostic } from "../../core/types.ts";
+import { commandMeta } from "../command-meta.ts";
 import { reportInternalError } from "../internal-error.ts";
 import {
   flushStdout,
@@ -36,10 +37,7 @@ export const validateCommand = defineCommand({
       type: "boolean",
     },
   },
-  meta: {
-    description: "Validate internal, anchor, asset, and external links.",
-    name: "validate",
-  },
+  meta: commandMeta.validate,
   async run({ args }) {
     const root = process.cwd();
     const diagnostics: Diagnostic[] = [];

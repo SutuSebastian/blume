@@ -4,6 +4,7 @@ import { resolve } from "pathe";
 
 import { ensureGitignore } from "../../core/gitignore.ts";
 import { eject } from "../../registry/eject.ts";
+import { commandMeta } from "../command-meta.ts";
 import { updatePackageScripts } from "../eject-scripts.ts";
 import { collectAnswers } from "../init/questions.ts";
 import {
@@ -84,10 +85,7 @@ export const initCommand = defineCommand({
       type: "boolean",
     },
   },
-  meta: {
-    description: "Scaffold a minimal Blume project.",
-    name: "init",
-  },
+  meta: commandMeta.init,
   async run({ args }) {
     const cwd = process.cwd();
 

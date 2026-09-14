@@ -7,18 +7,16 @@ import { join } from "pathe";
 import { loadConfig } from "../../core/config.ts";
 import { resolveProjectContext } from "../../core/project.ts";
 import { parsePort } from "../args.ts";
+import { commandMeta } from "../command-meta.ts";
+import { normalizeHost } from "../host-args.ts";
 import { logger } from "../log.ts";
-import { normalizeHost } from "./dev.ts";
 
 export const previewCommand = defineCommand({
   args: {
     host: { description: "Network host to bind.", type: "string" },
     port: { description: "Port to listen on.", type: "string" },
   },
-  meta: {
-    description: "Preview the last production build.",
-    name: "preview",
-  },
+  meta: commandMeta.preview,
   async run({ args }) {
     const root = process.cwd();
     const { config } = await loadConfig(root);

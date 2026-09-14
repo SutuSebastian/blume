@@ -6,6 +6,7 @@ import { defineCommand } from "citty";
 import { join } from "pathe";
 
 import { ensureGitignore } from "../../core/gitignore.ts";
+import { commandMeta } from "../command-meta.ts";
 import { refuseIfDevRunning } from "../dev-lock.ts";
 import { logger } from "../log.ts";
 import { prepareProject } from "../prepare.ts";
@@ -26,10 +27,7 @@ export const checkCommand = defineCommand({
       type: "boolean",
     },
   },
-  meta: {
-    description: "Type-check the docs site with astro check.",
-    name: "check",
-  },
+  meta: commandMeta.check,
   async run({ args }) {
     const root = process.cwd();
 

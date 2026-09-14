@@ -16,10 +16,10 @@ const COMMANDS = join(PKG_ROOT, "src", "cli", "commands");
 
 const script = `
   const { parseArgs } = await import("citty");
-  const { normalizeHostArgs } = await import(
+  const { normalizeHost, normalizeHostArgs } = await import(
     ${JSON.stringify(join(PKG_ROOT, "src", "cli", "host-args.ts"))}
   );
-  const { devCommand, normalizeHost } = await import(
+  const { devCommand } = await import(
     ${JSON.stringify(join(COMMANDS, "dev.ts"))}
   );
   const { previewCommand } = await import(

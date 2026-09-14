@@ -28,7 +28,7 @@ let cached: string | undefined;
  * Anchoring here — rather than at a fixed offset from `import.meta` — keeps the
  * package's own `src/`, assets, and `node_modules` locatable whether the code
  * runs from source under Bun (`src/...`) or from the published, bundled CLI
- * (`dist/cli/index.js`). The two layouts sit at different depths, so a relative
+ * (`dist/cli/*.js`). The two layouts sit at different depths, so a relative
  * `../..` resolves to different places; locating `package.json` does not.
  */
 export const packageRoot = (): string => {

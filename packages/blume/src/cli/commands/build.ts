@@ -45,6 +45,7 @@ import {
 } from "../../deploy/function-bundle.ts";
 import { platformRedirects } from "../../deploy/redirects.ts";
 import { injectNegotiationRoutes } from "../../deploy/vercel-negotiation.ts";
+import { commandMeta } from "../command-meta.ts";
 import { refuseIfDevRunning } from "../dev-lock.ts";
 import { logger } from "../log.ts";
 import { prepareProject } from "../prepare.ts";
@@ -492,10 +493,7 @@ export const buildCommand = defineCommand({
       type: "boolean",
     },
   },
-  meta: {
-    description: "Build the docs site for production.",
-    name: "build",
-  },
+  meta: commandMeta.build,
   async run({ args }) {
     const root = process.cwd();
 

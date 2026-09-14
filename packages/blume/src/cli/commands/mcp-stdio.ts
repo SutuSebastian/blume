@@ -4,6 +4,7 @@ import { defineCommand } from "citty";
 
 import type { McpData } from "../../ai/mcp/data.ts";
 import { serveMcpStdio } from "../../ai/mcp/stdio.ts";
+import { commandMeta } from "../command-meta.ts";
 
 export const mcpStdioCommand = defineCommand({
   args: {
@@ -13,11 +14,7 @@ export const mcpStdioCommand = defineCommand({
       type: "string",
     },
   },
-  meta: {
-    description:
-      "Serve an MCP data snapshot over stdio (internal, used by `blume eval`).",
-    name: "mcp-stdio",
-  },
+  meta: commandMeta["mcp-stdio"],
   async run({ args }) {
     // stdout belongs to the JSON-RPC transport from here on; every diagnostic
     // must go to stderr or the MCP client chokes on the stray line.

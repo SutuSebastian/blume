@@ -11,27 +11,16 @@ import {
 import { scanProject } from "../../core/project-graph.ts";
 import { resolveRuntimeDir } from "../../core/project.ts";
 import { parsePort } from "../args.ts";
+import { commandMeta } from "../command-meta.ts";
 import {
   acquireDevLock,
   describeDevLock,
   DevLockHeldError,
   updateDevLockPort,
 } from "../dev-lock.ts";
+import { normalizeHost } from "../host-args.ts";
 import { logger, reportDiagnostics } from "../log.ts";
 import { prepareProject } from "../prepare.ts";
-
-/**
- * Resolve a `--host` flag value into what Astro/Vite's `server.host` expects.
- * citty has no mixed string/boolean arg type, so `host` is declared as a
- * string and a bare `--host` parses as `""` (the CLI entry rewrites it to
- * `--host=` first; see `host-args.ts`) — Node would bind all interfaces
- * for `""`, but Vite's `resolveHostname` treats it as a literal hostname and
- * prints malformed URLs like `http://:4321/`. Match Astro's own `--host`
- * semantics instead: bare flag → `true` (bind all interfaces), `--host
- * 10.0.0.1` → that address, absent → `false` (localhost only).
- */
-export const normalizeHost = (host: string | undefined): boolean | string =>
-  host === "" ? true : (host ?? false);
 
 /**
  * A fingerprint of the route set: the sorted `path entryId` pairs. It changes
@@ -66,10 +55,7 @@ export const devCommand = defineCommand({
     },
     strict: { description: "Fail on diagnostics.", type: "boolean" },
   },
-  meta: {
-    description: "Start the Blume development server.",
-    name: "dev",
-  },
+  meta: commandMeta.dev,
   async run({ args }) {
     const root = process.cwd();
     const preview = args.preview ?? false;

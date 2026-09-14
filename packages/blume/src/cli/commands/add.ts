@@ -6,6 +6,7 @@ import { dirname, join } from "pathe";
 
 import { findItem, packageSrc, registry } from "../../registry/registry.ts";
 import { rewriteImports } from "../../registry/rewrite-imports.ts";
+import { commandMeta } from "../command-meta.ts";
 import { logger } from "../log.ts";
 
 export const addCommand = defineCommand({
@@ -17,10 +18,7 @@ export const addCommand = defineCommand({
       type: "positional",
     },
   },
-  meta: {
-    description: "Install a source component or template from the registry.",
-    name: "add",
-  },
+  meta: commandMeta.add,
   async run({ args }) {
     const root = process.cwd();
 

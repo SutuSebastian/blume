@@ -3,6 +3,7 @@ import { defineCommand } from "citty";
 import { loadConfig } from "../../core/config.ts";
 import { BlumeError } from "../../core/diagnostics.ts";
 import { CutError, cutVersion } from "../../core/version-cut.ts";
+import { commandMeta } from "../command-meta.ts";
 import { reportInternalError } from "../internal-error.ts";
 import { logger } from "../log.ts";
 
@@ -18,10 +19,7 @@ export const versionCommand = defineCommand({
       type: "positional",
     },
   },
-  meta: {
-    description: "Freeze the current docs as an archived version.",
-    name: "version",
-  },
+  meta: commandMeta.version,
   async run({ args }) {
     const root = process.cwd();
 

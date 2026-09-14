@@ -1,24 +1,18 @@
 import { defineCommand, runMain } from "citty";
 
 import { getBlumeVersion } from "../core/version.ts";
-import { addCommand } from "./commands/add.ts";
-import { auditCommand } from "./commands/audit.ts";
-import { buildCommand } from "./commands/build.ts";
-import { checkCommand } from "./commands/check.ts";
-import { devCommand } from "./commands/dev.ts";
-import { doctorCommand } from "./commands/doctor.ts";
-import { ejectCommand } from "./commands/eject.ts";
-import { evalCommand } from "./commands/eval.ts";
-import { initCommand } from "./commands/init.ts";
-import { mcpStdioCommand } from "./commands/mcp-stdio.ts";
-import { previewCommand } from "./commands/preview.ts";
-import { syncCommand } from "./commands/sync.ts";
-import { translateCommand } from "./commands/translate.ts";
-import { validateCommand } from "./commands/validate.ts";
-import { versionCommand } from "./commands/version.ts";
+import { commandMeta } from "./command-meta.ts";
 import { loadEnvFiles } from "./env.ts";
 import { normalizeHostArgs } from "./host-args.ts";
 import { reportInternalError } from "./internal-error.ts";
+import { lazyCommand } from "./lazy-command.ts";
+// consola reads CONSOLA_LEVEL / NODE_ENV / TEST / CI / DEBUG when its module
+// evaluates. Import the logger here, ahead of `loadEnvFiles`, so those values
+// come from the real environment — never from a project `.env`, which would
+// otherwise silence or restyle every command's output. The commands are loaded
+// lazily below, so without this line consola would first evaluate after `.env`
+// had been applied.
+import "./log.ts";
 
 const main = defineCommand({
   meta: {
@@ -27,31 +21,86 @@ const main = defineCommand({
     version: getBlumeVersion(),
   },
   subCommands: {
-    add: addCommand,
-    audit: auditCommand,
-    build: buildCommand,
-    check: checkCommand,
-    dev: devCommand,
-    doctor: doctorCommand,
-    eject: ejectCommand,
-    eval: evalCommand,
-    init: initCommand,
-    "mcp-stdio": mcpStdioCommand,
-    preview: previewCommand,
-    sync: syncCommand,
-    translate: translateCommand,
-    validate: validateCommand,
-    version: versionCommand,
+    add: lazyCommand(
+      commandMeta.add,
+      () => import("./commands/add.ts"),
+      "addCommand"
+    ),
+    audit: lazyCommand(
+      commandMeta.audit,
+      () => import("./commands/audit.ts"),
+      "auditCommand"
+    ),
+    build: lazyCommand(
+      commandMeta.build,
+      () => import("./commands/build.ts"),
+      "buildCommand"
+    ),
+    check: lazyCommand(
+      commandMeta.check,
+      () => import("./commands/check.ts"),
+      "checkCommand"
+    ),
+    dev: lazyCommand(
+      commandMeta.dev,
+      () => import("./commands/dev.ts"),
+      "devCommand"
+    ),
+    doctor: lazyCommand(
+      commandMeta.doctor,
+      () => import("./commands/doctor.ts"),
+      "doctorCommand"
+    ),
+    eject: lazyCommand(
+      commandMeta.eject,
+      () => import("./commands/eject.ts"),
+      "ejectCommand"
+    ),
+    eval: lazyCommand(
+      commandMeta.eval,
+      () => import("./commands/eval.ts"),
+      "evalCommand"
+    ),
+    init: lazyCommand(
+      commandMeta.init,
+      () => import("./commands/init.ts"),
+      "initCommand"
+    ),
+    "mcp-stdio": lazyCommand(
+      commandMeta["mcp-stdio"],
+      () => import("./commands/mcp-stdio.ts"),
+      "mcpStdioCommand"
+    ),
+    preview: lazyCommand(
+      commandMeta.preview,
+      () => import("./commands/preview.ts"),
+      "previewCommand"
+    ),
+    sync: lazyCommand(
+      commandMeta.sync,
+      () => import("./commands/sync.ts"),
+      "syncCommand"
+    ),
+    translate: lazyCommand(
+      commandMeta.translate,
+      () => import("./commands/translate.ts"),
+      "translateCommand"
+    ),
+    validate: lazyCommand(
+      commandMeta.validate,
+      () => import("./commands/validate.ts"),
+      "validateCommand"
+    ),
+    version: lazyCommand(
+      commandMeta.version,
+      () => import("./commands/version.ts"),
+      "versionCommand"
+    ),
   },
 });
 
-// Load `.env`/`.env.local` before any command runs so remote content sources
-// can read their tokens (e.g. `GITHUB_TOKEN`) during the content scan.
 loadEnvFiles(process.cwd());
 
-// Backstop for unexpected async failures that escape a command's own handling
-// (e.g. a rejected timer/watcher in `blume dev`), so even those report through
-// the stable internal-error contract rather than a bare stack trace.
 process.on("uncaughtException", (error) => {
   reportInternalError(error);
   process.exit(1);

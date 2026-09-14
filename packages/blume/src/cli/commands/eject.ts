@@ -2,6 +2,7 @@ import { defineCommand } from "citty";
 import { relative } from "pathe";
 
 import { eject } from "../../registry/eject.ts";
+import { commandMeta } from "../command-meta.ts";
 import { refuseIfDevRunning } from "../dev-lock.ts";
 import { updatePackageScripts } from "../eject-scripts.ts";
 import { commandsFor, detectProjectPackageManager } from "../init/scaffold.ts";
@@ -11,10 +12,7 @@ export const ejectCommand = defineCommand({
   args: {
     yes: { description: "Skip the confirmation prompt.", type: "boolean" },
   },
-  meta: {
-    description: "Promote the generated runtime into an owned Astro project.",
-    name: "eject",
-  },
+  meta: commandMeta.eject,
   async run({ args }) {
     const root = process.cwd();
     refuseIfDevRunning(root, "ejecting");

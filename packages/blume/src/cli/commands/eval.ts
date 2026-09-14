@@ -22,6 +22,7 @@ import {
 import { runEval } from "../../eval/run.ts";
 import type { EvalResult } from "../../eval/run.ts";
 import { EvalsFileError, loadEvalsFile } from "../../eval/schema.ts";
+import { commandMeta } from "../command-meta.ts";
 import { reportInternalError } from "../internal-error.ts";
 import { flushStdout, logger } from "../log.ts";
 
@@ -183,11 +184,7 @@ export const evalCommand = defineCommand({
       type: "boolean",
     },
   },
-  meta: {
-    description:
-      "Test the docs: an agent answers your questions using only the documentation.",
-    name: "eval",
-  },
+  meta: commandMeta.eval,
   async run({ args }) {
     const root = process.cwd();
     const { agent, threshold, timeoutS } = parseFlags(args);

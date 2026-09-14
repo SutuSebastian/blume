@@ -226,7 +226,9 @@ describe("blume eval", () => {
     const timeout = await run(root, bin, {}, "--timeout", "0");
     expect(timeout.exitCode).toBe(1);
     expect(timeout.stderr).toContain("Invalid --timeout");
-  });
+    // Four sequential CLI subprocesses: a slow single-CPU runner can exceed
+    // Bun's 5 s default (this was the flake that motivated lazy commands).
+  }, 30_000);
 
   it("suggests the install command when the agent CLI is missing", async () => {
     const root = await fixture();

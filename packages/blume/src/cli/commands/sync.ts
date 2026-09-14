@@ -8,6 +8,7 @@ import {
   resolveProjectContext,
   resolveRuntimeDir,
 } from "../../core/project.ts";
+import { commandMeta } from "../command-meta.ts";
 import { readDevLock } from "../dev-lock.ts";
 import { logger } from "../log.ts";
 import { prepareProject } from "../prepare.ts";
@@ -24,10 +25,7 @@ export const syncCommand = defineCommand({
     },
     strict: { description: "Fail on diagnostics.", type: "boolean" },
   },
-  meta: {
-    description: "Re-fetch remote content sources and regenerate the runtime.",
-    name: "sync",
-  },
+  meta: commandMeta.sync,
   async run({ args }) {
     const root = process.cwd();
 
