@@ -920,6 +920,29 @@ describe("render-mdx for AsyncAPI operations", () => {
     expect(page.data.search).toStrictEqual({ tags: ["ping", "SEND"] });
     expect(page.body).toBe('<Operation source="events" id="ping-op" />');
   });
+
+  it("does not repeat API when the spec title already includes it", () => {
+    const page = operationMdx(
+      { ...spec, title: "Events API" },
+      {
+        channelId: "userSignedup",
+        deprecated: false,
+        description: "",
+        key: "ping-op",
+        method: "send",
+        operationId: "pingOp",
+        path: "user/signedup",
+        route: "/events/ping/ping-op",
+        summary: "",
+        tag: "ping",
+        tagSlug: "ping",
+      }
+    );
+    expect(page.data.seo).toStrictEqual({
+      description:
+        "Reference for the send operation on user/signedup in the Events API.",
+    });
+  });
 });
 
 describe("source.openApiSource with AsyncAPI references", () => {

@@ -3,6 +3,7 @@ import { fromMarkdown } from "mdast-util-from-markdown";
 import { toString as mdastToString } from "mdast-util-to-string";
 import stringWidth from "string-width";
 
+import { apiNamePhrase } from "../core/api-name.ts";
 import { columnsPrefix } from "../core/text-width.ts";
 import type { GraphqlMember } from "./graphql.ts";
 import { isGraphqlOperationKind } from "./graphql.ts";
@@ -158,6 +159,8 @@ const clip = (text: string, max: number): string => {
 };
 
 const apiName = (spec: ApiSpecData): string => spec.title || spec.label;
+/** The spec's name as "the ___" in generated prose (see `apiNamePhrase`). */
+const apiPhrase = (spec: ApiSpecData): string => apiNamePhrase(apiName(spec));
 
 /** Human phrase for each GraphQL page kind, for meta descriptions. */
 const GRAPHQL_MEMBER_PHRASES = {
@@ -194,16 +197,17 @@ const operationDescription = (
   }
   // AsyncAPI operations act on a channel, not an HTTP endpoint; GraphQL pages
   // document a root field or a named type.
-  let suffix: string;
+  let subject: string;
   if (spec.kind === "asyncapi") {
-    suffix = `Reference for the ${operation.method} operation on ${operation.path} in the ${apiName(spec)} API.`;
+    subject = `${operation.method} operation on ${operation.path}`;
   } else if (spec.kind === "graphql") {
     // SAFETY: the GraphQL extractor only ever assigns member kinds as the
     // method (see `extractGraphqlOperations`).
-    suffix = `Reference for the ${operation.path} ${GRAPHQL_MEMBER_PHRASES[operation.method as GraphqlMember]} in the ${apiName(spec)} API.`;
+    subject = `${operation.path} ${GRAPHQL_MEMBER_PHRASES[operation.method as GraphqlMember]}`;
   } else {
-    suffix = `Reference for the ${operation.method.toUpperCase()} ${operation.path} endpoint in the ${apiName(spec)} API.`;
+    subject = `${operation.method.toUpperCase()} ${operation.path} endpoint`;
   }
+  const suffix = `Reference for the ${subject} in the ${apiPhrase(spec)}.`;
   const prose = clip(
     plainProse(operation.description || operation.summary),
     META_DESCRIPTION_MAX - stringWidth(suffix) - 1
@@ -350,7 +354,7 @@ export const overviewMdx = (
   const seo: RenderedPageData["seo"] = {
     description:
       clip(plainProse(spec.description), META_DESCRIPTION_MAX) ||
-      `${apiName(spec)} API reference.`,
+      `${apiPhrase(spec)} reference.`,
   };
   if (reference?.noindex) {
     seo.noindex = true;

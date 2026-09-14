@@ -609,6 +609,14 @@ describe("render-mdx (graphql)", () => {
     expect(page.body).toContain('<Operation source="graphql" id="pets" />');
   });
 
+  it("does not repeat API when the spec title already includes it", () => {
+    const named = specData({ title: "GraphQL API" });
+    const page = operationMdx(named, refFor(named, "pets"));
+    expect(page.data.seo.description).toBe(
+      "List pets. Reference for the pets query in the GraphQL API."
+    );
+  });
+
   it("describes type pages by their kind", () => {
     const page = operationMdx(spec, refFor(spec, "pet-object"));
     expect(page.data.title).toBe("Pet");

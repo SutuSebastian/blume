@@ -1,3 +1,4 @@
+import { apiNamePhrase } from "../../core/api-name.ts";
 import { withBasePath } from "../../core/base-path.ts";
 import { absoluteUrl, siteRoot } from "../../core/site-url.ts";
 import {
@@ -658,7 +659,7 @@ export const buildApiSpec = (input: ApiSpecInput): ApiSpecDocument => {
       `Read-only JSON API over the ${input.name} documentation${input.description ? `: ${input.description}` : "."}`,
       "Every operation is public and needs no authentication. Errors are RFC 9457 problem details (`application/problem+json`) with a stable `code`, a `detail`, and a `resolution` hint.",
     ].join("\n\n"),
-    title: `${input.name} API`,
+    title: apiNamePhrase(input.name),
     version: input.version,
     "x-generator": `blume@${input.version}`,
   };

@@ -38,6 +38,14 @@ const operations = (
   );
 
 describe("buildApiSpec", () => {
+  it("does not repeat API when the site name already includes it", () => {
+    const spec = buildApiSpec({ ...MINIMAL, name: "Acme API" });
+    expect(spec.info.title).toBe("Acme API");
+    expect(spec.info.description).toStartWith(
+      "Read-only JSON API over the Acme API documentation."
+    );
+  });
+
   it("describes the whole agent-facing surface, one operationId per operation", () => {
     const spec = buildApiSpec(FULL);
     expect(spec.openapi).toBe("3.1.0");
