@@ -1,17 +1,35 @@
 /**
  * Result parsing and comparison shared by the benchmark runner: normalize
  * hyperfine (the `blume build` wall clock) and mitata (in-process hot paths)
- * output to one shape, pair a candidate run with a baseline, and flag any
- * benchmark whose median slowed by more than the threshold.
+ * output and the build's output measurements (`output.ts`) to one shape, pair
+ * a candidate run with a baseline, and flag any benchmark whose median slowed
+ * — or whose output grew — by more than its threshold.
  */
 
-/** One measured benchmark, in milliseconds. */
+/**
+ * What a measurement counts. Timings (`ms`, the default) vary run to run and
+ * are gated by the runner's threshold; `bytes` and `count` come out of a
+ * build's output and are deterministic for the same code, so they are gated
+ * far tighter (see {@link regressions}).
+ */
+export type Unit = "bytes" | "count" | "ms";
+
+/** One measured benchmark, in milliseconds unless `unit` says otherwise. */
 export interface Measurement {
   name: string;
   /** Median of the samples. The compared statistic: robust to a stray outlier. */
   median: number;
   min: number;
+  unit?: Unit;
 }
+
+/**
+ * The most a deterministic measurement (bytes, a count) may grow before it
+ * counts as a regression. Output sizes don't jitter, so this only has to
+ * absorb a deliberate small addition — a page growing by more than this is
+ * what the gate exists to catch. A tighter `--threshold` still applies.
+ */
+export const DETERMINISTIC_THRESHOLD_PERCENT = 5;
 
 /** A candidate measurement beside its baseline, when the baseline has one. */
 export interface Comparison {
@@ -77,6 +95,18 @@ export const fromMitata = (stdout: string): Measurement[] => {
   );
 };
 
+/**
+ * `candidate / baseline`, defined at a zero baseline: still zero is unchanged,
+ * anything above it is an unbounded regression (a warm rebuild that rendered
+ * cards after one that rendered none).
+ */
+const ratio = (candidate: number, baseline: number): number => {
+  if (baseline === 0) {
+    return candidate === 0 ? 1 : Number.POSITIVE_INFINITY;
+  }
+  return candidate / baseline;
+};
+
 /** Pair every candidate measurement with the same-named baseline one. */
 export const compare = (
   candidate: Measurement[],
@@ -89,17 +119,28 @@ export const compare = (
       baseline: base,
       candidate: measurement,
       name: measurement.name,
-      ratio: base ? measurement.median / base.median : null,
+      ratio: base ? ratio(measurement.median, base.median) : null,
     };
   });
 
-/** The comparisons that slowed by more than `thresholdPercent`. */
+/** The growth a measurement may show before it regresses, in percent. */
+const allowance = (row: Comparison, thresholdPercent: number): number =>
+  (row.candidate.unit ?? "ms") === "ms"
+    ? thresholdPercent
+    : Math.min(thresholdPercent, DETERMINISTIC_THRESHOLD_PERCENT);
+
+/**
+ * The comparisons that regressed: timings slower than `thresholdPercent`,
+ * output sizes and counts grown past {@link DETERMINISTIC_THRESHOLD_PERCENT}.
+ */
 export const regressions = (
   rows: Comparison[],
   thresholdPercent: number
 ): Comparison[] =>
   rows.filter(
-    (row) => row.ratio !== null && row.ratio > 1 + thresholdPercent / 100
+    (row) =>
+      row.ratio !== null &&
+      row.ratio > 1 + allowance(row, thresholdPercent) / 100
   );
 
 const formatDuration = (ms: number): string => {
@@ -112,11 +153,38 @@ const formatDuration = (ms: number): string => {
   return `${(ms * 1000).toFixed(2)} µs`;
 };
 
-const formatChange = (ratio: number | null): string => {
-  if (ratio === null) {
+const formatBytes = (bytes: number): string => {
+  if (bytes >= 1024 * 1024) {
+    return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+  }
+  if (bytes >= 1024) {
+    return `${(bytes / 1024).toFixed(1)} kB`;
+  }
+  return `${bytes} B`;
+};
+
+const formatValue = (measurement: Measurement): string => {
+  switch (measurement.unit) {
+    case "bytes": {
+      return formatBytes(measurement.median);
+    }
+    case "count": {
+      return String(measurement.median);
+    }
+    default: {
+      return formatDuration(measurement.median);
+    }
+  }
+};
+
+const formatChange = (change: number | null): string => {
+  if (change === null) {
     return "no baseline";
   }
-  const percent = (ratio - 1) * 100;
+  if (change === Number.POSITIVE_INFINITY) {
+    return "+∞";
+  }
+  const percent = (change - 1) * 100;
   return `${percent >= 0 ? "+" : ""}${percent.toFixed(1)}%`;
 };
 
@@ -132,8 +200,8 @@ export const formatTable = (
     ...rows.map((row) =>
       [
         row.name,
-        row.baseline ? formatDuration(row.baseline.median) : "—",
-        formatDuration(row.candidate.median),
+        row.baseline ? formatValue(row.baseline) : "—",
+        formatValue(row.candidate),
         `${formatChange(row.ratio)}${slow.has(row) ? " ⚠️" : ""}`,
       ]
         .map((cell) => `| ${cell} `)

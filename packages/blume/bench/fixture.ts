@@ -76,6 +76,14 @@ const table = (next: () => number): string =>
 const pageRoute = (index: number): string =>
   `/${SECTIONS[index % SECTIONS.length]}/page-${index}`;
 
+/**
+ * A representative content page's built HTML, relative to `dist/`: page 1 is
+ * MDX (see `pageFile`) with the full complement of components, and its
+ * sidebar lists every page, so its size tracks both per-page and per-site
+ * markup costs.
+ */
+export const SAMPLE_PAGE_HTML = `${pageRoute(1).slice(1)}/index.html`;
+
 const pageFile = (index: number, total: number): string => {
   const route = pageRoute(((index % total) + total) % total);
   return `docs${route}.${index % 5 === 0 ? "md" : "mdx"}`;

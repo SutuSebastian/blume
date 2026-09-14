@@ -86,6 +86,39 @@ describe("regressions", () => {
     expect(regressions(rows, 20).map((row) => row.name)).toEqual(["a"]);
     expect(regressions(rows, 25)).toEqual([]);
   });
+
+  it("holds output sizes and counts to the deterministic threshold", () => {
+    // Bytes don't jitter between runs, so a page that grew 6% is a
+    // regression even though the timing threshold is 20%.
+    const rows = compare(
+      [
+        measurement("page", 1060, { unit: "bytes" }),
+        measurement("dist", 1040, { unit: "bytes" }),
+        measurement("cards", 3, { unit: "count" }),
+        measurement("still none", 0, { unit: "count" }),
+      ],
+      [
+        measurement("page", 1000, { unit: "bytes" }),
+        measurement("dist", 1000, { unit: "bytes" }),
+        measurement("cards", 0, { unit: "count" }),
+        measurement("still none", 0, { unit: "count" }),
+      ]
+    );
+    expect(regressions(rows, 20).map((row) => row.name)).toEqual([
+      "page",
+      "cards",
+    ]);
+    // A tighter run-wide threshold still applies to them.
+    expect(regressions(rows, 2).map((row) => row.name)).toEqual([
+      "page",
+      "dist",
+      "cards",
+    ]);
+    expect(rows.find((row) => row.name === "cards")?.ratio).toBe(
+      Number.POSITIVE_INFINITY
+    );
+    expect(rows.find((row) => row.name === "still none")?.ratio).toBe(1);
+  });
 });
 
 describe("formatTable", () => {
@@ -105,6 +138,33 @@ describe("formatTable", () => {
         "| build | 1.00 s | 1.50 s | +50.0% ⚠️ |",
         "| scan | 2.60 ms | 2.50 ms | -3.8% |",
         "| new | — | 12.50 µs | no baseline |",
+      ].join("\n")
+    );
+  });
+
+  it("renders bytes and counts in their own units", () => {
+    const rows = compare(
+      [
+        measurement("page HTML", 186_140, { unit: "bytes" }),
+        measurement("dist", 314_572_800, { unit: "bytes" }),
+        measurement("small", 512, { unit: "bytes" }),
+        measurement("cards rendered", 3, { unit: "count" }),
+      ],
+      [
+        measurement("page HTML", 573_474, { unit: "bytes" }),
+        measurement("dist", 865_075_200, { unit: "bytes" }),
+        measurement("small", 512, { unit: "bytes" }),
+        measurement("cards rendered", 0, { unit: "count" }),
+      ]
+    );
+    expect(formatTable(rows, 20)).toBe(
+      [
+        "| Benchmark | Baseline | Candidate | Change |",
+        "| --- | ---: | ---: | ---: |",
+        "| page HTML | 560.0 kB | 181.8 kB | -67.5% |",
+        "| dist | 825.00 MB | 300.00 MB | -63.6% |",
+        "| small | 512 B | 512 B | +0.0% |",
+        "| cards rendered | 0 | 3 | +∞ ⚠️ |",
       ].join("\n")
     );
   });

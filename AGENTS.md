@@ -50,7 +50,7 @@ In `apps/docs`, scripts are the Blume CLI itself: `blume dev`, `blume build`, `b
 
 ## Benchmarks
 
-- `bun run bench` (root or `packages/blume`) times `blume build` over a synthetic docs project with hyperfine and the in-process hot paths with mitata (`packages/blume/bench/`). `--base <ref>` checks that ref out as a throwaway worktree and A/Bs both on the same machine; a median more than 20% slower (`--threshold`) fails. CI runs this against the merge base (`bench.yml`), so a PR that slows the build gets a red check and a table in the job summary.
+- `bun run bench` (root or `packages/blume`) times `blume build` over a synthetic docs project with hyperfine, once with the build caches warm and once with them cleared before every run, measures what that build wrote (a content page's HTML bytes, total HTML, `dist/` size, and how many OG cards a warm rebuild rendered — `bench/output.ts`), and times the in-process hot paths with mitata (`packages/blume/bench/`). `--base <ref>` checks that ref out as a throwaway worktree and A/Bs both on the same machine; a median more than 20% slower (`--threshold`) fails, and the output measurements are deterministic so they fail on growth over 5% (`DETERMINISTIC_THRESHOLD_PERCENT`). CI runs this against the merge base (`bench.yml`), so a PR that slows the build, bloats a page, or breaks the card cache gets a red check and a table in the job summary.
 - Absolute numbers vary by machine; only same-run comparisons mean anything. Keep the fixture deterministic (seeded content, no network at measure time) so both sides see identical bytes.
 - Needs `hyperfine` on PATH (`brew install hyperfine`).
 
