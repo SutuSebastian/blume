@@ -17,31 +17,38 @@ jobs:
         with:
           bun-version: 1.4.0
       - run: bun install --frozen-lockfile
-      # Rendered OG cards, keyed by content (see packages/blume/src/og/cache.ts),
-      # so only the cards whose page title or description changed render again.
-      # The key is unique per run so every run saves its pruned set; restoring
-      # the newest entry is safe because a card that no longer matches is
-      # simply not reused.
+      # Build caches a fresh runner would otherwise rebuild from scratch:
+      # Astro's build-mode cache (the content store, digest-keyed so unchanged
+      # pages skip re-syncing, and the downloaded Google font files, which
+      # also sidesteps the gstatic 404s the build step retries around) and
+      # the rendered OG cards, keyed by content (packages/blume/src/og/cache.ts)
+      # so only the cards whose page title or description changed render
+      # again. The key is unique per run so every run saves its current set;
+      # restoring the newest entry is safe because everything in it is
+      # validated by digest before reuse.
       - uses: actions/cache@v6
-        name: Restore OG card cache
+        name: Restore build caches
         with:
-          path: apps/docs/node_modules/.cache/blume/og
-          key: ${{ runner.os }}-blume-og-${{ github.run_id }}
+          path: |
+            apps/docs/.blume/.cache/astro
+            apps/docs/node_modules/.cache/blume/og
+          key: ${{ runner.os }}-blume-build-cache-${{ github.run_id }}
           restore-keys: |
-            ${{ runner.os }}-blume-og-
+            ${{ runner.os }}-blume-build-cache-
 
       - name: Build docs
         # Google's CSS API occasionally references gstatic font files that
         # 404 mid-rollout, failing the build with CannotFetchFontFile. Retry
-        # that specific transient failure (clearing the font cache so a stale
-        # URL list isn't replayed); any other failure surfaces immediately.
+        # that specific transient failure (clearing the build-mode font cache,
+        # under Astro's cacheDir, so a stale URL list isn't replayed); any
+        # other failure surfaces immediately.
         run: |
           cd apps/docs
           for attempt in 1 2 3; do
             bun run build 2>&1 | tee build.log && exit 0
             grep -q "CannotFetchFontFile" build.log || exit 1
             echo "Font CDN 404 on attempt ${attempt}; clearing font cache and retrying"
-            rm -rf .blume/.astro/fonts
+            rm -rf .blume/.cache/astro/fonts
             sleep 15
           done
           exit 1
