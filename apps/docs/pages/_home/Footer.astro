@@ -1,5 +1,5 @@
 ---
-// Larger landing footer: a brand rail plus link columns generated from the docs
+// Larger landing footer: a brand row plus link columns generated from the docs
 // navigation, so it stays in sync with the sidebar.
 import data from "blume:data";
 
@@ -70,9 +70,11 @@ for (const node of roots) {
 
 <footer>
   <div class="mx-auto max-w-[1400px] px-6 py-16 sm:py-20">
-    <div class="flex flex-col gap-12 lg:flex-row lg:gap-16">
-      <!-- Brand rail -->
-      <div class="lg:w-64 lg:shrink-0">
+    <!-- Brand row: logo + description on the left, GitHub + copyright on the right -->
+    <div
+      class="flex flex-col gap-8 sm:flex-row sm:items-start sm:justify-between"
+    >
+      <div>
         <a class="flex items-center gap-2 font-medium text-foreground" href="/">
           {
             logoSvg && (
@@ -90,10 +92,12 @@ for (const node of roots) {
         >
           {description}
         </p>
+      </div>
+      <div class="flex flex-col gap-3 sm:items-end sm:text-right">
         {
           repoUrl && (
             <a
-              class="mt-6 inline-flex items-center gap-1.5 text-muted-foreground text-sm transition-colors hover:text-foreground"
+              class="inline-flex items-center gap-1.5 text-muted-foreground text-sm transition-colors hover:text-foreground"
               href={repoUrl}
               rel="noreferrer"
               target="_blank"
@@ -111,36 +115,36 @@ for (const node of roots) {
             </a>
           )
         }
-        <p class="mt-8 text-muted-foreground text-xs">
+        <p class="text-muted-foreground text-xs">
           © {year} {title}. MIT licensed.
         </p>
       </div>
-
-      <!-- Link columns, generated from the docs navigation -->
-      <nav
-        aria-label="Footer"
-        class="grid flex-1 grid-cols-2 gap-x-8 gap-y-10 sm:grid-cols-3 lg:grid-cols-5"
-      >
-        {
-          columns.map((column) => (
-            <div>
-              <p class="font-medium text-foreground text-sm">{column.title}</p>
-              <ul class="mt-4 space-y-3">
-                {column.links.map((link) => (
-                  <li>
-                    <a
-                      class="text-muted-foreground text-sm transition-colors hover:text-foreground"
-                      href={link.href}
-                    >
-                      {link.label}
-                    </a>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))
-        }
-      </nav>
     </div>
+
+    <!-- Link columns, generated from the docs navigation -->
+    <nav
+      aria-label="Footer"
+      class="mt-16 grid grid-cols-2 gap-x-8 gap-y-10 sm:grid-cols-3 lg:grid-cols-6"
+    >
+      {
+        columns.map((column) => (
+          <div>
+            <p class="font-medium text-foreground text-sm">{column.title}</p>
+            <ul class="mt-4 space-y-3">
+              {column.links.map((link) => (
+                <li>
+                  <a
+                    class="text-muted-foreground text-sm transition-colors hover:text-foreground"
+                    href={link.href}
+                  >
+                    {link.label}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))
+      }
+    </nav>
   </div>
 </footer>
