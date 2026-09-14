@@ -35,6 +35,16 @@ describe("deriveOgFonts", () => {
     expect(fonts).toEqual([{ name: "Inter", weight: "400..700" }]);
   });
 
+  it("fetches only the card's weights from a static family that declares them", () => {
+    // Title 600 and body 400 are what the card renders; a static family
+    // declaring more weights than that fetches just those two.
+    const { fonts } = deriveOgFonts(
+      { display: { name: "Static Sans", weights: [400, 600, 700] } },
+      ROOT
+    );
+    expect(fonts).toEqual([{ name: "Static Sans", weight: [400, 600] }]);
+  });
+
   it("falls back to declared weights when the card weights are absent", () => {
     // A static family declaring neither card weight (400/600) fetches the
     // weights it does declare — they're what its text renders in.
