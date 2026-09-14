@@ -10,6 +10,7 @@ import {
   API_CATALOG_TYPE,
   hasApiCatalog,
 } from "../../ai/api-catalog.ts";
+import { pageJsonPath } from "../../ai/api/paths.ts";
 import { buildHomeLinkHeader } from "../../ai/link-headers.ts";
 import {
   agentMarkdown,
@@ -214,6 +215,15 @@ const emitCloudflareNegotiation = async (
       contentRoutePaths: project.manifest.routes.map((route) => route.path),
       homeLinkHeader: buildHomeLinkHeader(config, routePaths),
       homeTokens: home ? markdownTokenCount(agentMarkdown(home)) : undefined,
+      // Exactly the per-page JSON documents the API emits (see `pageParams`):
+      // the non-hidden routes with agent Markdown, when the API is on.
+      pageJsonPaths: config.ai.api
+        ? project.manifest.routes
+            .filter(
+              (route) => !route.hidden && rawMarkdown[route.path] !== undefined
+            )
+            .map((route) => pageJsonPath(route.path))
+        : [],
       // The wrapper Worker matches full served URLs, so the redirects are
       // based the same way the platform files are — it answers any the
       // worker-first rules claim, where `_redirects` is never consulted and

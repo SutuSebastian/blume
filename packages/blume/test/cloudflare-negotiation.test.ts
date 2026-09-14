@@ -5,6 +5,7 @@ import { pathToFileURL } from "node:url";
 
 import { join } from "pathe";
 
+import { pageJsonPath } from "../src/ai/api/paths.ts";
 import {
   markdownVariantUrl,
   prefersMarkdown,
@@ -107,7 +108,10 @@ const loadWorker = async (workerText: string): Promise<WorkerModule> => {
 };
 
 interface HarnessCalls {
-  assets: string[];
+  /** Every request the wrapper handed the assets binding, in order. */
+  assetRequests: Request[];
+  /** The URLs of `assetRequests`. */
+  readonly assets: string[];
   server: string[];
 }
 
@@ -119,13 +123,20 @@ interface Harness {
 const makeEnv = (
   options: { assetsStatus?: number; serverResponse?: () => Response } = {}
 ): Harness => {
-  const calls: HarnessCalls = { assets: [], server: [] };
+  const assetRequests: Request[] = [];
+  const calls: HarnessCalls = {
+    assetRequests,
+    get assets(): string[] {
+      return assetRequests.map((request) => request.url);
+    },
+    server: [],
+  };
   return {
     calls,
     env: {
       ASSETS: {
         fetch: (request: Request): Promise<Response> => {
-          calls.assets.push(request.url);
+          assetRequests.push(request);
           const status = options.assetsStatus ?? 200;
           return Promise.resolve(
             new Response(status === 200 ? "# markdown" : null, {
@@ -154,6 +165,7 @@ const workerText = (
     homeLinkHeader: HOME_LINK,
     homeTokens: 123,
     mainSpecifier: "./index.js",
+    pageJsonPaths: ROUTES.map(pageJsonPath),
     routePaths: ROUTES,
     ...overrides,
   });
@@ -257,6 +269,93 @@ describe("negotiation worker — parity with the dev middleware helpers", () => 
 });
 
 describe("negotiation worker — responses", () => {
+  it("serves known prerendered page JSON before Astro's API catch-all", async () => {
+    const worker = await loadWorker(workerText({ base: "/site/" }));
+    const { calls, env } = makeEnv();
+    const response = await worker.fetch(
+      new Request(
+        "https://site.test/site/api/docs/pages/docs/quickstart.json?view=agent",
+        {
+          headers: { authorization: "Bearer test" },
+          method: "HEAD",
+        }
+      ),
+      env,
+      {}
+    );
+    expect(calls.assets).toStrictEqual([
+      "https://site.test/site/api/docs/pages/docs/quickstart.json?view=agent",
+    ]);
+    expect(calls.server).toStrictEqual([]);
+    expect(calls.assetRequests[0]?.method).toBe("HEAD");
+    expect(calls.assetRequests[0]?.headers.get("authorization")).toBe(
+      "Bearer test"
+    );
+    expect(response.status).toBe(200);
+  });
+
+  it("recognizes the home and percent-encoded page JSON assets", async () => {
+    const worker = await loadWorker(workerText());
+    for (const path of [
+      "/api/docs/pages/index.json",
+      "/api/docs/pages/ja/%E3%81%AF%E3%81%98%E3%82%81%E3%81%AB.json",
+    ]) {
+      const { calls, env } = makeEnv();
+      // oxlint-disable-next-line no-await-in-loop -- sequential vectors
+      await worker.fetch(new Request(`https://site.test${path}`), env, {});
+      expect(calls.assets).toStrictEqual([`https://site.test${path}`]);
+      expect(calls.server).toStrictEqual([]);
+    }
+  });
+
+  it("returns a conditional revalidation of a known page JSON asset", async () => {
+    // Cloudflare's static assets carry an ETag, so a client revalidating gets
+    // a 304 from the binding; that is the document's answer, not a miss.
+    const worker = await loadWorker(workerText());
+    const { calls, env } = makeEnv({ assetsStatus: 304 });
+    const response = await worker.fetch(
+      new Request("https://site.test/api/docs/pages/docs/quickstart.json", {
+        headers: { "if-none-match": '"etag"' },
+      }),
+      env,
+      {}
+    );
+    expect(response.status).toBe(304);
+    expect(calls.server).toStrictEqual([]);
+  });
+
+  it("keeps page JSON the build never emitted on the Astro Worker", async () => {
+    // Only the baked set is probed: a route without a JSON twin (a hidden
+    // page) stays on the catch-all's problem document even though it is a
+    // content route, and so does a path outside the API.
+    const worker = await loadWorker(
+      workerText({ pageJsonPaths: [pageJsonPath("/docs/quickstart")] })
+    );
+    const { calls, env } = makeEnv();
+    for (const path of [
+      "/api/docs/pages/unknown.json",
+      "/api/docs/pages/changelog.json",
+      "/api/docs/pages/docs/quickstart.json/",
+    ]) {
+      // oxlint-disable-next-line no-await-in-loop -- sequential vectors
+      await worker.fetch(new Request(`https://site.test${path}`), env, {});
+    }
+    expect(calls.assets).toStrictEqual([]);
+    expect(calls.server).toHaveLength(3);
+  });
+
+  it("falls back to Astro when a known page JSON asset is missing", async () => {
+    const worker = await loadWorker(workerText());
+    const { calls, env } = makeEnv({ assetsStatus: 404 });
+    await worker.fetch(
+      new Request("https://site.test/api/docs/pages/docs/quickstart.json"),
+      env,
+      {}
+    );
+    expect(calls.assets).toHaveLength(1);
+    expect(calls.server).toHaveLength(1);
+  });
+
   it("serves the .md mirror with charset, Vary, and home headers", async () => {
     const worker = await loadWorker(workerText());
     const { env } = makeEnv();
@@ -576,6 +675,7 @@ describe("buildRunWorkerFirstRules", () => {
       "!/site/*.md",
       "!/site/*.mdx",
       "!/site/*.txt",
+      "!/site/*.json",
       "!/site/_astro/*",
     ]);
   });
@@ -634,6 +734,22 @@ describe("injectWorkerNegotiation", () => {
     expect(result?.worker).toContain('import server from "./index.js"');
   });
 
+  it("bakes the emitted page JSON set into the wrapper", () => {
+    // The wrapper probes the assets binding for exactly these paths; with
+    // none given (the API off) the set is empty and nothing is probed.
+    const baked = injectWorkerNegotiation(wranglerConfig(), {
+      pageJsonPaths: ["/api/docs/pages/index.json"],
+      routePaths: ["/"],
+    });
+    expect(baked?.worker).toContain(
+      'const PAGE_JSON = new Set(["/api/docs/pages/index.json"]);'
+    );
+    const none = injectWorkerNegotiation(wranglerConfig(), {
+      routePaths: ["/"],
+    });
+    expect(none?.worker).toContain("const PAGE_JSON = new Set([]);");
+  });
+
   it("merges with user-configured run_worker_first rules", () => {
     const result = injectWorkerNegotiation(
       wranglerConfig({
@@ -683,6 +799,7 @@ describe("injectWorkerNegotiation", () => {
       "!/*.md",
       "!/*.mdx",
       "!/*.txt",
+      "!/*.json",
     ]);
   });
 
@@ -697,6 +814,7 @@ describe("injectWorkerNegotiation", () => {
       "!/*.md",
       "!/*.mdx",
       "!/*.txt",
+      "!/*.json",
     ]);
   });
 

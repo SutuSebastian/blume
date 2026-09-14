@@ -8,7 +8,6 @@ import {
   createSearchHandler,
   jsonResponse,
   navigationResponse,
-  pageParam,
   pageParams,
   pageResponse,
   pagesIndexResponse,
@@ -20,6 +19,8 @@ import {
   API_PAGES_PATH,
   API_SEARCH_PATH,
   OPENAPI_PATH,
+  pageJsonPath,
+  pageParam,
 } from "../src/ai/api/paths.ts";
 import {
   PROBLEM_TYPE,
@@ -271,6 +272,10 @@ describe("page documents", () => {
   it("derives the path segment from the route, index for home", () => {
     expect(pageParam("/")).toBe("index");
     expect(pageParam("/guides/install")).toBe("guides/install");
+    expect(pageJsonPath("/")).toBe("/api/docs/pages/index.json");
+    expect(pageJsonPath("/guides/install")).toBe(
+      "/api/docs/pages/guides/install.json"
+    );
   });
 
   it("emits one static path per route that has Markdown", () => {

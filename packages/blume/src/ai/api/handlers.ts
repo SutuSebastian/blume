@@ -11,10 +11,11 @@ import {
 } from "../mcp/query.ts";
 import type { SearchHitPayload } from "../mcp/query.ts";
 import {
-  API_BASE,
   API_PAGES_PATH,
   API_SEARCH_PATH,
   OPENAPI_PATH,
+  pageJsonPath,
+  pageParam,
 } from "./paths.ts";
 import { problemResponse } from "./problem.ts";
 
@@ -85,10 +86,6 @@ export const jsonResponse = (payload: ApiPayload, status = 200): Response =>
     status,
   });
 
-/** The `pages/{route}.json` path segment for a route (`index` for home). */
-export const pageParam = (route: string): string =>
-  route === "/" ? "index" : route.slice(1);
-
 /** The absolute (or root-relative) URL for a base-less path. */
 const siteUrl = (path: string, context: ApiSiteContext): string => {
   const based = withBasePath(context.base, path);
@@ -98,7 +95,7 @@ const siteUrl = (path: string, context: ApiSiteContext): string => {
 const summarize = (route: McpRoute, data: McpData): ApiPageSummary => {
   const summary: ApiPageSummary = {
     contentType: route.contentType,
-    json: siteUrl(`${API_BASE}/pages/${pageParam(route.route)}.json`, data),
+    json: siteUrl(pageJsonPath(route.route), data),
     lastModified: route.lastModified,
     locale: route.locale,
     markdownUrl: siteUrl(`/${pageParam(route.route)}.md`, data),
@@ -163,7 +160,7 @@ export const pageResponse = (data: McpData, route: string): Response => {
     return problemResponse({
       code: "PAGE_NOT_FOUND",
       detail: `No documentation page has the route "${route}".`,
-      instance: siteUrl(`${API_BASE}/pages/${pageParam(route)}.json`, data),
+      instance: siteUrl(pageJsonPath(route), data),
       resolution: `List every page at ${siteUrl(API_PAGES_PATH, data)}, or discover the API through ${siteUrl(OPENAPI_PATH, data)}.`,
       status: 404,
       title: "Page not found",

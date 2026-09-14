@@ -12,3 +12,11 @@ export const API_PAGES_PATH = `${API_BASE}/pages.json`;
 export const API_PAGE_PATH = `${API_BASE}/pages/{route}.json`;
 export const API_NAVIGATION_PATH = `${API_BASE}/navigation.json`;
 export const API_SEARCH_PATH = `${API_BASE}/search`;
+
+/** The `pages/{route}.json` path segment for a route (`index` for home). */
+export const pageParam = (route: string): string =>
+  route === "/" ? "index" : route.slice(1);
+
+/** The base-less served path of a route's per-page JSON document. */
+export const pageJsonPath = (route: string): string =>
+  `${API_BASE}/pages/${pageParam(route)}.json`;

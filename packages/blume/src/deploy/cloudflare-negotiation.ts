@@ -4,9 +4,11 @@
  * Blume prerenders every content page — even under `deployment.output:
  * "server"` — and on Cloudflare the ASSETS binding serves those files before
  * the Worker script runs, so no server-side code (Astro middleware included)
- * ever sees a content-page request. Worse, even a request that does reach the
- * Worker is answered by `@astrojs/cloudflare`'s handler straight from the
- * ASSETS binding, ahead of `app.render` — the only place middleware runs.
+ * ever sees a content-page request. Worse, even a content-page request that
+ * does reach the Worker is answered by `@astrojs/cloudflare`'s handler
+ * straight from the ASSETS binding, ahead of `app.render` — the only place
+ * middleware runs — because `app.match` resolves a prerendered route to
+ * nothing and the handler then falls back to the binding.
  *
  * Negotiation therefore needs two coordinated pieces, both applied to the
  * adapter's emitted deploy bundle after `astro build`:
@@ -19,6 +21,22 @@
  *    prefers `text/markdown` it serves the page's prerendered `.md` mirror
  *    from the ASSETS binding, and it delegates everything else to the Astro
  *    Worker untouched.
+ *
+ * The prerendered per-page JSON documents (`/api/docs/pages/{route}.json`)
+ * are the one prerendered surface the adapter's fallback does *not* cover.
+ * They come from a prerendered *dynamic* route, and for those Astro's
+ * `matchRequest` returns the first non-prerendered route matching the same
+ * path — on a server build that is the `/api/[...path]` catch-all, which
+ * answers with a 404 problem document; `fallbackToAssets` never runs. The
+ * static-pathname endpoints (`pages.json`, `navigation.json`) are unaffected:
+ * they sit in the manifest's asset set, which the handler serves from the
+ * binding first. So whenever a worker-first rule claims a page JSON URL, the
+ * wrapper answers it from the binding itself, keyed by the exact set of
+ * documents the build emitted. The generated rule sets that would claim every
+ * `.json` file — a subpath base and the coarse fallback — exempt `*.json`
+ * outright, keeping those files on the zero-Worker path; the wrapper branch
+ * covers the remaining claims (a content section under `/api`, or
+ * user-configured rules).
  *
  * Cloudflare does not apply `_headers` to worker-first routes, so the wrapper
  * also re-stamps what the static layer would otherwise add on the routes it
@@ -64,8 +82,19 @@ const MAX_RULE_LENGTH = 100;
  * route everything through the Worker except the fingerprinted build assets
  * and the raw AI-ready endpoints, whose `charset=utf-8` comes from `_headers`
  * (not applied on worker-first routes) and whose responses never negotiate.
+ * The prerendered `.json` documents are exempted for the same reason, and
+ * because the Astro Worker would hand the per-page ones to the `/api/`
+ * catch-all (see the module comment); a miss on an exempted path still
+ * invokes the Worker, so unknown `.json` URLs keep their problem document.
  */
-const FALLBACK_RULES = ["/*", "!/_astro/*", "!/*.md", "!/*.mdx", "!/*.txt"];
+const FALLBACK_RULES = [
+  "/*",
+  "!/_astro/*",
+  "!/*.md",
+  "!/*.mdx",
+  "!/*.txt",
+  "!/*.json",
+];
 
 /**
  * The deployment base as a rule/URL prefix: trailing slash stripped, empty
@@ -107,7 +136,8 @@ const ruleBody = (rule: string): string =>
  * `.md`/`.mdx` mirrors; a bare route gets its exact path in both request
  * spellings (with and without the trailing slash) so no unrelated URL pays
  * the Worker hop. On a subpath deploy the whole base is routed as one group —
- * every route lives under it anyway.
+ * every route lives under it anyway — with the raw endpoints and the
+ * prerendered `.json` documents exempted like the coarse fallback does.
  *
  * Configured redirects need no exemption from these rules: the wrapper Worker
  * answers any it claims from its baked-in redirect table with the configured
@@ -125,6 +155,7 @@ export const buildRunWorkerFirstRules = (
       `!${prefix}/*.md`,
       `!${prefix}/*.mdx`,
       `!${prefix}/*.txt`,
+      `!${prefix}/*.json`,
       `!${prefix}/_astro/*`,
     ];
   }
@@ -230,6 +261,13 @@ export interface NegotiationWorkerOptions {
   homeTokens?: number;
   /** Configured redirects the wrapper answers with their exact status. */
   redirects?: readonly WorkerRedirect[];
+  /**
+   * Base-less served paths of the prerendered per-page JSON documents the
+   * build emitted (see `pageJsonPath`), decoded. The wrapper answers exactly
+   * these from the assets binding, since the Astro Worker would route them to
+   * the `/api/` catch-all (see the module comment).
+   */
+  pageJsonPaths?: readonly string[];
 }
 
 /**
@@ -242,6 +280,7 @@ export const buildNegotiationWorker = (
   options: NegotiationWorkerOptions
 ): string => {
   const routes = JSON.stringify(options.routePaths);
+  const pageJson = JSON.stringify(options.pageJsonPaths ?? []);
   const binding = JSON.stringify(options.assetsBinding);
   const prefix = JSON.stringify(encodeURI(basePrefix(options.base)));
   const homeLinkHeader = JSON.stringify(options.homeLinkHeader ?? null);
@@ -266,13 +305,17 @@ export const buildNegotiationWorker = (
 // build. \`assets.run_worker_first\` routes content-page requests here instead
 // of the platform's static layer; a client that prefers Markdown gets the
 // page's prerendered \`.md\` mirror from the assets binding, a configured
-// redirect is answered with its exact configured status, and every other
+// redirect is answered with its exact configured status, and a prerendered
+// per-page JSON document is served from the binding (the Astro Worker would
+// route it to the \`/api/\` catch-all, because Astro resolves a prerendered
+// dynamic route to the first live route on the same path). Every other
 // request is delegated to the Astro Worker untouched. \`_headers\` does not
 // apply to worker-first routes, so the homepage Link header and the Markdown
 // charset are re-stamped here.
 import server from ${JSON.stringify(options.mainSpecifier)};
 
 const ROUTES = new Set(${routes});
+const PAGE_JSON = new Set(${pageJson});
 const BASE_PREFIX = ${prefix};
 const ASSETS_BINDING = ${binding};
 const HOME_LINK_HEADER = ${homeLinkHeader};
@@ -286,13 +329,32 @@ const REDIRECTS = ${redirects};
 const redirectFor = (pathname) => {
   const trimmed =
     pathname !== "/" && pathname.endsWith("/") ? pathname.slice(0, -1) : pathname;
-  let path = trimmed;
-  try {
-    path = decodeURIComponent(trimmed);
-  } catch {
-    // Keep the raw path; it simply won't match a configured redirect.
-  }
+  const path = safeDecode(trimmed);
   return Object.hasOwn(REDIRECTS, path) ? REDIRECTS[path] : null;
+};
+
+// The request path with the deployment base removed: the whole path on a
+// root deploy, \`""\` for the bare base, \`null\` for a path outside the base.
+const stripBase = (pathname) => {
+  if (!BASE_PREFIX) {
+    return pathname;
+  }
+  if (pathname === BASE_PREFIX) {
+    return "";
+  }
+  return pathname.startsWith(BASE_PREFIX + "/")
+    ? pathname.slice(BASE_PREFIX.length)
+    : null;
+};
+
+// Decoded for the lookups, which are keyed by decoded paths; a malformed
+// escape keeps the raw path, which simply won't match anything.
+const safeDecode = (path) => {
+  try {
+    return decodeURIComponent(path);
+  } catch {
+    return path;
+  }
 };
 
 // \`_redirects\` semantics, which the static layer applies to these same
@@ -341,21 +403,13 @@ const markdownVariantUrl = (rawUrl) => {
   const queryIndex = rawUrl.indexOf("?");
   const query = queryIndex === -1 ? "" : rawUrl.slice(queryIndex);
   const rawPath = queryIndex === -1 ? rawUrl : rawUrl.slice(0, queryIndex);
-  let path = rawPath;
-  if (BASE_PREFIX) {
-    if (path === BASE_PREFIX || path.startsWith(BASE_PREFIX + "/")) {
-      path = path.slice(BASE_PREFIX.length) || "/";
-    } else {
-      return null;
-    }
+  const rest = stripBase(rawPath);
+  if (rest === null) {
+    return null;
   }
+  const path = rest || "/";
   const trimmed = path !== "/" && path.endsWith("/") ? path.slice(0, -1) : path;
-  let pathname = trimmed;
-  try {
-    pathname = decodeURIComponent(trimmed);
-  } catch {
-    // Keep the raw path; it simply won't match a content route.
-  }
+  const pathname = safeDecode(trimmed);
   if (!ROUTES.has(pathname)) {
     return null;
   }
@@ -363,15 +417,17 @@ const markdownVariantUrl = (rawUrl) => {
   return BASE_PREFIX + encodeURI(target) + ".md" + query;
 };
 
+// Exactly the per-page JSON documents the build emitted, so a URL the site
+// never generated (a hidden page, a path outside the API) takes the normal
+// route to the Astro Worker and its problem document.
+const isPageJson = (pathname) => {
+  const rest = stripBase(pathname);
+  return rest !== null && PAGE_JSON.has(safeDecode(rest));
+};
+
 const isHomePath = (pathname) => {
-  let path = pathname;
-  if (BASE_PREFIX) {
-    if (path !== BASE_PREFIX && !path.startsWith(BASE_PREFIX + "/")) {
-      return false;
-    }
-    path = path.slice(BASE_PREFIX.length);
-  }
-  return path === "" || path === "/";
+  const rest = stripBase(pathname);
+  return rest === "" || rest === "/";
 };
 
 const withHeaders = (response, apply) => {
@@ -395,9 +451,18 @@ export default {
     if (request.method !== "GET" && request.method !== "HEAD") {
       return server.fetch(request, env, context);
     }
+    const assets = env[ASSETS_BINDING];
+    // The request goes through untouched, so a conditional revalidation
+    // reaches the binding and comes back as a 304 — anything but a miss is
+    // the document's own answer. A miss falls through to the Astro Worker.
+    if (assets !== undefined && isPageJson(url.pathname)) {
+      const asset = await assets.fetch(request);
+      if (asset.status !== 404) {
+        return asset;
+      }
+    }
     const variant = markdownVariantUrl(url.pathname + url.search);
     const home = isHomePath(url.pathname);
-    const assets = env[ASSETS_BINDING];
     if (
       variant !== null &&
       assets !== undefined &&
