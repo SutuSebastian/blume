@@ -171,7 +171,7 @@ Defina `apiKeyEnv` (e, para os provedores nomeados, `baseUrl`) em qualquer backe
 O **Inkeep** responde a partir do conteúdo que você indexou no painel do Inkeep — ele roda a própria recuperação — então o Blume o deixa sem fundamentação. Todos os outros backends são [fundamentados](#grounding) nas páginas deste site.
 :::
 
-As chaves são lidas com `process.env`, o que cobre os adaptadores Node, Vercel e Netlify. No Cloudflare, exponha a chave através do [runtime binding](https://docs.astro.build/en/guides/integrations-guide/cloudflare/#environment-variables-and-secrets) da plataforma. Ativar o Ask AI também liga o React para a ilha na página — veja [Personalização](/docs/configuration/customization#interactive-islands).
+As chaves são lidas através do [`getSecret()`](https://docs.astro.build/en/guides/environment-variables/#retrieving-secrets-programmatically) do Astro, então cada adaptador as fornece do seu próprio jeito: variáveis de ambiente no Node, na Vercel e no Netlify, e os [bindings](https://docs.astro.build/en/guides/integrations-guide/cloudflare/#environment-variables-and-secrets) do Worker no Cloudflare. Ativar o Ask AI também liga o React para a ilha na página — veja [Personalização](/docs/configuration/customization#interactive-islands).
 
 ## Limitação de taxa [#rate-limiting]
 

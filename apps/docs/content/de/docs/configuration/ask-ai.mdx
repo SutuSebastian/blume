@@ -84,7 +84,7 @@ ai: {
 
 Die drei sind nicht austauschbar. `contextBudget` begrenzt die gesamte Injektion, `excerptChars` entscheidet, wie tief der Auszug in eine einzelne lange Seite hineinreicht — erhöhe es, wenn eine Seite die ganze Antwort enthält und der Auszug sie abschneidet — und `maxResults` begrenzt, wie viele Seiten das Retrieval hinzufügt. Die Seite, die der Leser gerade ansieht, wird zusätzlich zu den abgerufenen injiziert, eine Antwort kann also bis zu eine Seite mehr zitieren als `maxResults`.
 
-Die Standardwerte passen zu einem gehosteten Modell. Senke sie, wenn du von eigener Hardware ausliefert und die Zeit bis zum ersten Token wichtiger ist als der Recall; Antworten bleiben in beiden Fällen verankert, und der Assistent ist angewiesen, zu sagen, wenn etwas nicht abgedeckt ist, statt die Lücke zu füllen.
+Die Standardwerte passen zu einem gehosteten Modell. Senke sie, wenn du von eigener Hardware auslieferst und die Zeit bis zum ersten Token wichtiger ist als der Recall; Antworten bleiben in beiden Fällen verankert, und der Assistent ist angewiesen, zu sagen, wenn etwas nicht abgedeckt ist, statt die Lücke zu füllen.
 
 ## Externer Endpunkt [#external-endpoint]
 
@@ -171,7 +171,7 @@ Setze `apiKeyEnv` (und für die benannten Provider `baseUrl`) bei jedem Backend,
 **Inkeep** antwortet anhand der Inhalte, die du im Inkeep-Dashboard indexiert hast — es führt sein eigenes Retrieval aus — deshalb lässt Blume es ungegroundet. Jedes andere Backend ist in den Seiten dieser Site [verankert](#grounding).
 :::
 
-Keys werden mit `process.env` gelesen, was die Adapter für Node, Vercel und Netlify abdeckt. Auf Cloudflare stellst du den Key über das [Runtime-Binding](https://docs.astro.build/en/guides/integrations-guide/cloudflare/#environment-variables-and-secrets) der Plattform bereit. Ask AI zu aktivieren schaltet außerdem React für die In-Page-Island ein — siehe [Customization](/docs/configuration/customization#interactive-islands).
+Keys werden über Astros [`getSecret()`](https://docs.astro.build/en/guides/environment-variables/#retrieving-secrets-programmatically) gelesen, sodass jeder Adapter sie auf seine eigene Weise bereitstellt: als Umgebungsvariablen auf Node, Vercel und Netlify und über die [Bindings](https://docs.astro.build/en/guides/integrations-guide/cloudflare/#environment-variables-and-secrets) des Workers auf Cloudflare. Ask AI zu aktivieren schaltet außerdem React für die In-Page-Island ein — siehe [Customization](/docs/configuration/customization#interactive-islands).
 
 ## Rate Limiting
 

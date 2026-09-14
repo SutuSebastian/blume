@@ -183,13 +183,6 @@ blume eject --yes
 
 Eject ist ein einseitiger Schritt: Die versteckte `.blume/`-Runtime wird zu einer normalen Astro-App, die dir gehört und die du direkt verändern kannst. Das Paket `blume` bleibt importierbar, sodass du seine Komponenten, sein Theme und seine Markdown-Prozessoren behältst.
 
-### Was Eject zurücklässt [#what-eject-leaves-behind]
+### Was Eject beibehält [#what-eject-keeps]
 
-Nach dem Eject führt dein `build`-Skript einfach `astro build` aus — die Site selbst wird gleich gebaut, aber die Artefakte, die `blume build` obendrauf gelegt hat, werden nicht mehr erzeugt. Der Eject-Befehl warnt vor denen, die deine Konfiguration tatsächlich nutzt. Um sie zu behalten:
-
-- **Pagefind-Suchindex** — mit `search.provider: "pagefind"` lädt die Such-UI den Index von der gebauten Site, sodass die Suche in Produktion nicht funktioniert, bis du selbst indexierst. Installiere `pagefind` als devDependency und indexiere nach jedem Build: `"build": "astro build && pagefind --site dist"`.
-- **Synchronisierung der gehosteten Suche** — der Index eines gehosteten Anbieters wird beim Build nicht mehr hochgeladen; lade deine Suchdatensätze nach jedem Build erneut über die API oder CLI des Anbieters hoch.
-- **sitemap.xml** — erstelle sie neu mit der Standard-Integration [@astrojs/sitemap](https://docs.astro.build/en/guides/integrations-guide/sitemap/).
-- **robots.txt** — liefere deine eigene als `public/robots.txt` aus.
-- **llms.txt / llms-full.txt und agent-readability.json** — schreibe sie von Hand (oder generiere sie in einem eigenen Build-Schritt) und liefere sie aus `public/` aus.
-- **Plattform-Weiterleitungsdateien** — `_redirects` und `vercel.json` werden für statische Builds nicht mehr ausgegeben. Deine Weiterleitungen funktionieren weiterhin als von Astro generierte Meta-Refresh-Seiten, oder du kannst sie in die Konfiguration deines Hosters übernehmen.
+Das `build`-Skript der ge-ejecteten App führt einfach `astro build` aus, und die Artefakte, die `blume build` obendrauf legt — der Suchindex (und die Index-Synchronisierung eines gehosteten Anbieters), `llms.txt` und `llms-full.txt`, `sitemap.xml`, `robots.txt`, `agent-readability.json`, die `.well-known`-Discovery-Dateien, Agent Skills sowie die Plattform-Dateien `_redirects`/`_headers` — werden weiterhin erzeugt: Die Blume-Integration in der ge-ejecteten `astro.config.mjs` schreibt sie aus Astros `astro:build:done`-Hook und scannt dabei das Projekt (deine `blume.config.ts` und deinen Content) genauso, wie es die CLI getan hat. Was der ge-ejectete Build nicht übernimmt, ist die Adapter-Nachbearbeitung der CLI: die Routing-Anpassungen für `Accept: text/markdown` bei Vercel und Cloudflare, die Prüfung des Vercel-Function-Bundles und die Prüfung über `--analyze`/`--budget-*`.

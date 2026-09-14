@@ -183,13 +183,6 @@ blume eject --yes
 
 O eject é um passo sem volta: o runtime oculto `.blume/` se torna um aplicativo Astro normal que é seu e que você pode modificar diretamente. O pacote `blume` continua importável, então você mantém seus componentes, tema e processadores de Markdown.
 
-### O que o eject deixa para trás [#what-eject-leaves-behind]
+### O que o eject mantém [#what-eject-keeps]
 
-Depois do eject, seu script `build` executa um `astro build` puro — o site em si é compilado da mesma forma, mas os artefatos que o `blume build` adicionava por cima não são mais produzidos. O comando de eject avisa sobre aqueles que sua configuração de fato utiliza. Para mantê-los:
-
-- **Índice de busca do Pagefind** — com `search.provider: "pagefind"`, a interface de busca carrega o índice a partir do site compilado, então a busca deixa de funcionar em produção até que você mesmo gere o índice. Instale o `pagefind` como devDependency e indexe após cada build: `"build": "astro build && pagefind --site dist"`.
-- **Sincronização de busca hospedada** — o índice de um provedor hospedado deixa de ser enviado no build; reenvie seus registros de busca após cada build com a API ou CLI do provedor.
-- **sitemap.xml** — recrie-o com a integração padrão [@astrojs/sitemap](https://docs.astro.build/en/guides/integrations-guide/sitemap/).
-- **robots.txt** — forneça o seu próprio como `public/robots.txt`.
-- **llms.txt / llms-full.txt e agent-readability.json** — escreva-os à mão (ou gere-os em uma etapa de build própria) e sirva-os a partir de `public/`.
-- **Arquivos de redirecionamento de plataforma** — `_redirects` e `vercel.json` não são mais emitidos para builds estáticos. Seus redirecionamentos continuam funcionando como páginas de meta-refresh geradas pelo Astro, ou você pode movê-los para a configuração do seu próprio provedor de hospedagem.
+O script `build` do aplicativo após o eject executa um `astro build` puro, e os artefatos que o `blume build` adiciona por cima — o índice de busca (e a sincronização do índice de um provedor hospedado), `llms.txt` e `llms-full.txt`, `sitemap.xml`, `robots.txt`, `agent-readability.json`, os arquivos de descoberta `.well-known`, as Agent Skills e os arquivos de plataforma `_redirects`/`_headers` — continuam sendo produzidos: a integração do Blume no `astro.config.mjs` gerado pelo eject os escreve a partir do hook `astro:build:done` do Astro, varrendo o projeto (seu `blume.config.ts` e seu conteúdo) da mesma forma que a CLI fazia. O que o build após o eject não faz é o pós-processamento de adaptadores da CLI: as inserções de roteamento `Accept: text/markdown` da Vercel e da Cloudflare, a auditoria do bundle de funções da Vercel e a verificação de `--analyze`/`--budget-*`.

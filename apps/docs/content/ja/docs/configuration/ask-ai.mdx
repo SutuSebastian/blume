@@ -171,7 +171,7 @@ ai: {
 **Inkeep** は Inkeep ダッシュボードでインデックス化したコンテンツから回答し、独自の検索を実行するため、Blume はグラウンディングを適用しません。それ以外のすべてのバックエンドは、このサイトのページに[グラウンディング](#grounding)されます。
 :::
 
-キーは `process.env` で読み取られ、これは Node、Vercel、Netlify の各アダプターに対応しています。Cloudflare では、プラットフォームの[ランタイムバインディング](https://docs.astro.build/en/guides/integrations-guide/cloudflare/#environment-variables-and-secrets)を通じてキーを公開してください。Ask AI を有効にすると、ページ内アイランドのために React も有効になります。詳細は[カスタマイズ](/docs/configuration/customization#interactive-islands)を参照してください。
+キーは Astro の [`getSecret()`](https://docs.astro.build/en/guides/environment-variables/#retrieving-secrets-programmatically) を通じて読み取られるため、各アダプターがそれぞれの方法でキーを提供します。Node、Vercel、Netlify では環境変数、Cloudflare では Worker の[バインディング](https://docs.astro.build/en/guides/integrations-guide/cloudflare/#environment-variables-and-secrets)が使用されます。Ask AI を有効にすると、ページ内アイランドのために React も有効になります。詳細は[カスタマイズ](/docs/configuration/customization#interactive-islands)を参照してください。
 
 ## レート制限 [#rate-limiting]
 

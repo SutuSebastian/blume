@@ -1,7 +1,6 @@
 ---
 title: カスタマイズ
-description: >-
-  コンポーネントの上書き、インタラクティブなアイランドの追加、カスタムページのマウント、レジストリコンポーネントのインストール、または完全な制御が必要な場合の完全なイジェクト。
+description: コンポーネントの上書き、インタラクティブなアイランドの追加、カスタムページのマウント、レジストリコンポーネントのインストール、または完全な制御が必要な場合の完全なイジェクト。
 ---
 
 ## コンポーネントの上書き [#component-overrides]
@@ -183,13 +182,6 @@ blume eject --yes
 
 イジェクトは一方向のステップです。隠れた `.blume/` ランタイムが、あなたが所有し直接変更できる通常の Astro アプリになります。`blume` パッケージは引き続きインポート可能なので、そのコンポーネント、テーマ、Markdown プロセッサはそのまま使えます。
 
-### イジェクトで失われるもの [#what-eject-leaves-behind]
+### イジェクトで維持されるもの [#what-eject-keeps]
 
-イジェクト後、`build` スクリプトは素の `astro build` を実行します — サイト自体のビルド結果は同じですが、`blume build` が上に重ねていた成果物はもう生成されません。eject コマンドは、実際に設定で使用されているものについて警告します。それらを維持するには:
-
-- **Pagefind 検索インデックス** — `search.provider: "pagefind"` を使用している場合、検索 UI はビルド済みサイトからインデックスを読み込むため、自分でインデックスを作成するまで本番環境で検索が機能しなくなります。`pagefind` を devDependency としてインストールし、各ビルドの後にインデックスを作成してください: `"build": "astro build && pagefind --site dist"`。
-- **ホスト型検索の同期** — ホスト型プロバイダーのインデックスはビルド時にプッシュされなくなります。各ビルドの後に、プロバイダーの API または CLI で検索レコードを再アップロードしてください。
-- **sitemap.xml** — 標準の [@astrojs/sitemap](https://docs.astro.build/en/guides/integrations-guide/sitemap/) インテグレーションで再作成してください。
-- **robots.txt** — 独自のものを `public/robots.txt` として配置してください。
-- **llms.txt / llms-full.txt および agent-readability.json** — 手動で作成するか（もしくは独自のビルドステップで生成し）、`public/` から配信してください。
-- **プラットフォームのリダイレクトファイル** — 静的ビルドで `_redirects` と `vercel.json` が出力されなくなります。リダイレクト自体は Astro が生成する meta-refresh ページとして引き続き機能しますが、ホスティング先の設定に移すこともできます。
+イジェクトされたアプリの `build` スクリプトは素の `astro build` を実行しますが、`blume build` が上に重ねていた成果物 — 検索インデックス（およびホスト型プロバイダーのインデックス同期）、`llms.txt` と `llms-full.txt`、`sitemap.xml`、`robots.txt`、`agent-readability.json`、`.well-known` ディスカバリーファイル、Agent Skills、プラットフォームの `_redirects`／`_headers` ファイル — は引き続き生成されます。イジェクトされた `astro.config.mjs` 内の Blume インテグレーションが、CLI と同じようにプロジェクト（`blume.config.ts` とコンテンツ）をスキャンし、Astro の `astro:build:done` フックからそれらを書き出します。イジェクトされたビルドで行われないのは、CLI のアダプター後処理です: Vercel と Cloudflare の `Accept: text/markdown` ルーティングの差し込み、Vercel の関数バンドル監査、そして `--analyze`／`--budget-*` ゲートです。

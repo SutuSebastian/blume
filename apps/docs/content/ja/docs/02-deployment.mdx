@@ -101,10 +101,10 @@ deployment: {
 
 サーバービルドには静的ビルドのすべてに加えて、追加した Astro のエンドポイントやミドルウェアが含まれます。`node` アダプターは直接実行できるスタンドアロンのサーバーを生成します。
 
-Vercel と Cloudflare では、サーバービルドによって [`Accept: text/markdown` のコンテンツネゴシエーション](/docs/discoverability/markdown#content-negotiation) も有効になり、そのヘッダー付きで任意のコンテンツページをリクエストしたエージェントは、同じ URL で生の Markdown 版を受け取れます。Vercel では、Blume がデプロイのルーティング設定にヘッダー条件付きのリライトを挿入します。Cloudflare では、Astro の Worker の手前に小さな Worker を生成し、`assets.run_worker_first` をコンテンツルートに限定します — そうしないと、プラットフォームはサーバーコードが実行される前に事前レンダリング済みページを配信してしまうためです。その他のアセットは Worker を介さない高速パスを維持します。
+Vercel と Cloudflare では、サーバービルドによって [`Accept: text/markdown` のコンテンツネゴシエーション](/docs/discoverability/markdown#content-negotiation) も有効になり、そのヘッダー付きで任意のコンテンツページをリクエストしたエージェントは、同じ URL で生の Markdown 版を受け取れます。Vercel では、Blume がデプロイのルーティング設定にヘッダー条件付きのリライトを挿入します。Cloudflare では、Astro の Worker の手前に小さな Worker を生成し、`assets.run_worker_first` をコンテンツルートに限定します — そうしないと、プラットフォームはサーバーコードが実行される前に事前レンダリング済みページを配信してしまうためです。その他のアセットは Worker を介さない高速パスを維持します。また、事前レンダリング済みのページごとの JSON ドキュメント（`/api/docs/pages/{route}.json`）へのリクエストがこの Worker に届いた場合も、Worker がアセットバインディングから応答します。そうしないと、Astro がそのリクエストを `/api/` のキャッチオールにルーティングしてしまうためです。
 
 :::note
-サーバー機能にはそれぞれ独自の設定があります — 例えば Ask AI にはモデルの API キーが必要です。セットアップについては [AI ガイド](/docs/configuration/ask-ai) を参照してください。
+サーバー機能にはそれぞれ独自の設定があります — 例えば Ask AI にはモデルの API キーが必要です。セットアップについては [Ask AI ガイド](/docs/configuration/ask-ai) を参照してください。
 :::
 
 ## リダイレクト [#redirects]

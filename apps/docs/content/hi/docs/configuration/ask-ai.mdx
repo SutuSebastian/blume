@@ -171,7 +171,7 @@ ai: {
 **Inkeep** उस सामग्री से उत्तर देता है जिसे आपने Inkeep डैशबोर्ड में इंडेक्स किया है — यह अपना स्वयं का रिट्रीवल चलाता है — इसलिए Blume इसे बिना ग्राउंडिंग के छोड़ देता है। हर दूसरा बैकएंड इस साइट के पृष्ठों पर [आधारित](#grounding) होता है।
 :::
 
-कुंजियाँ `process.env` से पढ़ी जाती हैं, जो Node, Vercel, और Netlify एडाप्टर को कवर करता है। Cloudflare पर, कुंजी को प्लेटफ़ॉर्म की [रनटाइम बाइंडिंग](https://docs.astro.build/en/guides/integrations-guide/cloudflare/#environment-variables-and-secrets) के माध्यम से उपलब्ध कराएँ। Ask AI सक्षम करने से इन-पेज आइलैंड के लिए React भी चालू हो जाता है — देखें [Customization](/docs/configuration/customization#interactive-islands)।
+कुंजियाँ Astro के [`getSecret()`](https://docs.astro.build/en/guides/environment-variables/#retrieving-secrets-programmatically) के माध्यम से पढ़ी जाती हैं, इसलिए प्रत्येक एडाप्टर उन्हें अपने तरीके से उपलब्ध कराता है: Node, Vercel, और Netlify पर एनवायरनमेंट वेरिएबल, और Cloudflare पर Worker की [बाइंडिंग](https://docs.astro.build/en/guides/integrations-guide/cloudflare/#environment-variables-and-secrets)। Ask AI सक्षम करने से इन-पेज आइलैंड के लिए React भी चालू हो जाता है — देखें [Customization](/docs/configuration/customization#interactive-islands)।
 
 ## दर सीमन [#rate-limiting]
 
