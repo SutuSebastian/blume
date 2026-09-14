@@ -401,6 +401,26 @@ describe("astro config template", () => {
     );
   });
 
+  it("spells a variable weight range the way Astro's Fonts API reads it", () => {
+    // Blume's config documents `"100..900"` (Takumi's form, which the OG
+    // cards reuse); Astro wants `"100 900"` and silently loads nothing for
+    // the dotted spelling.
+    const output = configTemplate(
+      blumeConfigSchema.parse({
+        theme: {
+          fonts: { body: { name: "Noto Sans JP", weights: ["100..900"] } },
+        },
+      })
+    );
+    expect(output).toContain(
+      'name: "Noto Sans JP", cssVariable: "--blume-ff-noto-sans-jp", weights: ["100 900"]'
+    );
+    // The curated default is a range too, for the same reason.
+    expect(configTemplate(blumeConfigSchema.parse({}))).toContain(
+      'name: "Inter", cssVariable: "--blume-ff-inter", weights: ["400 700"]'
+    );
+  });
+
   it("emits latin-only subsets for a single-locale site", () => {
     const output = configTemplate(blumeConfigSchema.parse({}));
     expect(output).toContain('subsets: ["latin"]');

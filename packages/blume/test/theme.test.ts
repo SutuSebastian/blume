@@ -377,7 +377,25 @@ describe("buildFontEntries", () => {
     expect(entries).toHaveLength(1);
     expect(entries[0]).toMatchObject({
       name: "Inter",
-      weights: [400, 900, 500, 600, 700],
+      weights: [400, 900, "400..700"],
+    });
+  });
+
+  it("loads a curated variable family as one weight range", () => {
+    // Google serves Inter as a variable font, so a range declares one face
+    // per style instead of one per weight — the same file, a quarter of the
+    // @font-face rules on every page.
+    const [entry] = buildFontEntries({ body: "inter" });
+    expect(entry).toMatchObject({ name: "Inter", weights: ["400..700"] });
+  });
+
+  it("keeps discrete weights for a curated static family", () => {
+    // IBM Plex Mono has no variable version on Google Fonts; a range request
+    // for it is a 400.
+    const [entry] = buildFontEntries({ mono: "ibm-plex-mono" });
+    expect(entry).toMatchObject({
+      name: "IBM Plex Mono",
+      weights: [400, 500, 600],
     });
   });
 
@@ -530,13 +548,31 @@ describe("configuredFonts", () => {
   });
 
   it("preloads all faces of a family missing the role's preferred weights", () => {
-    // Merriweather only ships 400/700 — neither display preference (500/600)
-    // exists, so both of its faces preload (they're what headings render in).
+    // A static family that only ships 400/700 — neither display preference
+    // (500/600) exists, so both of its faces preload (they're what headings
+    // render in). Every curated family that lacks those weights is variable
+    // now (a range serves any weight), so a custom remote family stands in.
+    expect(
+      configuredFonts({
+        display: { name: "Static Serif", weights: [400, 700] },
+      })
+    ).toStrictEqual([
+      {
+        cssVariable: "--blume-ff-static-serif",
+        preloadSubsets: ["latin"],
+        preloadWeights: [400, 700],
+      },
+    ]);
+  });
+
+  it("preloads the preferred weights of a curated variable family", () => {
+    // Merriweather's range covers the display preferences, so the variable
+    // file preloads at the weights headings render in.
     expect(configuredFonts({ display: "merriweather" })).toStrictEqual([
       {
         cssVariable: "--blume-ff-merriweather",
         preloadSubsets: ["latin"],
-        preloadWeights: [400, 700],
+        preloadWeights: [500, 600],
       },
     ]);
   });

@@ -63,7 +63,14 @@ export type FontValue = string | RemoteFontConfig | LocalFontConfig;
 interface FontDef {
   category: FontCategory;
   family: string;
-  weights: number[];
+  /**
+   * Discrete weights, or one `"min..max"` range for a family Google Fonts
+   * serves as a variable font: the range loads the same variable file the
+   * discrete weights did, declared as one `@font-face` per style instead of
+   * one per weight (16 rules down to 4 for Inter on every page). The three
+   * static families in the table keep discrete weights.
+   */
+  weights: (number | string)[];
 }
 
 /** Resolved theme fonts (a validated value per role, all optional). */
@@ -96,22 +103,22 @@ const FALLBACKS = {
 
 /** Slug -> Google family + weights + fallback category. Keep keys alphabetical. */
 export const GOOGLE_FONTS = {
-  "dm-sans": { category: "sans", family: "DM Sans", weights: [400, 500, 700] },
+  "dm-sans": { category: "sans", family: "DM Sans", weights: ["400..700"] },
   figtree: {
     category: "sans",
     family: "Figtree",
-    weights: [400, 500, 600, 700],
+    weights: ["400..700"],
   },
   "fira-code": {
     category: "mono",
     family: "Fira Code",
-    weights: [400, 500, 700],
+    weights: ["400..700"],
   },
-  geist: { category: "sans", family: "Geist", weights: [400, 500, 600, 700] },
+  geist: { category: "sans", family: "Geist", weights: ["400..700"] },
   "geist-mono": {
     category: "mono",
     family: "Geist Mono",
-    weights: [400, 500, 600],
+    weights: ["400..600"],
   },
   "ibm-plex-mono": {
     category: "mono",
@@ -121,81 +128,81 @@ export const GOOGLE_FONTS = {
   "ibm-plex-sans": {
     category: "sans",
     family: "IBM Plex Sans",
-    weights: [400, 500, 600, 700],
+    weights: ["400..700"],
   },
   "ibm-plex-serif": {
     category: "serif",
     family: "IBM Plex Serif",
     weights: [400, 500, 600],
   },
-  inter: { category: "sans", family: "Inter", weights: [400, 500, 600, 700] },
+  inter: { category: "sans", family: "Inter", weights: ["400..700"] },
   "inter-tight": {
     category: "sans",
     family: "Inter Tight",
-    weights: [400, 500, 600, 700],
+    weights: ["400..700"],
   },
   "jetbrains-mono": {
     category: "mono",
     family: "JetBrains Mono",
-    weights: [400, 500, 700],
+    weights: ["400..700"],
   },
-  lora: { category: "serif", family: "Lora", weights: [400, 500, 600, 700] },
+  lora: { category: "serif", family: "Lora", weights: ["400..700"] },
   manrope: {
     category: "sans",
     family: "Manrope",
-    weights: [400, 500, 600, 700],
+    weights: ["400..700"],
   },
   merriweather: {
     category: "serif",
     family: "Merriweather",
-    weights: [400, 700],
+    weights: ["400..700"],
   },
   "open-sans": {
     category: "sans",
     family: "Open Sans",
-    weights: [400, 600, 700],
+    weights: ["400..700"],
   },
   "playfair-display": {
     category: "serif",
     family: "Playfair Display",
-    weights: [400, 500, 700],
+    weights: ["400..700"],
   },
   "plus-jakarta-sans": {
     category: "sans",
     family: "Plus Jakarta Sans",
-    weights: [400, 500, 600, 700],
+    weights: ["400..700"],
   },
-  roboto: { category: "sans", family: "Roboto", weights: [400, 500, 700] },
+  roboto: { category: "sans", family: "Roboto", weights: ["400..700"] },
   "roboto-mono": {
     category: "mono",
     family: "Roboto Mono",
-    weights: [400, 500, 700],
+    weights: ["400..700"],
   },
   "source-code-pro": {
     category: "mono",
     family: "Source Code Pro",
-    weights: [400, 500, 600],
+    weights: ["400..600"],
   },
   "source-sans-3": {
     category: "sans",
     family: "Source Sans 3",
-    weights: [400, 600, 700],
+    weights: ["400..700"],
   },
   "source-serif-4": {
     category: "serif",
     family: "Source Serif 4",
-    weights: [400, 600, 700],
+    weights: ["400..700"],
   },
   "space-grotesk": {
     category: "sans",
     family: "Space Grotesk",
-    weights: [400, 500, 700],
+    weights: ["400..700"],
   },
   "space-mono": { category: "mono", family: "Space Mono", weights: [400, 700] },
   "work-sans": {
     category: "sans",
     family: "Work Sans",
-    weights: [400, 500, 600],
+    weights: ["400..600"],
   },
 } satisfies Record<string, FontDef>;
 

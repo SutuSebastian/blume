@@ -20,8 +20,8 @@ describe("deriveOgFonts", () => {
       ROOT
     );
     expect(fonts).toEqual([
-      { name: "Inter Tight", weight: [400, 600] },
-      { name: "Inter", weight: [400, 600] },
+      { name: "Inter Tight", weight: "400..700" },
+      { name: "Inter", weight: "400..700" },
     ]);
     // The mono role never renders on a card.
     expect(fonts.some((font) => JSON.stringify(font).includes("Plex"))).toBe(
@@ -32,13 +32,24 @@ describe("deriveOgFonts", () => {
 
   it("dedupes when display and body share a family", () => {
     const { fonts } = deriveOgFonts({ body: "inter", display: "inter" }, ROOT);
-    expect(fonts).toEqual([{ name: "Inter", weight: [400, 600] }]);
+    expect(fonts).toEqual([{ name: "Inter", weight: "400..700" }]);
   });
 
   it("falls back to declared weights when the card weights are absent", () => {
-    // Merriweather's curated weights are [400, 700]; 400 is a card weight.
+    // A static family declaring neither card weight (400/600) fetches the
+    // weights it does declare — they're what its text renders in.
+    const { fonts } = deriveOgFonts(
+      { display: { name: "Static Serif", weights: [300, 800] } },
+      ROOT
+    );
+    expect(fonts).toEqual([{ name: "Static Serif", weight: [300, 800] }]);
+  });
+
+  it("fetches a curated variable family by its range", () => {
+    // Merriweather's curated range covers both card weights, so the one
+    // variable file is fetched as-is.
     const { fonts } = deriveOgFonts({ display: "merriweather" }, ROOT);
-    expect(fonts).toEqual([{ name: "Merriweather", weight: [400] }]);
+    expect(fonts).toEqual([{ name: "Merriweather", weight: "400..700" }]);
   });
 
   it("passes a lone variable range through and keeps custom weights", () => {
@@ -63,7 +74,7 @@ describe("deriveOgFonts", () => {
       },
       ROOT
     );
-    expect(fonts).toEqual([{ name: "Inter", weight: [400, 600] }]);
+    expect(fonts).toEqual([{ name: "Inter", weight: "400..700" }]);
     expect(families).toEqual({ body: "Inter" });
   });
 
@@ -129,8 +140,8 @@ describe("resolveOgFonts", () => {
       ROOT
     );
     expect(resolved.fonts).toEqual([
-      { name: "Geist", weight: [400, 600] },
-      { name: "Inter", weight: [400, 600] },
+      { name: "Geist", weight: "400..700" },
+      { name: "Inter", weight: "400..700" },
     ]);
     expect(resolved.families).toEqual({ body: "Inter", title: "Geist" });
   });

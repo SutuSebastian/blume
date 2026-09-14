@@ -138,6 +138,18 @@ const resolveSessionOption = (deployment: {
     ? "\n  session: false,"
     : "";
 
+/**
+ * A font weight as Astro's Fonts API spells it: a variable range is
+ * `"100 900"` there, where Blume's config (and Takumi's Google Fonts helper,
+ * which the OG cards use) write `"100..900"`. Astro treats the dotted form as
+ * an unknown discrete weight and loads nothing for it.
+ */
+const astroFontWeights = (weights: (number | string)[]): string =>
+  JSON.stringify(weights).replaceAll(
+    /(?<min>\d+)\.\.(?<max>\d+)/gu,
+    "$<min> $<max>"
+  );
+
 /** The named imports the generated config pulls from `astro/config`. */
 const astroConfigImportLine = (options: { hasFonts: boolean }): string => {
   const names = ["defineConfig"];
@@ -667,9 +679,7 @@ export const astroConfigTemplate = (options: {
                 font.name
               )}, cssVariable: ${JSON.stringify(
                 font.cssVariable
-              )}, weights: ${JSON.stringify(
-                font.weights
-              )}, subsets: ${JSON.stringify(
+              )}, weights: ${astroFontWeights(font.weights)}, subsets: ${JSON.stringify(
                 font.subsets
               )}, fallbacks: ${JSON.stringify(font.fallbacks)} }`
         )
