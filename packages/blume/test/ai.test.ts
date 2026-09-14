@@ -4,7 +4,12 @@ import { tmpdir } from "node:os";
 
 import { join } from "pathe";
 
-import { createAskContext, relevantExcerpt } from "../src/ai/ask-context.ts";
+import {
+  createAskContext,
+  parsePage,
+  relevantExcerpt,
+  sectionExcerpt,
+} from "../src/ai/ask-context.ts";
 import type { AskData } from "../src/ai/ask-context.ts";
 import { buildAskData } from "../src/ai/ask-data.ts";
 import { askBackendRuntimeDep, resolveAskBackend } from "../src/ai/ask.ts";
@@ -1146,7 +1151,145 @@ const docsBlock = (system: string | undefined): string => {
   return start === -1 || end === -1 ? "" : (system ?? "").slice(start + 6, end);
 };
 
+const doc = (route: string, title: string, content: string) => ({
+  content,
+  description: title,
+  locale: "",
+  route,
+  title,
+});
+const conversationCorpus = [
+  doc(
+    "/deploy/vercel",
+    "Deploy to Vercel",
+    "Deploy your docs to Vercel: install the Vercel adapter, run the build, push to Vercel."
+  ),
+  doc(
+    "/deploy/cloudflare",
+    "Deploy to Cloudflare",
+    "Deploy your docs to Cloudflare Pages. Cloudflare Workers support is built in."
+  ),
+  doc(
+    "/i18n",
+    "Internationalization",
+    "Blume supports i18n with locales and translations."
+  ),
+  doc(
+    "/matters/close",
+    "Close a matter",
+    "Close and archive a matter from its settings page."
+  ),
+  doc(
+    "/changelog/1.0.3",
+    "1.0.3",
+    "Changed in 1.0.3: the sidebar keeps its scroll position."
+  ),
+];
+const cited = (system: string | undefined): string[] =>
+  [...(system ?? "").matchAll(/^## .*\((?<route>\/[^)]*)\)/gmu)].map(
+    (match) => match.groups?.route ?? ""
+  );
+
 describe("createAskContext", () => {
+  it("retrieves on the question verbatim so version numbers survive", async () => {
+    const ground = createAskContext(
+      { documents: conversationCorpus, site: null },
+      { retrieval: { maxResults: 1 } }
+    );
+    const system = await ground([
+      { content: "What changed in 1.0.3?", role: "user" },
+    ]);
+    expect(cited(system)).toStrictEqual(["/changelog/1.0.3"]);
+  });
+
+  it("lets a short question that names its subject stand on its own", async () => {
+    const ground = createAskContext(
+      { documents: conversationCorpus, site: null },
+      { retrieval: { maxResults: 1 } }
+    );
+    // "it" is the product here, not the previous answer: the reader's own
+    // subject must lead even though the question reads like a follow-up.
+    const switched = await ground([
+      { content: "How do I deploy to Vercel?", role: "user" },
+      { content: "Install the Vercel adapter.", role: "assistant" },
+      { content: "Does it support i18n?", role: "user" },
+    ]);
+    expect(cited(switched)).toStrictEqual(["/i18n"]);
+
+    const standalone = await ground([
+      { content: "How do I close a matter?", role: "user" },
+      { content: "See the matter guide.", role: "assistant" },
+      { content: "Cloudflare?", role: "user" },
+    ]);
+    expect(cited(standalone)).toStrictEqual(["/deploy/cloudflare"]);
+  });
+
+  it("retrieves a bare follow-up from the earlier user turn", async () => {
+    const ground = createAskContext(
+      { documents: conversationCorpus, site: null },
+      { retrieval: { maxResults: 1 } }
+    );
+    const systems = await Promise.all(
+      ["Why?", "And then?", "What about that?"].map((followUp) =>
+        ground([
+          { content: "How do I close a matter?", role: "user" },
+          { content: "From its settings page.", role: "assistant" },
+          { content: followUp, role: "user" },
+        ])
+      )
+    );
+    for (const system of systems) {
+      expect(cited(system)).toStrictEqual(["/matters/close"]);
+    }
+  });
+
+  it("keeps the earlier subject in view behind a short follow-up's own hits", async () => {
+    const ground = createAskContext(
+      { documents: conversationCorpus, site: null },
+      { retrieval: { maxResults: 2 } }
+    );
+    const system = await ground([
+      { content: "How do I close a matter?", role: "user" },
+      { content: "From its settings page.", role: "assistant" },
+      { content: "And does that work on Cloudflare?", role: "user" },
+    ]);
+    // The follow-up's own match leads; the earlier turn's best hit follows.
+    expect(cited(system)).toStrictEqual([
+      "/deploy/cloudflare",
+      "/matters/close",
+    ]);
+  });
+
+  it("never seeds retrieval from assistant turns", async () => {
+    const ground = createAskContext(
+      { documents: conversationCorpus, site: null },
+      { retrieval: { maxResults: 1 } }
+    );
+    const system = await ground([
+      { content: "Tell me about i18n.", role: "user" },
+      { content: "Deploy to Vercel first.", role: "assistant" },
+      { content: "Why?", role: "user" },
+    ]);
+    expect(cited(system)).toStrictEqual(["/i18n"]);
+  });
+
+  it("skips earlier turns that carry no content terms", async () => {
+    const ground = createAskContext(
+      { documents: conversationCorpus, site: null },
+      { retrieval: { maxResults: 1 } }
+    );
+    const system = await ground([
+      { content: "How do I close a matter?", role: "user" },
+      { content: "Why?", role: "user" },
+      { content: "And then?", role: "user" },
+    ]);
+    expect(cited(system)).toStrictEqual(["/matters/close"]);
+
+    // With no earlier turn the bare question retrieves on itself, and no page
+    // here mentions "why", so there is nothing to ground on.
+    expect(await ground([{ content: "Why?", role: "user" }])).toBeUndefined();
+  });
+
   it("grounds the prompt in the retrieved page and asks the model to cite", async () => {
     const ground = createAskContext(askData);
     const system = await ground([
@@ -1443,6 +1586,10 @@ describe("createAskContext", () => {
 });
 
 describe("relevantExcerpt", () => {
+  it("returns short content unchanged", () => {
+    expect(relevantExcerpt("Short page", "page", 100)).toBe("Short page");
+  });
+
   it("keeps the window on the match when case mapping changes lengths", () => {
     // Turkish İ lowercases to two characters ("i" + U+0307). Index math on a
     // lowercased copy of the content would drift past the real position and
@@ -1507,6 +1654,258 @@ describe("relevantExcerpt", () => {
       (Intl as { Segmenter: typeof Intl.Segmenter | undefined }).Segmenter =
         original;
     }
+  });
+});
+
+describe("parsePage", () => {
+  it("tokenizes each section once and treats the lead-in as a section", () => {
+    const page = parsePage("Intro text.\n## One\nAlpha beta.\n## Two\nGamma.");
+    expect(page.sections.map((section) => section.words)).toStrictEqual([
+      ["intro", "text"],
+      ["one", "alpha", "beta"],
+      ["two", "gamma"],
+    ]);
+    expect(page.sections.map((section) => section.headingWords)).toStrictEqual([
+      [],
+      ["one"],
+      ["two"],
+    ]);
+    expect(
+      parsePage("# Title\nLead.\n## Two").sections[0]?.headingWords
+    ).toStrictEqual(["title"]);
+    expect(parsePage("Plain page with no headings.").sections).toStrictEqual(
+      []
+    );
+  });
+});
+
+describe("sectionExcerpt", () => {
+  it("returns short content unchanged", () => {
+    expect(sectionExcerpt("Short page", "page", 100)).toBe("Short page");
+  });
+
+  it("keeps complete relevant sections in document order", () => {
+    const content = [
+      "A long introduction. ".repeat(30),
+      "## Opening",
+      "Open a project. ".repeat(20),
+      "## Closing",
+      "Close and archive the matter safely.",
+      "## Cleanup",
+      "Remove temporary files. ".repeat(20),
+    ].join("\n");
+    const excerpt = sectionExcerpt(content, "close matter", 180);
+    expect(excerpt).toContain("## Closing");
+    expect(excerpt).toContain("Close and archive the matter safely.");
+    expect(excerpt).not.toContain("## Opening");
+    expect(excerpt).not.toContain("## Cleanup");
+    expect(excerpt.startsWith("…")).toBe(true);
+    expect(excerpt.endsWith("…")).toBe(true);
+  });
+
+  it("orders multiple selected sections by their source position", () => {
+    const content = [
+      "## First",
+      "Beta details.",
+      "## Omitted",
+      "Unrelated padding. ".repeat(30),
+      "## Last",
+      "Alpha alpha details.",
+    ].join("\n");
+    const excerpt = sectionExcerpt(content, "alpha beta", 100);
+    expect(excerpt.indexOf("## First")).toBeLessThan(
+      excerpt.indexOf("## Last")
+    );
+    expect(excerpt).toContain("\n\n…\n\n");
+  });
+
+  it("keeps the matching section when only its omission marker exceeds the budget", () => {
+    const best = `## Match\ntargetword${"x".repeat(61)}`;
+    const content = `${best}\n## Other\n${"padding ".repeat(40)}`;
+    expect(sectionExcerpt(content, "targetword", 80)).toBe(best);
+  });
+
+  it("accounts for every omission marker in the excerpt budget", () => {
+    const content = Array.from({ length: 40 }, (_, index) =>
+      index % 2 === 0
+        ? `## Relevant ${index}\nterm`
+        : `## Omitted ${index}\n${"padding ".repeat(20)}`
+    ).join("\n");
+    expect(sectionExcerpt(content, "term", 200).length).toBeLessThanOrEqual(
+      200
+    );
+  });
+
+  for (const fence of ["```", "~~~~"]) {
+    it(`does not treat headings inside ${fence} code fences as sections`, () => {
+      const content = [
+        "## Real section",
+        "Some setup.",
+        `${fence}bash`,
+        "## fake command comment",
+        "targetword is below the comment",
+        fence,
+        "## Next",
+        "unrelated ".repeat(50),
+      ].join("\n");
+      const excerpt = sectionExcerpt(content, "targetword", 120);
+      expect(excerpt).toContain("## Real section");
+      expect(excerpt).toContain(`${fence}bash\n## fake command comment`);
+      expect(excerpt).toContain(`targetword is below the comment\n${fence}`);
+    });
+  }
+
+  it("does not open a fence for an inline backtick span", () => {
+    const content = [
+      "```inline```",
+      "## Target",
+      "targetword details.",
+      "## Appendix",
+      "padding ".repeat(40),
+    ].join("\n");
+    expect(sectionExcerpt(content, "targetword", 80)).toContain("## Target");
+  });
+
+  it("requires a matching bare delimiter to close a fence", () => {
+    const content = [
+      "## Real section",
+      "````bash",
+      "~~~",
+      "```",
+      "````still code",
+      "## fake command comment",
+      "targetword",
+      "````",
+      "## Next",
+      "unrelated ".repeat(50),
+    ].join("\n");
+    const excerpt = sectionExcerpt(content, "targetword", 140);
+    expect(excerpt).toContain("## Real section");
+    expect(excerpt).toContain("````still code\n## fake command comment");
+    expect(excerpt).toContain("targetword\n````");
+  });
+
+  it("honors a fence indented inside a list item", () => {
+    const content = [
+      "## Steps",
+      "1. Run the command:",
+      "",
+      "    ```bash",
+      "    ## targetword is a shell comment, not a heading",
+      "    ```",
+      "",
+      "## Appendix",
+      "padding ".repeat(40),
+    ].join("\n");
+    const excerpt = sectionExcerpt(content, "targetword", 160);
+    expect(excerpt).toStartWith("## Steps\n");
+    expect(excerpt).toContain("shell comment");
+  });
+
+  it("splits and keeps headings the same way under CRLF line endings", () => {
+    const body = `${"padding ".repeat(60)}close the matter here`;
+    const crlf = sectionExcerpt(
+      `## Closing\r\n${body}\r\n## Other\r\nNothing.`,
+      "close matter",
+      300
+    );
+    const lf = sectionExcerpt(
+      `## Closing\n${body}\n## Other\nNothing.`,
+      "close matter",
+      300
+    );
+    expect(crlf).toBe(lf);
+    expect(crlf).toStartWith("## Closing\n");
+  });
+
+  it("prefers the section that covers the query over the longest one", () => {
+    const rows = Array.from(
+      { length: 12 },
+      (_, index) => `Option ${index} controls how the matter is scheduled.`
+    ).join("\n");
+    const content = [
+      "Intro.",
+      "## Closing a matter",
+      "Close the matter from its settings page; closing archives the matter.",
+      "## Reference",
+      `${rows}\n${"padding ".repeat(200)}`,
+      "## Appendix",
+      "padding ".repeat(40),
+    ].join("\n");
+    const excerpt = sectionExcerpt(content, "close matter", 600);
+    expect(excerpt).toContain("## Closing a matter");
+    expect(excerpt).not.toContain("## Reference");
+  });
+
+  it("prefers the section whose heading names the term when coverage ties", () => {
+    const content = [
+      // Denser in the terms than the section below, but not titled with them.
+      "## Grounding",
+      `Retrieval needs no configuration. ${"Filler text. ".repeat(20)}`,
+      "## Retrieval size",
+      `The retrieval config sizes the context. ${"More detail. ".repeat(40)}`,
+      "## Appendix",
+      "padding ".repeat(40),
+    ].join("\n");
+    const excerpt = sectionExcerpt(content, "retrieval config", 700);
+    expect(excerpt).toContain("## Retrieval size");
+    expect(excerpt).not.toContain("## Grounding");
+  });
+
+  it("keeps a long heading while it leaves half the budget for the body", () => {
+    const heading = "## Choosing where the generated site is hosted";
+    const content = `${heading}\n${"padding ".repeat(60)}targetword`;
+    expect(sectionExcerpt(content, "targetword", 240)).toStartWith(
+      `${heading}\n`
+    );
+  });
+
+  it("scores word segments inside unspaced scripts", () => {
+    const content = [
+      "## Terminology",
+      "ファイル is mentioned but this does not explain configuration.",
+      "## Configuration",
+      "設定ファイルで認証情報を指定します。設定ファイルを保存します。",
+      "## Appendix",
+      "padding ".repeat(40),
+    ].join("\n");
+    const excerpt = sectionExcerpt(content, "ファイル", 100);
+    expect(excerpt).toContain("## Configuration");
+    expect(excerpt).toContain("設定ファイルで認証情報を指定します。");
+  });
+
+  it("falls back to a window without useful terms or matching sections", () => {
+    const content = `Introduction ${"padding ".repeat(40)}\n## Details\nMore padding.`;
+    expect(sectionExcerpt(content, "how is it", 80)).toStartWith(
+      "Introduction"
+    );
+    expect(sectionExcerpt(content, "missing", 80)).toStartWith("Introduction");
+  });
+
+  it("keeps a heading when a matching section exceeds the budget", () => {
+    const content = `## Closing\n${"padding ".repeat(40)}close the matter here`;
+    const excerpt = sectionExcerpt(content, "close matter", 240);
+    expect(excerpt).toStartWith("## Closing\n");
+    expect(excerpt).toContain("close the matter");
+  });
+
+  it("uses a plain window when an oversized match has no usable heading", () => {
+    const preamble = `${"padding ".repeat(40)}targetword`;
+    expect(
+      sectionExcerpt(
+        `${preamble}\n## Other\nNothing relevant.`,
+        "targetword",
+        80
+      )
+    ).not.toContain("## Other");
+
+    const heading = `## ${"long ".repeat(30)}targetword`;
+    expect(
+      sectionExcerpt(`${heading}\n## Other\nNothing.`, "targetword", 80)
+    ).toContain("targetword");
+
+    const crowded = `## ${"context ".repeat(12)}\n${"padding ".repeat(30)}targetword`;
+    expect(sectionExcerpt(crowded, "targetword", 120)).toContain("targetword");
   });
 });
 

@@ -11,14 +11,10 @@ import {
 } from "pathe";
 
 import { normalizeBasePath } from "./base-path.ts";
+import { nextFenceState } from "./code-fences.ts";
+import type { FenceState } from "./code-fences.ts";
 import { hashText } from "./sources/cache.ts";
-import type { FenceState } from "./sources/normalize.ts";
-import {
-  INLINE_CODE,
-  MD_IMAGE,
-  nextFenceState,
-  targetOffsetIn,
-} from "./sources/normalize.ts";
+import { INLINE_CODE, MD_IMAGE, targetOffsetIn } from "./sources/normalize.ts";
 import { readExpandedEntryText } from "./sources/read.ts";
 import type { ContentSource } from "./sources/types.ts";
 import type { PageRecord } from "./types.ts";

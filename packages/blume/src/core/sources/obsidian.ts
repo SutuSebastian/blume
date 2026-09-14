@@ -4,18 +4,19 @@ import { readdir, readFile, stat } from "node:fs/promises";
 
 import { basename, isAbsolute, join, relative, resolve } from "pathe";
 
+import { nextFenceState } from "../code-fences.ts";
+import type { FenceState } from "../code-fences.ts";
 import { BlumeError } from "../diagnostics.ts";
 import matter from "../frontmatter.ts";
 import { pageMetaSchema } from "../schema.ts";
 import type { ResolvedI18nConfig, ResolvedVersionsConfig } from "../schema.ts";
 import type { Diagnostic } from "../types.ts";
 import { hashText } from "./cache.ts";
-import type { EntryPlacement, FenceState } from "./normalize.ts";
+import type { EntryPlacement } from "./normalize.ts";
 import {
   extractHeadings,
   isStringValue,
   localizedRoute,
-  nextFenceState,
   placeEntryRef,
   resolveEntryRoute,
   slugifyPath,

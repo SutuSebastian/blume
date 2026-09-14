@@ -2,14 +2,10 @@ import { readFile } from "node:fs/promises";
 
 import { dirname, extname, join, relative, resolve } from "pathe";
 
+import { nextFenceState } from "./code-fences.ts";
+import type { FenceState } from "./code-fences.ts";
 import matter from "./frontmatter.ts";
-import type { FenceState } from "./sources/normalize.ts";
-import {
-  INLINE_CODE,
-  MD_IMAGE,
-  nextFenceState,
-  targetOffsetIn,
-} from "./sources/normalize.ts";
+import { INLINE_CODE, MD_IMAGE, targetOffsetIn } from "./sources/normalize.ts";
 import type { Diagnostic } from "./types.ts";
 
 /**

@@ -4,13 +4,13 @@ import { cp, readdir, readFile, rm } from "node:fs/promises";
 import { join, relative } from "pathe";
 
 import { stripBasePath } from "./base-path.ts";
+import { nextFenceState } from "./code-fences.ts";
+import type { FenceState } from "./code-fences.ts";
 import { writeTextAtomic } from "./fs-atomic.ts";
 import { localizeRoute } from "./i18n.ts";
 import type { BlumeProject } from "./project-graph.ts";
 import { isWithin, scanProject } from "./project-graph.ts";
 import { VERSION_ID } from "./schema.ts";
-import { nextFenceState } from "./sources/normalize.ts";
-import type { FenceState } from "./sources/normalize.ts";
 import { VERSION_LIKE, versionizeRoute } from "./versions.ts";
 
 /** What `cutVersion` did, for the CLI to report. */

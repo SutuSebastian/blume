@@ -1,4 +1,6 @@
 import { normalizeRoute } from "../core/base-path.ts";
+import { nextFenceState } from "../core/code-fences.ts";
+import type { FenceState } from "../core/code-fences.ts";
 import { buildOramaIndex, queryOramaIndex } from "../search/orama-index.ts";
 import type { OramaDoc } from "../search/orama-index.ts";
 
@@ -68,45 +70,94 @@ export interface AskRetrievalOptions {
 const EXCERPT_LEAD = 160;
 
 /**
- * Common words dropped from the retrieval query before locating the relevant
- * excerpt region, so short filler ("how does…", "what is…") doesn't drag the
- * window toward incidental matches instead of the meaningful terms.
+ * Remove English filler from retrieval and excerpt queries. Keep content verbs
+ * such as "sign", "file" and "close", which can name documentation topics.
  */
 const STOPWORDS = new Set([
+  "a",
   "about",
+  "again",
+  "against",
+  "all",
+  "am",
+  "an",
   "and",
+  "any",
   "are",
   "as",
   "at",
   "be",
+  "been",
+  "before",
+  "being",
+  "both",
   "but",
   "by",
   "can",
+  "did",
   "do",
   "does",
+  "done",
+  "each",
+  "every",
   "for",
   "from",
+  "had",
+  "has",
+  "have",
+  "having",
+  "he",
+  "her",
+  "hers",
+  "him",
+  "his",
   "how",
+  "i",
+  "if",
   "in",
   "into",
   "is",
   "it",
   "its",
+  "like",
+  "look",
+  "may",
+  "me",
+  "might",
+  "mine",
+  "must",
   "my",
+  "nor",
   "of",
   "on",
   "or",
+  "other",
   "our",
+  "ours",
+  "shall",
+  "she",
+  "should",
+  "so",
+  "some",
+  "than",
   "that",
   "the",
+  "their",
+  "theirs",
+  "them",
+  "then",
+  "there",
   "these",
+  "they",
   "this",
   "those",
   "to",
+  "us",
   "use",
   "used",
   "using",
   "was",
+  "we",
   "were",
   "what",
   "when",
@@ -114,9 +165,12 @@ const STOPWORDS = new Set([
   "which",
   "who",
   "why",
+  "will",
   "with",
+  "would",
   "you",
   "your",
+  "yours",
 ]);
 
 /** A run of letters, combining marks and digits inside a word-like segment. */
@@ -149,13 +203,15 @@ const segmentQuery = (query: string): string[] => {
   return pieces;
 };
 
+/** Lowercase word tokens of `text`, cut at the same boundaries as a query. */
+const tokenize = (text: string): string[] =>
+  segmentQuery(text).flatMap((piece) => piece.match(TERM) ?? []);
+
 /** Distinct, meaningful lowercase terms from a query (drops stopwords). */
-const queryTerms = (query: string): string[] => {
-  const terms = segmentQuery(query).flatMap((piece) => piece.match(TERM) ?? []);
-  return [...new Set(terms)].filter(
+const queryTerms = (query: string): string[] =>
+  [...new Set(tokenize(query))].filter(
     (term) => term.length >= 2 && !STOPWORDS.has(term)
   );
-};
 
 /**
  * The grounding preamble. The model is told to answer strictly from the injected
@@ -165,15 +221,87 @@ const queryTerms = (query: string): string[] => {
 const BASE_INSTRUCTION =
   "You are a helpful documentation assistant for this project. Answer the user's question using ONLY the documentation excerpts below. Each excerpt is headed by its page as `## Page Title (/route)`. If the answer is not covered by the excerpts, say you don't know and suggest where in the docs to look — do not invent details. Always cite the pages you drew from, and write every citation as a Markdown link to that page using its route, e.g. [Page Title](/route).";
 
-/** The most recent non-empty user message, used as the retrieval query. */
-const lastUserMessage = (messages: AskMessage[]): string => {
-  for (let i = messages.length - 1; i >= 0; i -= 1) {
-    const message = messages[i];
-    if (message?.role === "user" && message.content?.trim()) {
-      return message.content.trim();
+/** The non-empty user turns, oldest first. Assistant turns never seed retrieval. */
+const userTurns = (messages: AskMessage[]): string[] =>
+  messages
+    .filter((message) => message?.role === "user" && message.content?.trim())
+    .map((message) => message.content.trim());
+
+/** Meaningful terms below which a follow-up cannot stand as a query on its own. */
+const MIN_QUERY_TERMS = 3;
+
+const FOLLOW_UP_OPENERS = new Set(["also", "and", "but", "then"]);
+const ANAPHORA = new Set([
+  "it",
+  "its",
+  "that",
+  "them",
+  "these",
+  "they",
+  "this",
+  "those",
+]);
+
+const isFollowUp = (message: string): boolean => {
+  const words = segmentQuery(message);
+  const [first] = words;
+  return (
+    (first !== undefined && FOLLOW_UP_OPENERS.has(first)) ||
+    words.some((word) => ANAPHORA.has(word))
+  );
+};
+
+/**
+ * The texts that retrieve for the latest question, in rank order.
+ *
+ * The question itself always leads, verbatim: Orama's own tokenizer and BM25
+ * weighting see the whole sentence (version numbers, single-character CJK
+ * words, `--flags`, and the bigrams a ja/zh index depends on all survive), and
+ * a short question that names its subject ("Does it support i18n?") is never
+ * outvoted by whatever the reader asked before. Only when it reads like a
+ * follow-up — opener-led, pronoun-bearing, or nothing but filler ("Why?") —
+ * and is too short to stand alone does the nearest earlier user turn with
+ * content terms join as a second query, ranked behind the first so the earlier
+ * subject stays in view without displacing the current one. Assistant turns
+ * are excluded, so an incorrect answer cannot reinforce its own retrieval.
+ */
+const retrievalQueries = (turns: string[]): string[] => {
+  const [latest = "", ...earlier] = turns.toReversed();
+  const terms = queryTerms(latest);
+  if (terms.length >= MIN_QUERY_TERMS) {
+    return [latest];
+  }
+  if (terms.length > 0 && !isFollowUp(latest)) {
+    return [latest];
+  }
+  const context = earlier.find((turn) => queryTerms(turn).length > 0);
+  if (context === undefined) {
+    return [latest];
+  }
+  return terms.length === 0 ? [context] : [latest, context];
+};
+
+/**
+ * Merge ranked result lists round-robin — the first list's top hit, then the
+ * second's, and so on — dropping duplicate routes and stopping at `limit`.
+ */
+const interleave = (lists: OramaDoc[][], limit: number): OramaDoc[] => {
+  const merged: OramaDoc[] = [];
+  const seen = new Set<string>();
+  const depth = Math.max(...lists.map((list) => list.length));
+  for (let rank = 0; rank < depth; rank += 1) {
+    for (const list of lists) {
+      const doc = list[rank];
+      if (doc && !seen.has(doc.route)) {
+        seen.add(doc.route);
+        merged.push(doc);
+      }
+      if (merged.length >= limit) {
+        return merged;
+      }
     }
   }
-  return "";
+  return merged;
 };
 
 /**
@@ -248,6 +376,214 @@ export const relevantExcerpt = (
   return withEllipsis(Math.max(0, best - lead));
 };
 
+/** A Markdown heading at level 2 or deeper — where a page divides itself. */
+const SECTION_HEADING = /^ {0,3}#{2,6}[\t ]+.+$/u;
+/** Any ATX heading, including the `#` title a lead-in may open with. */
+const ANY_HEADING = /^ {0,3}#{1,6}[\t ]+.+$/u;
+
+/** Offsets of the section headings in `text`, skipping fenced code. */
+const sectionStarts = (text: string): number[] => {
+  const starts: number[] = [];
+  let fence: FenceState = null;
+  let offset = 0;
+  for (const line of text.split("\n")) {
+    const next = nextFenceState(line, fence);
+    if (fence === null && next === null && SECTION_HEADING.test(line)) {
+      starts.push(offset);
+    }
+    fence = next;
+    offset += line.length + 1;
+  }
+  return starts;
+};
+
+interface PageSection {
+  /** Word tokens of the section's heading line, or none when it has no heading. */
+  headingWords: string[];
+  /** Position in the page, for source-order output and omission markers. */
+  index: number;
+  text: string;
+  /** The section's word tokens, cut once so scoring is a prefix test. */
+  words: string[];
+}
+
+/** A page split into sections once, so per-request scoring never re-tokenizes. */
+export interface ParsedPage {
+  sections: PageSection[];
+  /** NFC-normalized, LF-only, trimmed page text; excerpts slice from it. */
+  text: string;
+}
+
+/**
+ * Split a page at its `##`+ headings (outside code fences). The text above the
+ * first heading is the page's own lead-in and is a section like any other.
+ * Line endings are folded to LF first so a CRLF checkout splits and matches the
+ * same way as an LF one. Exported for testing; {@link createAskContext}
+ * parses each page once and caches it across requests.
+ */
+export const parsePage = (content: string): ParsedPage => {
+  const text = content.normalize("NFC").replaceAll("\r\n", "\n").trim();
+  const headings = sectionStarts(text);
+  if (headings.length === 0) {
+    return { sections: [], text };
+  }
+  const starts = headings[0] === 0 ? headings : [0, ...headings];
+  const sections = starts.map((start, index) => {
+    const section = text.slice(start, starts[index + 1]).trim();
+    const [firstLine = ""] = section.split("\n", 1);
+    const headingWords = ANY_HEADING.test(firstLine) ? tokenize(firstLine) : [];
+    return { headingWords, index, text: section, words: tokenize(section) };
+  });
+  return { sections, text };
+};
+
+interface ScoredSection extends PageSection {
+  /** How many distinct query terms the section mentions. */
+  coverage: number;
+  /** Term hits per word, so a long section can't win on bulk alone. */
+  density: number;
+  /** How many distinct query terms the section's heading names. */
+  titled: number;
+}
+
+interface TermMatch {
+  /** Every word that starts with a term counts once. */
+  hits: number;
+  /** Distinct terms some word starts with. */
+  matched: number;
+}
+
+/** How `words` match `terms` by prefix. */
+const matchTerms = (words: string[], terms: string[]): TermMatch => {
+  const matched = new Set<string>();
+  let hits = 0;
+  for (const word of words) {
+    for (const term of terms) {
+      if (word.startsWith(term)) {
+        matched.add(term);
+        hits += 1;
+      }
+    }
+  }
+  return { hits, matched: matched.size };
+};
+
+/**
+ * Score a section by the query terms it covers, then by whether its heading
+ * names them, then by how densely it hits them. Raw hit counts would hand the
+ * excerpt to the longest section — a reference table that says "matter" once
+ * per row outscores the short "Closing a matter" section that actually answers
+ * "close matter" — and among sections covering the same terms, the one titled
+ * with a term is the one about it.
+ */
+const scoreSection = (section: PageSection, terms: string[]): ScoredSection => {
+  const body = matchTerms(section.words, terms);
+  return {
+    ...section,
+    coverage: body.matched,
+    density: body.hits / Math.max(1, section.words.length),
+    titled: matchTerms(section.headingWords, terms).matched,
+  };
+};
+
+const excerptLongSection = (
+  section: string,
+  query: string,
+  max: number
+): string => {
+  const [heading = "", ...rest] = section.split("\n");
+  const body = rest.join("\n").trim();
+  if (!SECTION_HEADING.test(heading) || body === "") {
+    return relevantExcerpt(section, query, max);
+  }
+  // The heading names what the model is reading, so keep it whenever it
+  // leaves at least half the budget for the body beneath it.
+  const room = max - heading.length - 1;
+  if (room < Math.floor(max / 2)) {
+    return relevantExcerpt(section, query, max);
+  }
+  return `${heading}\n${relevantExcerpt(body, query, room)}`;
+};
+
+/**
+ * Preserve headings and lists by selecting whole sections that cover the query
+ * best, then emitting them in document order. An oversized best section falls
+ * back to a relevant window under its heading; ellipses mark omitted content.
+ */
+const excerptPage = (page: ParsedPage, query: string, max: number): string => {
+  if (page.text.length <= max) {
+    return page.text;
+  }
+  const terms = queryTerms(query);
+  if (terms.length === 0 || page.sections.length === 0) {
+    return relevantExcerpt(page.text, query, max);
+  }
+
+  const ranked = page.sections
+    .map((section) => scoreSection(section, terms))
+    .filter((section) => section.coverage > 0)
+    .toSorted(
+      (a, b) =>
+        b.coverage - a.coverage ||
+        b.titled - a.titled ||
+        b.density - a.density ||
+        a.index - b.index
+    );
+  const [bestSection] = ranked;
+  if (!bestSection) {
+    return relevantExcerpt(page.text, query, max);
+  }
+  if (bestSection.text.length > max) {
+    // The window lands wherever the terms cluster, which is rarely the first
+    // line — so the heading that names what the model is reading would be the
+    // first thing cut. Hold it back and window only the body beneath it.
+    return excerptLongSection(bestSection.text, query, max);
+  }
+
+  const last = page.sections.length - 1;
+  const render = (selected: ScoredSection[]): string => {
+    const ordered = selected.toSorted((a, b) => a.index - b.index);
+    const parts: string[] = [];
+    let previous = -1;
+    for (const section of ordered) {
+      if (previous !== -1 && section.index !== previous + 1) {
+        parts.push("…");
+      }
+      parts.push(section.text);
+      previous = section.index;
+    }
+    const [first] = ordered;
+    if (first && first.index > 0) {
+      parts.unshift("…");
+    }
+    if (previous < last) {
+      parts.push("…");
+    }
+    return parts.join("\n\n");
+  };
+
+  // Like `relevantExcerpt`, the result may run two characters over `max` for
+  // the ellipses that mark omitted content.
+  const chosen: ScoredSection[] = [];
+  for (const section of ranked) {
+    const candidate = [...chosen, section];
+    if (render(candidate).length <= max + 2) {
+      chosen.push(section);
+    }
+  }
+  if (chosen.length === 0) {
+    return excerptLongSection(bestSection.text, query, max);
+  }
+  return render(chosen);
+};
+
+/** {@link excerptPage} over a page parsed on the spot. Exported for testing. */
+export const sectionExcerpt = (
+  content: string,
+  query: string,
+  max: number
+): string => excerptPage(parsePage(content), query, max);
+
 /**
  * Build the request-time grounding function for the Ask AI endpoint.
  *
@@ -279,6 +615,17 @@ export const createAskContext = (
     return dbPromise;
   };
   const byRoute = new Map(data.documents.map((doc) => [doc.route, doc]));
+  // Section splitting and tokenizing are per page, not per question, so each
+  // page is parsed on first use and reused for the life of the endpoint.
+  const parsed = new Map<string, ParsedPage>();
+  const pageOf = (doc: OramaDoc): ParsedPage => {
+    let page = parsed.get(doc.route);
+    if (page === undefined) {
+      page = parsePage(doc.content);
+      parsed.set(doc.route, page);
+    }
+    return page;
+  };
   const instruction = options?.instructions
     ? `${BASE_INSTRUCTION}\n\n${options.instructions}`
     : BASE_INSTRUCTION;
@@ -288,19 +635,27 @@ export const createAskContext = (
 
   return async (messages, page) => {
     const list = Array.isArray(messages) ? messages : [];
-    const query = lastUserMessage(list);
-    if (!query) {
+    const turns = userTurns(list);
+    if (turns.length === 0) {
       return;
     }
+    const queries = retrievalQueries(turns);
+    // The leading query is what the reader is asking about now; it also decides
+    // which part of each page is quoted.
+    const [query = ""] = queries;
 
     // The current page anchors retrieval to its locale and is injected first.
     const current = page?.path
       ? byRoute.get(normalizeRoute(page.path))
       : undefined;
     const db = await index();
-    const hits = await queryOramaIndex(db, query, maxResults, {
-      locale: current?.locale || undefined,
-    });
+    const filters = { locale: current?.locale || undefined };
+    const hits = interleave(
+      await Promise.all(
+        queries.map((text) => queryOramaIndex(db, text, maxResults, filters))
+      ),
+      maxResults
+    );
 
     const seen = new Set<string>();
     const sections: string[] = [];
@@ -309,14 +664,15 @@ export const createAskContext = (
       if (seen.has(doc.route) || budget <= 0) {
         return;
       }
+      const parsedPage = pageOf(doc);
       // Skip a page that would be cut to a junk fragment: its excerpt is only
       // useful when it either fits whole or gets at least the minimum window.
-      if (budget < MIN_EXCERPT_CHARS && doc.content.trim().length > budget) {
+      if (budget < MIN_EXCERPT_CHARS && parsedPage.text.length > budget) {
         return;
       }
       seen.add(doc.route);
-      const body = relevantExcerpt(
-        doc.content,
+      const body = excerptPage(
+        parsedPage,
         query,
         Math.min(excerptChars, budget)
       );
