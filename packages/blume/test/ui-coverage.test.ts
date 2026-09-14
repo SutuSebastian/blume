@@ -562,6 +562,18 @@ describe("layout chrome sources", () => {
     expect(css).toMatch(
       /@utility blume-nav-link \{\n\s+@apply block rounded-\[0\.65rem\][^;]*aria-\[current=page\]:text-foreground;/u
     );
+    // The group rows too: every utility the tree references is defined once
+    // in the theme, and the tree references each of them.
+    for (const utility of [
+      "blume-nav-drill",
+      "blume-nav-summary",
+      "blume-nav-summary-link",
+      "blume-nav-heading",
+      "blume-nav-heading-link",
+    ]) {
+      expect(css).toContain(`@utility ${utility} {`);
+      expect(source).toContain(`class="${utility}"`);
+    }
   });
 
   it("renders the sidebar drill-in script once, from the root tree", async () => {

@@ -244,12 +244,29 @@ ${THEME_MAPPING}
   unicode-bidi: isolate;
 }
 
-/* The sidebar's page rows. A docs site renders every sidebar row on every
-   page, so a large site's HTML is mostly this markup — one utility per row
-   instead of the dozen classes it expands to keeps each page (and the build's
-   HTML output) small. Kept in sync with NavTree.astro. */
+/* The sidebar's rows. A docs site renders every sidebar row on every page,
+   so a large site's HTML is mostly this markup — one utility per row kind
+   instead of the dozen classes each expands to keeps every page (and the
+   build's HTML output) small. Kept in sync with NavTree.astro: a page row,
+   a page-mode group's drill-in button, a collapsible group's summary and
+   the link inside it, and a flat group's heading and the link inside it. */
 @utility blume-nav-link {
   @apply block rounded-[0.65rem] px-2.5 py-1.5 text-muted-foreground text-sm transition-colors hover:bg-muted hover:text-foreground aria-[current=page]:bg-muted aria-[current=page]:font-medium aria-[current=page]:text-foreground;
+}
+@utility blume-nav-drill {
+  @apply flex w-full items-center gap-2 rounded-[0.65rem] px-2.5 py-1.5 text-left font-medium text-foreground text-sm transition-colors hover:bg-muted;
+}
+@utility blume-nav-summary {
+  @apply flex cursor-pointer list-none items-center gap-1.5 rounded-[0.65rem] px-2.5 py-1.5 text-muted-foreground text-sm transition-colors hover:bg-muted hover:text-foreground [&::-webkit-details-marker]:hidden;
+}
+@utility blume-nav-summary-link {
+  @apply -my-1 flex flex-1 items-center gap-1.5 rounded py-1 transition-colors aria-[current=page]:text-foreground aria-[current=page]:font-semibold;
+}
+@utility blume-nav-heading {
+  @apply mb-2 flex items-center gap-1.5 px-2.5 font-medium text-foreground text-sm;
+}
+@utility blume-nav-heading-link {
+  @apply -ml-1 flex flex-1 items-center gap-1.5 rounded-[0.65rem] px-1 py-0.5 text-foreground transition-colors hover:bg-muted aria-[current=page]:bg-muted;
 }
 
 /* Theme Tailwind Typography (prose) with Blume tokens. */
