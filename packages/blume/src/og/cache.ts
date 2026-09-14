@@ -28,11 +28,13 @@ export interface OgCache {
 
 /**
  * The card cache directory for a project: `node_modules/.cache/blume/og`,
- * the conventional build-cache location that hosting platforms persist
- * between builds (Netlify keeps `node_modules/.cache`, Vercel and Cloudflare
- * keep `node_modules`) — so a deploy re-renders only the cards whose inputs
- * changed. A project with no `node_modules` of its own falls back to the
- * runtime's cache dir next to Astro's and Vite's.
+ * the conventional build-cache location. Vercel and Netlify restore
+ * `node_modules` from their build caches, so a deploy there re-renders only
+ * the cards whose inputs changed; Cloudflare Workers Builds keeps only
+ * package-manager caches (and `node_modules/.astro` for a detected Astro
+ * project), and a self-managed runner needs a cache step for the directory.
+ * A project with no `node_modules` of its own falls back to the runtime's
+ * cache dir next to Astro's and Vite's.
  */
 export const ogCacheDir = (
   context: Pick<ProjectContext, "outDir" | "root">

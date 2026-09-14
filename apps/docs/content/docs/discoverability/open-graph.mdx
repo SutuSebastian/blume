@@ -96,7 +96,7 @@ An explicit `og.fonts: []` opts out entirely: cards keep the built-in font even 
 
 ## Card cache
 
-Rendered cards are cached on disk between builds, keyed by everything that decides their pixels: the page title and description, the brand text, logo, palette, footer text, and fonts (a local font file by its contents), plus the Blume version. A rebuild renders only the cards whose inputs changed and reads the rest back; the build log reports how many were reused. The cache lives in `node_modules/.cache/blume/og`, the directory hosting platforms keep between builds, so a deploy that touches a handful of pages re-renders a handful of cards. Cards that no page asked for are removed after each build, so the directory only ever holds the current site's cards.
+Rendered cards are cached on disk between builds, keyed by everything that decides their pixels: the page title and description, the brand text, logo, palette, footer text, and fonts (a local font file by its contents), plus the Blume version. A rebuild renders only the cards whose inputs changed and reads the rest back; the build log reports how many were reused. The cache lives in `node_modules/.cache/blume/og`; on a platform that keeps `node_modules` between builds (Vercel and Netlify do, Cloudflare does not) or a CI runner that caches that directory (see [Build cache](/docs/deployment#build-cache)), a deploy that touches a handful of pages re-renders a handful of cards. Cards that no page asked for are removed after each build, so the directory only ever holds the current site's cards.
 
 ## Custom page titles
 

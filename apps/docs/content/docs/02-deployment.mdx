@@ -143,7 +143,24 @@ Set them in `.env.local` for local dev and in your host's environment for produc
 
 ## Build cache
 
-Blume keeps two caches a build can reuse. Astro's and Vite's caches live under `.blume/.cache/` (the content store and image transforms among them). Rendered [OG cards](/discoverability/open-graph#card-cache) live in `node_modules/.cache/blume/og`, the conventional build-cache directory that Netlify, Vercel, and Cloudflare persist between deploys, so only the cards whose page title, description, or branding changed are re-rendered. On a CI runner you manage yourself, cache both directories between runs to get the same effect.
+Blume keeps two caches a build can reuse. Astro's and Vite's caches live under `.blume/.cache/` (the content store and image transforms among them). Rendered [OG cards](/docs/discoverability/open-graph#card-cache) live in `node_modules/.cache/blume/og`, so a rebuild renders only the cards whose title, description, or branding changed. Whether a platform keeps that directory between deploys varies:
+
+- **Vercel** restores `node_modules/**` from its build cache, so cards carry over (the cache is 1 GB, retained for a month, and keyed per branch — a new branch starts from the production cache).
+- **Netlify** restores `node_modules`, so cards carry over.
+- **Cloudflare Workers Builds** persists only package-manager caches and, for a detected Astro project, `node_modules/.astro` — never `node_modules/.cache` — so every deploy renders every card there.
+- **GitHub Actions** and other runners you manage keep nothing unless you cache the directory yourself:
+
+```yaml
+- uses: actions/cache@v4
+  with:
+    path: node_modules/.cache/blume/og
+    key: blume-og-${{ runner.os }}-${{ hashFiles('**/bun.lock', '**/package-lock.json', '**/pnpm-lock.yaml') }}
+    restore-keys: blume-og-${{ runner.os }}-
+```
+
+Cards are keyed by content, so an imprecise key is fine: a restored cache only ever saves renders, never serves a wrong card.
+
+One install command discards the cache on every platform: `npm ci` deletes `node_modules` before installing. Keep `npm install`, `bun install`, or `pnpm install` as the install command to get the reuse.
 
 ## Build summary
 
