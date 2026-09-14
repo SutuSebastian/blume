@@ -1,0 +1,23 @@
+---
+// Renders its slot — a sidebar subtree with no active page in it — through the
+// build-time subtree cache (see nav-cache.ts), so a large sidebar is rendered
+// once per group instead of once per page. Off in dev, where component edits
+// must show on the next request.
+import type { NavNode } from "../../core/types.ts";
+import { cachedNavHtml } from "./nav-cache.ts";
+
+interface Props {
+  node: NavNode;
+  variant: string;
+}
+
+const { node, variant } = Astro.props;
+const html = await cachedNavHtml(
+  node,
+  variant,
+  () => Astro.slots.render("default"),
+  !import.meta.env.DEV
+);
+---
+
+<Fragment set:html={html} />

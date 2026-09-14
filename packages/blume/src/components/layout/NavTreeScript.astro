@@ -1,0 +1,155 @@
+---
+// The `<blume-nav>` drill-in behavior, split out of NavTree so a subtree
+// rendered into the sidebar cache (see nav-cache.ts) never carries a copy of
+// it: Astro emits a component's script where the component renders, and a
+// cached subtree would replay the copy captured on its first render on every
+// later page, next to the live root's own. Rendered by the root NavTree only,
+// and only when a `page`-mode group gives the panel stack something to do.
+---
+
+<script>
+  const DURATION = 260;
+  const EASING = "cubic-bezier(0.33, 1, 0.68, 1)";
+
+  class BlumeNav extends HTMLElement {
+    connectedCallback() {
+      if (this.dataset.ready) {
+        return;
+      }
+      this.dataset.ready = "1";
+      this.addEventListener("click", (event) => {
+        const target = event.target;
+        if (!(target instanceof Element)) {
+          return;
+        }
+        const drill = target.closest("[data-nav-to]");
+        if (drill && this.contains(drill)) {
+          const id = drill.getAttribute("data-nav-to");
+          if (id && this.panel(id)) {
+            event.preventDefault();
+            this.show(id, true);
+          }
+          return;
+        }
+        const back = target.closest("[data-nav-back]");
+        if (back && this.contains(back)) {
+          event.preventDefault();
+          this.show(back.getAttribute("data-nav-back") || "root", true);
+        }
+      });
+      // Initial panel is route-driven, so it snaps into place without a slide.
+      this.show(this.dataset.initial || "root", false);
+    }
+
+    panel(id) {
+      return this.querySelector(`[data-nav-panel="${id}"]`);
+    }
+
+    depth(id) {
+      return id === "root" ? 0 : id.split(".").length;
+    }
+
+    reduced() {
+      return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    }
+
+    show(id, animate) {
+      const next = this.panel(id) || this.panel("root");
+      if (!next) {
+        return;
+      }
+      const resolved = next.getAttribute("data-nav-panel");
+      const prev = this.active;
+      if (prev === next) {
+        return;
+      }
+      // Settle any in-flight slide before starting the next one.
+      if (this.finishSlide) {
+        this.finishSlide();
+      }
+      this.active = next;
+      this.dataset.active = resolved;
+
+      if (!(animate && prev) || this.reduced()) {
+        for (const panel of this.querySelectorAll("[data-nav-panel]")) {
+          panel.hidden = panel !== next;
+        }
+        return;
+      }
+
+      const forward =
+        this.depth(resolved) > this.depth(prev.getAttribute("data-nav-panel"));
+      this.slide(prev, next, forward);
+    }
+
+    slide(out, into, forward) {
+      const rtl = getComputedStyle(this).direction === "rtl" ? -1 : 1;
+      const sign = (forward ? -1 : 1) * rtl;
+
+      const fromHeight = out.offsetHeight;
+      this.style.position = "relative";
+      this.style.overflow = "hidden";
+      this.style.height = `${fromHeight}px`;
+      into.hidden = false;
+      for (const panel of [out, into]) {
+        panel.style.position = "absolute";
+        panel.style.top = "0";
+        panel.style.insetInlineStart = "0";
+        panel.style.width = "100%";
+      }
+      const toHeight = into.offsetHeight;
+      this.style.height = `${toHeight}px`;
+
+      const options = { duration: DURATION, easing: EASING };
+      const animations = [
+        out.animate(
+          [
+            { transform: "translateX(0)" },
+            { transform: `translateX(${sign * 100}%)` },
+          ],
+          options
+        ),
+        into.animate(
+          [
+            { transform: `translateX(${-sign * 100}%)` },
+            { transform: "translateX(0)" },
+          ],
+          options
+        ),
+        this.animate(
+          [{ height: `${fromHeight}px` }, { height: `${toHeight}px` }],
+          options
+        ),
+      ];
+
+      let done = false;
+      const finish = () => {
+        if (done) {
+          return;
+        }
+        done = true;
+        for (const animation of animations) {
+          animation.cancel();
+        }
+        out.hidden = true;
+        for (const panel of [out, into]) {
+          panel.style.position = "";
+          panel.style.top = "";
+          panel.style.insetInlineStart = "";
+          panel.style.width = "";
+          panel.style.transform = "";
+        }
+        this.style.position = "";
+        this.style.overflow = "";
+        this.style.height = "";
+        this.finishSlide = null;
+      };
+      this.finishSlide = finish;
+      animations[0].finished.then(finish, finish);
+    }
+  }
+
+  if (!customElements.get("blume-nav")) {
+    customElements.define("blume-nav", BlumeNav);
+  }
+</script>

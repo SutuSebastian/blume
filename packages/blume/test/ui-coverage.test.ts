@@ -540,6 +540,42 @@ describe("layout chrome sources", () => {
     expect(source).toContain('(node.display ?? "flat") === "page"');
   });
 
+  it("renders sidebar page rows through the theme's row utility", async () => {
+    // Every page's HTML carries the whole sidebar, so a page row is one
+    // utility class (defined once in the theme) rather than the dozen it
+    // expands to; the bare row also drops the inner row spans. The utility
+    // and the component reference each other by name, so both sides are
+    // pinned here.
+    const source = await layoutSource("NavTree.astro");
+    expect(source).toContain('class="blume-nav-link truncate"');
+    expect(source).toContain('class="blume-nav-link"');
+    expect(source).not.toContain(
+      "block rounded-[0.65rem] px-2.5 py-1.5 text-muted-foreground"
+    );
+    const { tailwindEntryTemplate } = await import("../src/theme/entry.ts");
+    const css = tailwindEntryTemplate({
+      configTokens: "",
+      sources: [],
+      userTheme: "",
+    });
+    expect(css).toContain("@utility blume-nav-link {");
+    expect(css).toMatch(
+      /@utility blume-nav-link \{\n\s+@apply block rounded-\[0\.65rem\][^;]*aria-\[current=page\]:text-foreground;/u
+    );
+  });
+
+  it("renders the sidebar drill-in script once, from the root tree", async () => {
+    // Cached subtrees (NavTreeCache) replay their first render on every later
+    // page, so the `<blume-nav>` script lives in its own component that only
+    // the root tree renders — never inside a cacheable subtree.
+    const source = await layoutSource("NavTree.astro");
+    expect(source).not.toContain("<script>");
+    expect(source).toContain("<NavTreeScript />");
+    expect(source).toMatch(
+      /root && panels\.length > 0 \? \(\s*<blume-nav[^>]*>\s*<NavTreeScript \/>/u
+    );
+  });
+
   it("uses the sidebar row radius for the full-width NavTree back button", async () => {
     const source = await layoutSource("NavTree.astro");
     expect(source).toMatch(

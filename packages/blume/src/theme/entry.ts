@@ -244,6 +244,14 @@ ${THEME_MAPPING}
   unicode-bidi: isolate;
 }
 
+/* The sidebar's page rows. A docs site renders every sidebar row on every
+   page, so a large site's HTML is mostly this markup — one utility per row
+   instead of the dozen classes it expands to keeps each page (and the build's
+   HTML output) small. Kept in sync with NavTree.astro. */
+@utility blume-nav-link {
+  @apply block rounded-[0.65rem] px-2.5 py-1.5 text-muted-foreground text-sm transition-colors hover:bg-muted hover:text-foreground aria-[current=page]:bg-muted aria-[current=page]:font-medium aria-[current=page]:text-foreground;
+}
+
 /* Theme Tailwind Typography (prose) with Blume tokens. */
 .prose {
   --tw-prose-body: var(--blume-foreground);

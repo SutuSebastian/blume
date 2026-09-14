@@ -975,6 +975,14 @@ describe("astroConfigTemplate", () => {
     // every link prefetches on hover/viewport to hide the request latency
     // behind user intent.
     expect(out).toContain("prefetch: { prefetchAll: true },");
+    // Pages prerender concurrently so the main thread renders the next page
+    // while a page's OG card renders off-thread; the config computes the
+    // count on the machine that builds (an ejected project runs the same
+    // file elsewhere).
+    expect(out).toContain('import { availableParallelism } from "node:os";');
+    expect(out).toContain(
+      "build: { concurrency: Math.min(8, availableParallelism()) },"
+    );
     // The runtime's node_modules is a junction shared with every Blume project
     // that resolves the same package, so Astro's and Vite's caches (the content
     // data store among them) live inside the runtime dir, never under it.
