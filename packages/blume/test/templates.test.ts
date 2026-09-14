@@ -34,6 +34,7 @@ import {
   notFoundJsonTemplate,
   notFoundMarkdownTemplate,
   notFoundPageTemplate,
+  featuresTemplate,
   ogEndpointTemplate,
   playgroundProxyTemplate,
   rawMarkdownEndpointTemplate,
@@ -59,6 +60,7 @@ const ASK_PATH = "/p/.blume/src/generated/Ask.astro";
 const EXAMPLES_PATH = "/p/.blume/src/generated/examples.ts";
 const EXAMPLES_THEME_PATH = "/p/.blume/src/generated/examples.css";
 const SEARCH_CLIENT_PATH = "/p/.blume/src/generated/search-client.ts";
+const FEATURES_PATH = "/p/.blume/src/generated/features.ts";
 const THEME_PATH = "/p/.blume/src/generated/app.css";
 
 const context = (over: Partial<ProjectContext> = {}): ProjectContext => ({
@@ -896,6 +898,7 @@ describe("astroConfigTemplate", () => {
       context: context(),
       examplesPath: EXAMPLES_PATH,
       examplesThemePath: EXAMPLES_THEME_PATH,
+      featuresPath: FEATURES_PATH,
       integrationBridge: {
         configFile: "../blume.config.ts",
         sourceHash: "a".repeat(64),
@@ -932,6 +935,7 @@ describe("astroConfigTemplate", () => {
       context: context(),
       examplesPath: EXAMPLES_PATH,
       examplesThemePath: EXAMPLES_THEME_PATH,
+      featuresPath: FEATURES_PATH,
       needsReact: false,
       pages: [],
       searchClientPath: SEARCH_CLIENT_PATH,
@@ -1055,6 +1059,7 @@ describe("astroConfigTemplate", () => {
       context: context(),
       examplesPath: EXAMPLES_PATH,
       examplesThemePath: EXAMPLES_THEME_PATH,
+      featuresPath: FEATURES_PATH,
       needsReact: true,
       needsSvelte: true,
       needsVue: true,
@@ -1098,6 +1103,7 @@ describe("astroConfigTemplate", () => {
       context: context(),
       examplesPath: EXAMPLES_PATH,
       examplesThemePath: EXAMPLES_THEME_PATH,
+      featuresPath: FEATURES_PATH,
       needsReact: false,
       pages: [],
       searchClientPath: SEARCH_CLIENT_PATH,
@@ -1123,6 +1129,7 @@ describe("astroConfigTemplate", () => {
       context: context(),
       examplesPath: EXAMPLES_PATH,
       examplesThemePath: EXAMPLES_THEME_PATH,
+      featuresPath: FEATURES_PATH,
       needsReact: false,
       pages: [],
       searchClientPath: SEARCH_CLIENT_PATH,
@@ -1149,6 +1156,7 @@ describe("astroConfigTemplate", () => {
       context: context(),
       examplesPath: EXAMPLES_PATH,
       examplesThemePath: EXAMPLES_THEME_PATH,
+      featuresPath: FEATURES_PATH,
       needsReact: true,
       pages: [],
       reactCompilerPath: compilerPath,
@@ -1173,6 +1181,7 @@ describe("astroConfigTemplate", () => {
       context: context(),
       examplesPath: EXAMPLES_PATH,
       examplesThemePath: EXAMPLES_THEME_PATH,
+      featuresPath: FEATURES_PATH,
       needsReact: true,
       pages: [],
       searchClientPath: SEARCH_CLIENT_PATH,
@@ -1198,6 +1207,7 @@ describe("astroConfigTemplate", () => {
       context: context(),
       examplesPath: EXAMPLES_PATH,
       examplesThemePath: EXAMPLES_THEME_PATH,
+      featuresPath: FEATURES_PATH,
       needsReact: false,
       pages: [],
       searchClientPath: SEARCH_CLIENT_PATH,
@@ -1220,6 +1230,7 @@ describe("astroConfigTemplate", () => {
       context: context(),
       examplesPath: EXAMPLES_PATH,
       examplesThemePath: EXAMPLES_THEME_PATH,
+      featuresPath: FEATURES_PATH,
       needsReact: false,
       pages: [],
       searchClientPath: SEARCH_CLIENT_PATH,
@@ -1245,6 +1256,7 @@ describe("astroConfigTemplate", () => {
       context: context(),
       examplesPath: EXAMPLES_PATH,
       examplesThemePath: EXAMPLES_THEME_PATH,
+      featuresPath: FEATURES_PATH,
       needsReact: false,
       pages: [],
       searchClientPath: SEARCH_CLIENT_PATH,
@@ -1274,6 +1286,7 @@ describe("astroConfigTemplate", () => {
         }),
         examplesPath: EXAMPLES_PATH,
         examplesThemePath: EXAMPLES_THEME_PATH,
+        featuresPath: FEATURES_PATH,
         needsReact: false,
         pages: [],
         searchClientPath: SEARCH_CLIENT_PATH,
@@ -1309,6 +1322,7 @@ describe("astroConfigTemplate", () => {
         }),
         examplesPath: EXAMPLES_PATH,
         examplesThemePath: EXAMPLES_THEME_PATH,
+        featuresPath: FEATURES_PATH,
         needsReact: false,
         pages: [],
         searchClientPath: SEARCH_CLIENT_PATH,
@@ -1331,6 +1345,7 @@ describe("astroConfigTemplate", () => {
       context: context(),
       examplesPath: EXAMPLES_PATH,
       examplesThemePath: EXAMPLES_THEME_PATH,
+      featuresPath: FEATURES_PATH,
       needsReact: false,
       pages: [],
       searchClientPath: SEARCH_CLIENT_PATH,
@@ -1355,6 +1370,7 @@ describe("astroConfigTemplate", () => {
       context: context(),
       examplesPath: EXAMPLES_PATH,
       examplesThemePath: EXAMPLES_THEME_PATH,
+      featuresPath: FEATURES_PATH,
       needsReact: false,
       pages: [],
       searchClientPath: SEARCH_CLIENT_PATH,
@@ -1384,6 +1400,7 @@ describe("astroConfigTemplate", () => {
       }),
       examplesPath: EXAMPLES_PATH,
       examplesThemePath: EXAMPLES_THEME_PATH,
+      featuresPath: FEATURES_PATH,
       needsReact: false,
       pages: [],
       searchClientPath: SEARCH_CLIENT_PATH,
@@ -1406,6 +1423,7 @@ describe("astroConfigTemplate", () => {
       context: context(),
       examplesPath: EXAMPLES_PATH,
       examplesThemePath: EXAMPLES_THEME_PATH,
+      featuresPath: FEATURES_PATH,
       needsReact: false,
       pages: [],
       searchClientPath: SEARCH_CLIENT_PATH,
@@ -1424,6 +1442,7 @@ describe("astroConfigTemplate", () => {
       context: context(),
       examplesPath: EXAMPLES_PATH,
       examplesThemePath: EXAMPLES_THEME_PATH,
+      featuresPath: FEATURES_PATH,
       needsReact: false,
       pages: [],
       searchClientPath: SEARCH_CLIENT_PATH,
@@ -1446,6 +1465,7 @@ describe("astroConfigTemplate", () => {
       context: context({ pagesRoot: "/p/pages" }),
       examplesPath: EXAMPLES_PATH,
       examplesThemePath: EXAMPLES_THEME_PATH,
+      featuresPath: FEATURES_PATH,
       needsReact: false,
       pages: [],
       searchClientPath: SEARCH_CLIENT_PATH,
@@ -1488,6 +1508,7 @@ describe("astroConfigTemplate workspace root", () => {
       }),
       examplesPath: EXAMPLES_PATH,
       examplesThemePath: EXAMPLES_THEME_PATH,
+      featuresPath: FEATURES_PATH,
       needsReact: false,
       pages: [],
       searchClientPath: SEARCH_CLIENT_PATH,
@@ -1880,6 +1901,24 @@ describe("static endpoint templates", () => {
     expect(mdx).not.toContain("entry.md ??");
   });
 
+  it("emits a loader per client feature, or null when the site lacks it", () => {
+    const all = featuresTemplate({ epub: true, mermaid: true });
+    expect(all).toContain(
+      'export const loadMermaid: (() => Promise<unknown>) | null = () => import("blume/components/content/mermaid-element.ts");'
+    );
+    expect(all).toContain('| null = () => import("epub-gen-memory/bundle");');
+    const none = featuresTemplate({ epub: false, mermaid: false });
+    // A null loader leaves the library out of the module graph: no chunk in
+    // the client bundle, nothing for the dev optimizer to pre-bundle.
+    expect(none).toContain(
+      "export const loadMermaid: (() => Promise<unknown>) | null = null;"
+    );
+    expect(none).toContain("| null = null;");
+    // Only the type annotation mentions the EPUB module now; no loader
+    // expression imports anything.
+    expect(none).not.toContain("() => import(");
+  });
+
   it("renders the OG image endpoint", () => {
     const endpoint = ogEndpointTemplate();
     expect(endpoint).toContain("cachedOgImage(cache, {");
@@ -1987,6 +2026,7 @@ describe("package / tsconfig templates", () => {
       context: context(),
       examplesPath: "./src/generated/examples.ts",
       examplesThemePath: "./src/generated/examples.css",
+      featuresPath: "./src/generated/features.ts",
       generatedModulesDir: "./src/generated",
       needsReact: false,
       pages: [],
@@ -2036,6 +2076,7 @@ describe("astroConfigTemplate image config", () => {
       context: context(),
       examplesPath: EXAMPLES_PATH,
       examplesThemePath: EXAMPLES_THEME_PATH,
+      featuresPath: FEATURES_PATH,
       needsReact: false,
       pages: [],
       searchClientPath: SEARCH_CLIENT_PATH,

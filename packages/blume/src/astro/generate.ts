@@ -30,6 +30,7 @@ import { buildAskData } from "../ai/ask-data.ts";
 import { askBackendRuntimeDep, resolveAskBackend } from "../ai/ask.ts";
 import { buildHomeLinkHeader } from "../ai/link-headers.ts";
 import { buildRawMarkdown, markdownRoutePaths } from "../ai/markdown.ts";
+import type { RawMarkdownEntry } from "../ai/markdown.ts";
 import { buildMcpData } from "../ai/mcp/data.ts";
 import type { McpData } from "../ai/mcp/data.ts";
 import { buildMcpDiscovery, buildMcpServerCard } from "../ai/mcp/discovery.ts";
@@ -70,6 +71,7 @@ import { resolveTsconfigAliases } from "../core/tsconfig-aliases.ts";
 import type { Diagnostic, Navigation } from "../core/types.ts";
 import { getBlumeVersion } from "../core/version.ts";
 import { buildRssFeeds, renderRssFeed } from "../deploy/rss.ts";
+import { hasMermaidFence } from "../markdown/mermaid.ts";
 import { ogCacheDir } from "../og/cache.ts";
 import { missingFontFiles, resolveOgFonts } from "../og/derive.ts";
 import type { DerivedOgFonts } from "../og/derive.ts";
@@ -150,10 +152,12 @@ import {
   runtimeDependencies,
   runtimePackageTemplate,
   runtimeTsconfigTemplate,
+  featuresTemplate,
   searchClientTemplate,
   searchEndpointTemplate,
   stagedContentDir,
 } from "./templates.ts";
+import type { ClientFeatures } from "./templates.ts";
 
 /** Absolute path to the Blume package `src` directory. */
 const BLUME_SRC = join(packageRoot(), "src");
@@ -1922,6 +1926,33 @@ const assertFontFilesExist = (project: BlumeProject): void => {
 };
 
 /**
+ * The client libraries a site needs (see `featuresTemplate`): the EPUB
+ * generator when `export.epub` is on, and the Mermaid element when any page's
+ * source has a mermaid fence — read from the raw-Markdown mirrors (every
+ * route's verbatim source) and, for sources that carry their text on the
+ * page record, the record itself.
+ */
+export const clientFeaturesFrom = (
+  project: BlumeProject,
+  rawMarkdown: Record<string, RawMarkdownEntry>
+): ClientFeatures => ({
+  epub: project.config.export.epub,
+  mermaid:
+    Object.values(rawMarkdown).some((entry) =>
+      hasMermaidFence(entry.mdx ?? entry.md ?? "")
+    ) ||
+    project.graph.pages.some(
+      (page) => page.body !== undefined && hasMermaidFence(page.body.text)
+    ),
+});
+
+/** {@link clientFeaturesFrom} over a fresh read of the raw Markdown (eject). */
+export const clientFeaturesFor = async (
+  project: BlumeProject
+): Promise<ClientFeatures> =>
+  clientFeaturesFrom(project, await buildRawMarkdown(project));
+
+/**
  * Write (or update) the generated `.blume/` Astro runtime for a project.
  * Only files whose content changed are rewritten so Vite HMR stays fast.
  */
@@ -1936,6 +1967,7 @@ export const generateRuntime = async (
   const askPath = join(srcDir, "generated", "Ask.astro");
   const themePath = join(srcDir, "generated", "app.css");
   const searchClientPath = join(srcDir, "generated", "search-client.ts");
+  const featuresPath = join(srcDir, "generated", "features.ts");
   const examplesPath = join(srcDir, "generated", "examples.ts");
   const examplesThemePath = join(srcDir, "generated", "examples.css");
 
@@ -1964,6 +1996,10 @@ export const generateRuntime = async (
   const askEnabled = config.ai.ask?.enabled ?? false;
   const exportPdf = config.export.pdf;
   const exportEpub = config.export.epub;
+  // Every route's source Markdown: published as `blume:raw-markdown` below,
+  // and inspected here for the client features the site needs.
+  const rawMarkdown = await buildRawMarkdown(project);
+  const clientFeatures = clientFeaturesFrom(project, rawMarkdown);
   // Staged (non-filesystem) sources materialize into `.blume/content`; keyed by
   // entryId so i18n duplicates of one entry write a single file. Collected here
   // so math detection also sees staged bodies (they never live under root).
@@ -2087,6 +2123,8 @@ export const generateRuntime = async (
           context,
           examplesPath,
           examplesThemePath,
+          features: clientFeatures,
+          featuresPath,
           integrationBridge,
           needsReact,
           needsSvelte,
@@ -2256,6 +2294,7 @@ export const generateRuntime = async (
     }),
     writeNotFoundPage(write, srcDir, pages, project.graph.pages),
     write(searchClientPath, searchClientTemplate(config)),
+    write(featuresPath, featuresTemplate(clientFeatures)),
   ]);
 
   // Client-loaded providers (orama, flexsearch) ship a static index + endpoint.
@@ -2284,7 +2323,6 @@ export const generateRuntime = async (
     `${JSON.stringify(buildIncludeGraph(project.graph.pages))}\n`
   );
 
-  const rawMarkdown = await buildRawMarkdown(project);
   modules.set("blume:raw-markdown", JSON.stringify(rawMarkdown));
   // The originals behind the rewritten `/blume-assets/content/…` references in
   // the agent-facing Markdown, plus the endpoint that serves them (and the

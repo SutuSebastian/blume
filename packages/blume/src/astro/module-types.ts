@@ -66,6 +66,15 @@ declare module "blume:openapi" {
   export default specs;
 }
 
+declare module "blume:features" {
+  /** Registers the <blume-mermaid> element; null when no page has a mermaid fence. */
+  export const loadMermaid: (() => Promise<unknown>) | null;
+  /** The EPUB generator's browser bundle; null when export.epub is off. */
+  export const loadEpub:
+    | (() => Promise<typeof import("epub-gen-memory/bundle")>)
+    | null;
+}
+
 declare module "blume:search-client" {
   export const createSearch: () =>
     | import("blume/components/layout/search/types.ts").SearchFn

@@ -13,6 +13,17 @@ interface CodeNode extends MdastNode {
  * rendered on the client (Mermaid needs a DOM), so the source rides on a string
  * attribute rather than as child text (which MDX would try to parse).
  */
+/**
+ * A ```mermaid (or ~~~mermaid) fence opener at the start of a line. Used to
+ * decide, at generation time, whether the site needs the Mermaid client
+ * library at all — see `featuresTemplate`.
+ */
+const MERMAID_FENCE = /^[ \t]*(?:`{3,}|~{3,})[ \t]*mermaid\b/mu;
+
+/** Whether a page's Markdown/MDX source contains a mermaid fence. */
+export const hasMermaidFence = (text: string): boolean =>
+  MERMAID_FENCE.test(text);
+
 export const mermaidPlugin = () => ({
   code(node: CodeNode, ctx: MdastVisitorContext) {
     if (node.lang !== "mermaid") {

@@ -523,11 +523,17 @@ hr { border: 0; border-top: 1px solid #ddd; margin: 2em 0; }`;
         epubLabel.textContent = generatingLabel;
       }
       try {
-        // Browser bundle: avoids Node built-ins and returns a Blob. Lazy-loaded
-        // so it never ships in the main bundle. The browserified UMD nests its
-        // callable under `.default`, which Vite's dev (esbuild) and build
-        // (rollup) interops expose at slightly different depths — unwrap both.
-        const epubModule = await import("epub-gen-memory/bundle");
+        // Browser bundle: avoids Node built-ins and returns a Blob. Loaded
+        // through the generated feature loaders, so it's absent from the
+        // bundle altogether when export.epub is off (this button isn't
+        // rendered then either). The browserified UMD nests its callable
+        // under `.default`, which Vite's dev (esbuild) and build (rollup)
+        // interops expose at slightly different depths — unwrap both.
+        const { loadEpub } = await import("blume:features");
+        if (!loadEpub) {
+          throw new Error("EPUB export is not enabled for this site.");
+        }
+        const epubModule = await loadEpub();
         const epub = epubModule.default?.default ?? epubModule.default;
         // The article HTML already opens with the page's <h1>, so don't let the
         // generator prepend a second chapter-title heading.

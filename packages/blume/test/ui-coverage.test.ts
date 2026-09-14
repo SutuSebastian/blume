@@ -576,6 +576,20 @@ describe("layout chrome sources", () => {
     }
   });
 
+  it("loads Mermaid and the EPUB generator through the generated feature loaders", async () => {
+    // A direct import would put the library in every site's client bundle;
+    // the loaders are null (and the library absent) for sites that don't use
+    // the feature.
+    const root = await layoutSource("RootLayout.astro");
+    expect(root).toContain('import { loadMermaid } from "blume:features";');
+    expect(root).toContain("loadMermaid?.();");
+    expect(root).not.toContain('import "../content/mermaid-element.ts"');
+    const actions = await layoutSource("PageActions.astro");
+    expect(actions).toContain('await import("blume:features")');
+    expect(actions).toContain("await loadEpub()");
+    expect(actions).not.toContain('import("epub-gen-memory/bundle")');
+  });
+
   it("renders the sidebar drill-in script once, from the root tree", async () => {
     // Cached subtrees (NavTreeCache) replay their first render on every later
     // page, so the `<blume-nav>` script lives in its own component that only

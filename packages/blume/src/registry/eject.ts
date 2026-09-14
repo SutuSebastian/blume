@@ -17,6 +17,7 @@ import {
 } from "../astro/examples.ts";
 import {
   buildRuntimeData,
+  clientFeaturesFor,
   collectStaged,
   detectNeedsReact,
   detectUsesMath,
@@ -24,16 +25,17 @@ import {
 import { discoverIslands } from "../astro/islands.ts";
 import { customOgRoutes, discoverPages, routeIsTaken } from "../astro/pages.ts";
 import {
-  askEndpointTemplate,
   askComponentTemplate,
+  askEndpointTemplate,
   astroConfigTemplate,
   catchAllPageTemplate,
   changelogIndexTemplate,
   contentConfigTemplate,
   exampleMapTemplate,
-  exampleWrapperTemplate,
-  examplesPageTemplate,
   exampleSlug,
+  examplesPageTemplate,
+  exampleWrapperTemplate,
+  featuresTemplate,
   islandMapTemplate,
   islandWrapperTemplate,
   mcpEndpointTemplate,
@@ -387,6 +389,7 @@ export const eject = async (
   const staged = collectStaged(project);
   const hasStaged = staged.size > 0;
   const stagedDir = "blume-staged";
+  const features = await clientFeaturesFor(project);
 
   const files: {
     path: string;
@@ -403,6 +406,8 @@ export const eject = async (
         context: relContext,
         examplesPath: "./src/generated/examples.ts",
         examplesThemePath: "./src/generated/examples.css",
+        features,
+        featuresPath: "./src/generated/features.ts",
         // No CLI publishes the runtime data modules in memory after eject, so
         // the config aliases each to the JSON snapshot written below.
         generatedModulesDir: "./src/generated",
@@ -558,11 +563,18 @@ export const eject = async (
     });
   }
 
-  // The provider-specific client loader behind the `blume:search-client` alias.
-  files.push({
-    content: searchClientTemplate(config),
-    path: join(genDir, "search-client.ts"),
-  });
+  // The client-feature loaders behind the `blume:features` alias, and the
+  // provider-specific client loader behind `blume:search-client`.
+  files.push(
+    {
+      content: featuresTemplate(features),
+      path: join(genDir, "features.ts"),
+    },
+    {
+      content: searchClientTemplate(config),
+      path: join(genDir, "search-client.ts"),
+    }
+  );
 
   if (servesStaticIndex(config.search.provider)) {
     const documents = await buildSearchDocuments(project);

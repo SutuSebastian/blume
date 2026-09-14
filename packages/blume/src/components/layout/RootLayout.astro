@@ -792,14 +792,18 @@ const bannerKey = banner?.dismissible ? banner.key : null;
       import { syncDrawerInert } from "./drawer-inert.ts";
       import { chromeIcons as icons } from "../../theme/chrome-icons.ts";
       // Registers the <blume-mermaid> custom element (emitted by ```mermaid
-      // fences). Mermaid itself is lazy-loaded only on pages that use a diagram.
-      import "../content/mermaid-element.ts";
+      // fences) when some page has one; Mermaid itself is lazy-loaded only on
+      // pages that use a diagram. The loader is null — and the element and
+      // library absent from the bundle — for a site with no diagrams.
+      import { loadMermaid } from "blume:features";
       // Registers the <blume-toc> custom element: scrollspy for the table of
       // contents, highlighting the section currently in view as you scroll.
       import "./toc-element.ts";
       // Dev-only: adds a friendly hint after a React island hydration mismatch.
       // Tree-shaken out of production builds.
       import "./hydration-hint.ts";
+
+      loadMermaid?.();
 
       // Runs once per real page load; re-syncs itself after client-router
       // swaps (see drawer-inert.ts).

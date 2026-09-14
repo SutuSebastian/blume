@@ -1801,6 +1801,52 @@ describe("generateRuntime", () => {
     );
   });
 
+  it("ships the Mermaid element only when a page has a mermaid fence", async () => {
+    // Mermaid is over 3 MB of client chunks (ELK, Cytoscape, KaTeX, every
+    // diagram type); a site with no diagram must not bundle, or pre-bundle in
+    // dev, any of it.
+    const withFence = await scanProject(
+      await writeProject({
+        "docs/index.mdx": "# Home\n\n```mermaid\ngraph TD; A-->B\n```\n",
+      })
+    );
+    await generateRuntime(withFence);
+    const on = await readFile(
+      join(withFence.context.outDir, "src/generated/features.ts"),
+      "utf-8"
+    );
+    expect(on).toContain(
+      'import("blume/components/content/mermaid-element.ts")'
+    );
+    expect(
+      await readFile(
+        join(withFence.context.outDir, "astro.config.mjs"),
+        "utf-8"
+      )
+    ).toContain('"blume > mermaid"');
+
+    const without = await scanProject(
+      await writeProject({ "docs/index.md": "# Home\n\nNo diagrams here.\n" })
+    );
+    await generateRuntime(without);
+    const off = await readFile(
+      join(without.context.outDir, "src/generated/features.ts"),
+      "utf-8"
+    );
+    expect(off).toContain(
+      "loadMermaid: (() => Promise<unknown>) | null = null;"
+    );
+    // export.epub is off by default, so the EPUB bundle stays out too.
+    expect(off).not.toContain("() => import(");
+    const config = await readFile(
+      join(without.context.outDir, "astro.config.mjs"),
+      "utf-8"
+    );
+    expect(config).not.toContain('"blume > mermaid"');
+    expect(config).not.toContain('"blume > epub-gen-memory/bundle"');
+    expect(config).toContain('"blume:features": ');
+  });
+
   it("writes the mixedbread proxy endpoint for the server provider", async () => {
     const project = await scanProject(
       await writeProject({
