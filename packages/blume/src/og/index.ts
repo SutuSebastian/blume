@@ -1,4 +1,11 @@
-export { renderOgImage } from "./card.ts";
+export {
+  cardCacheKey,
+  cardCacheTally,
+  ogCacheDir,
+  pruneCardCache,
+} from "./cache.ts";
+export type { OgCache } from "./cache.ts";
+export { cachedOgImage, renderOgImage } from "./card.ts";
 export type {
   OgCardOptions,
   OgCardPalette,

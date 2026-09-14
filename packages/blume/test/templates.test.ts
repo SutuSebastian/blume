@@ -1882,7 +1882,10 @@ describe("static endpoint templates", () => {
 
   it("renders the OG image endpoint", () => {
     const endpoint = ogEndpointTemplate();
-    expect(endpoint).toContain("renderOgImage");
+    expect(endpoint).toContain("cachedOgImage(cache, {");
+    // No cache given: every card renders (the runtime-dir fallback is the
+    // generator's call, not the template's).
+    expect(endpoint).toContain("const cache: OgCache | undefined = undefined;");
     expect(endpoint).toContain("logo: data.config.og.logo");
     expect(endpoint).toContain("palette: data.config.og.palette");
     // The footer site text is resolved at generate time (host + deployment
@@ -1912,6 +1915,20 @@ describe("static endpoint templates", () => {
       "const families: OgFontFamilies | undefined = undefined"
     );
     expect(endpoint).not.toContain("data.config.og.fonts");
+  });
+
+  it("bakes the card cache location and version into the endpoint", () => {
+    // The directory is a build-machine path, so it rides the build-only
+    // endpoint (like local font paths) rather than the runtime data.
+    const endpoint = ogEndpointTemplate([], {
+      cache: { dir: "/p/node_modules/.cache/blume/og", version: "1.2.3" },
+    });
+    expect(endpoint).toContain(
+      'const cache: OgCache | undefined = {"dir":"/p/node_modules/.cache/blume/og","version":"1.2.3"};'
+    );
+    expect(endpoint).toContain(
+      'import type { OgCache, OgFont, OgFontFamilies } from "blume/og";'
+    );
   });
 
   it("hides page descriptions when seo.og.description is false", () => {

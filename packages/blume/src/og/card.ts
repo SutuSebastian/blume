@@ -7,6 +7,8 @@ import type { FontSubset, GoogleFontFamily, Node } from "takumi-js/helpers";
 
 import { svgDimensions } from "../core/svg-dimensions.ts";
 import { ACCENTS, isAccentPreset } from "../theme/palette.ts";
+import { isLocalOgFont, throughCardCache } from "./cache.ts";
+import type { OgCache } from "./cache.ts";
 import { OG_IMAGE_HEIGHT, OG_IMAGE_WIDTH } from "./dimensions.ts";
 
 /** A local font file registered with the OG card renderer, read at build. */
@@ -39,10 +41,6 @@ export type OgFont =
       style?: "normal" | "italic" | ("normal" | "italic")[];
     }
   | OgLocalFont;
-
-/** Type guard: is this OG font a local file entry? */
-const isLocalOgFont = (font: OgFont): font is OgLocalFont =>
-  typeof font !== "string" && "src" in font;
 
 /**
  * Which loaded family each card role renders in. Takumi still falls back
@@ -418,3 +416,13 @@ export const renderOgImage = async (
     width: WIDTH,
   });
 };
+
+/**
+ * {@link renderOgImage} through the on-disk card cache: a card whose inputs
+ * match one rendered by a previous build (or an earlier page of this one) is
+ * read back instead of rendered. `cache` undefined renders every card.
+ */
+export const cachedOgImage = (
+  cache: OgCache | undefined,
+  options: OgCardOptions
+): Promise<Uint8Array> => throughCardCache(cache, options, renderOgImage);

@@ -1,8 +1,12 @@
 import { describe, expect, it } from "bun:test";
 import { readFileSync } from "node:fs";
+import { mkdtemp, readdir, rm } from "node:fs/promises";
 import { createRequire } from "node:module";
+import { tmpdir } from "node:os";
 
-import { renderOgImage } from "../src/og/card.ts";
+import { join } from "pathe";
+
+import { cachedOgImage, renderOgImage } from "../src/og/card.ts";
 import type { OgCardOptions } from "../src/og/card.ts";
 
 // A real woff2 (shipped by katex) to serve as the subset bytes, so `googleFonts`
@@ -347,5 +351,21 @@ describe("renderOgImage", () => {
       ],
       title: "Styled title",
     });
+  });
+});
+
+describe("cachedOgImage", () => {
+  it("stores a rendered card and serves it back on the next request", async () => {
+    const dir = join(await mkdtemp(join(tmpdir(), "blume-og-cached-")), "og");
+    try {
+      const cache = { dir, version: "test" };
+      const first = await cachedOgImage(cache, { brand: "Acme", title: "Hi" });
+      expect(first.length).toBeGreaterThan(0);
+      expect(await readdir(dir)).toHaveLength(1);
+      const second = await cachedOgImage(cache, { brand: "Acme", title: "Hi" });
+      expect(Buffer.from(second).equals(Buffer.from(first))).toBe(true);
+    } finally {
+      await rm(dir, { force: true, recursive: true });
+    }
   });
 });

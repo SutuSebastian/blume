@@ -68,7 +68,9 @@ import { svgDimensions } from "../core/svg-dimensions.ts";
 import { trimChar } from "../core/trim.ts";
 import { resolveTsconfigAliases } from "../core/tsconfig-aliases.ts";
 import type { Diagnostic, Navigation } from "../core/types.ts";
+import { getBlumeVersion } from "../core/version.ts";
 import { buildRssFeeds, renderRssFeed } from "../deploy/rss.ts";
+import { ogCacheDir } from "../og/cache.ts";
 import { missingFontFiles, resolveOgFonts } from "../og/derive.ts";
 import type { DerivedOgFonts } from "../og/derive.ts";
 import { resolveOgLogo } from "../og/logo.ts";
@@ -2189,6 +2191,10 @@ export const generateRuntime = async (
         ogRoutes,
         {
           ...projectOgFonts(project),
+          cache: {
+            dir: ogCacheDir(project.context),
+            version: getBlumeVersion(),
+          },
           pageDescriptions: config.seo.og.description !== false,
         },
         changelogIndex

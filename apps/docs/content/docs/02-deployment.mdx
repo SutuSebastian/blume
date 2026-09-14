@@ -141,6 +141,10 @@ When a feature needs a runtime secret, Blume warns at `blume dev`/`build` if it'
 
 Set them in `.env.local` for local dev and in your host's environment for production. Build-time secrets for search-index sync (Algolia, Orama Cloud, Typesense) are warned about separately during the sync step.
 
+## Build cache
+
+Blume keeps two caches a build can reuse. Astro's and Vite's caches live under `.blume/.cache/` (the content store and image transforms among them). Rendered [OG cards](/discoverability/open-graph#card-cache) live in `node_modules/.cache/blume/og`, the conventional build-cache directory that Netlify, Vercel, and Cloudflare persist between deploys, so only the cards whose page title, description, or branding changed are re-rendered. On a CI runner you manage yourself, cache both directories between runs to get the same effect.
+
 ## Build summary
 
 Every build prints a summary — output mode, adapter, resolved site URL, search provider, redirect count, sitemap and `llms.txt` status, and any enabled server features — so you can confirm what shipped (including anything auto-detected) before you deploy.

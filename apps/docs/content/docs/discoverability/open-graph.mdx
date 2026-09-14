@@ -94,6 +94,10 @@ Google families are fetched at build — so a build that uses them needs network
 
 An explicit `og.fonts: []` opts out entirely: cards keep the built-in font even when `theme.fonts` is set.
 
+## Card cache
+
+Rendered cards are cached on disk between builds, keyed by everything that decides their pixels: the page title and description, the brand text, logo, palette, footer text, and fonts (a local font file by its contents), plus the Blume version. A rebuild renders only the cards whose inputs changed and reads the rest back; the build log reports how many were reused. The cache lives in `node_modules/.cache/blume/og`, the directory hosting platforms keep between builds, so a deploy that touches a handful of pages re-renders a handful of cards. Cards that no page asked for are removed after each build, so the directory only ever holds the current site's cards.
+
 ## Custom page titles
 
 A custom [`.astro` page](/docs/advanced/custom-pages) has no frontmatter to read, so its generated card is titled by humanizing the last URL segment of its route — `/getting-started` becomes "Getting Started", but `/cli` becomes "Cli". Name those cards explicitly with `og.titles`, keyed by route (`"/"` addresses the home, whose card otherwise carries the site title):

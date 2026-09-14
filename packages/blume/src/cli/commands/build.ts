@@ -45,6 +45,7 @@ import {
 } from "../../deploy/function-bundle.ts";
 import { platformRedirects } from "../../deploy/redirects.ts";
 import { injectNegotiationRoutes } from "../../deploy/vercel-negotiation.ts";
+import { cardCacheTally, ogCacheDir, pruneCardCache } from "../../og/cache.ts";
 import { commandMeta } from "../command-meta.ts";
 import { refuseIfDevRunning } from "../dev-lock.ts";
 import { logger } from "../log.ts";
@@ -246,6 +247,29 @@ const emitCloudflareNegotiation = async (
   logger.success(
     "Wired Accept: text/markdown negotiation into the Cloudflare Worker"
   );
+};
+
+/**
+ * Report how many OG cards the build read back from the on-disk cache against
+ * how many it rendered (the endpoint tallies both), so a warm rebuild shows
+ * where the time went. With `prune`, also drop the cached cards this build
+ * never asked for — renamed pages, edited descriptions, cards from an earlier
+ * Blume version — so a persisted cache holds exactly the current site's cards.
+ */
+const reportCardCache = async (
+  project: BlumeProject,
+  prune: boolean
+): Promise<void> => {
+  const cards = cardCacheTally();
+  if (!cards) {
+    return;
+  }
+  logger.info(
+    `OG cards: ${cards.hits} reused from the cache, ${cards.misses} rendered`
+  );
+  if (prune) {
+    await pruneCardCache(ogCacheDir(project.context));
+  }
 };
 
 const formatBytes = (bytes: number): string => {
@@ -556,6 +580,10 @@ export const buildCommand = defineCommand({
       logLevel: "info",
       root: project.context.outDir,
     });
+
+    // A real build also prunes the cache; an isolated verify must not evict
+    // cards a live dev server is still serving.
+    await reportCardCache(project, !runtimeDir);
 
     // The bundle report and budget gate still run for an isolated build —
     // `blume build --isolated --budget-js 100` exiting 0 without measuring
