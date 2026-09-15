@@ -69,6 +69,8 @@ navigation: {
 `page` mode keeps deep sections tidy — reach for it when groups have many children and you'd rather drill into them than scroll past them.
 :::
 
+In both `group` and `page` mode, a section that isn't open on the current page is left out of that page's HTML and fetched the first time it's opened (it's prefetched as soon as the pointer or focus reaches its row, so the open is usually instant, and a section fetched once is kept for the rest of the visit). On a large site this is most of a page's weight: only the open section's rows ship with the page. The rows are prerendered fragments under `/blume-nav/`, so they need no server. Readers without JavaScript see the open section and the group rows; the sitemap, the previous/next links, and the open section keep every page reachable for crawlers.
+
 ### Per-group overrides
 
 Any generated group can opt out of the global mode — no explicit sidebar required. Set `display` in the folder's [`meta.ts`](/docs/content/meta), or — when the folder has an `index` page — under `sidebar` in that page's frontmatter, and only that group changes:

@@ -56,6 +56,7 @@ import {
   findBreadcrumbs,
   flattenPages,
   getPagination,
+  navGroupIds,
   sidebarForRoute,
 } from "./nav-utils.ts";
 import NavTree from "./NavTree.astro";
@@ -184,6 +185,12 @@ interface Props {
   /** Viewed docs version for search filtering (`""` = current; `null`/absent = off). */
   searchVersion?: string | null;
   /**
+   * URL prefix of this page's deferred sidebar fragments (`/blume-nav/
+   * <version>/<locale>`), when the sidebar defers collapsed sections; absent,
+   * the sidebar renders every section in full. See NavTree.
+   */
+  navFragmentBase?: string;
+  /**
    * User layout-slot overrides from `components.ts` (`defineComponents`). Each
    * key replaces the matching built-in; unknown keys are ignored. Wired slots:
    * `Header`, `Logo`, `Search`, `Sidebar`, `MobileNav`, `Breadcrumbs`,
@@ -258,6 +265,7 @@ const {
   versionSelector,
   versionNotice,
   searchVersion = null,
+  navFragmentBase,
   layout = {},
   clientData,
   toc = { enabled: true, maxLevel: 3, minLevel: 2 },
@@ -398,6 +406,9 @@ const sidebar = sidebarForRoute(
   page.route,
   navigation.root
 );
+// Stable group ids over the full tree, so the scoped view above names its
+// panels and deferred fragments the same way every other page does.
+const navIds = navGroupIds(navigation.sidebar);
 const activeTab = currentTabForRoute(
   navigation.tabs,
   page.route,
@@ -686,6 +697,8 @@ createIconSprite(Astro.locals);
                 <div class="lg:hidden">
                   <MobileNavSlot
                     currentRoute={page.route}
+                    fragmentBase={navFragmentBase}
+                    ids={navIds}
                     items={sidebar}
                     strings={navStrings}
                   />
@@ -693,6 +706,8 @@ createIconSprite(Astro.locals);
                 <div class="hidden lg:block">
                   <SidebarSlot
                     currentRoute={page.route}
+                    fragmentBase={navFragmentBase}
+                    ids={navIds}
                     items={sidebar}
                     strings={navStrings}
                   />
@@ -701,6 +716,8 @@ createIconSprite(Astro.locals);
             ) : (
               <SidebarSlot
                 currentRoute={page.route}
+                fragmentBase={navFragmentBase}
+                ids={navIds}
                 items={sidebar}
                 strings={navStrings}
               />

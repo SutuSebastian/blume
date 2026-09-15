@@ -12,6 +12,8 @@ import NavTreeScript from "./NavTreeScript.astro";
 interface PagePanel {
   id: string;
   parentId: string;
+  /** Nesting level in the panel stack (a root-level page group is 1). */
+  depth: number;
   label: string;
   route?: string;
   icon?: string;
@@ -30,6 +32,20 @@ interface Props {
   root?: boolean;
   /** Localized labels ("Back", the deprecated badge); English when omitted. */
   strings?: UIStrings["nav"];
+  /**
+   * Stable ids for the full sidebar's groups (`navGroupIds`), so panel and
+   * fragment ids match across the scoped views the layout renders. Absent,
+   * ids fall back to positions within this render.
+   */
+  ids?: Map<NavNode, string>;
+  /**
+   * URL prefix of the deferred-section fragments (`/blume-nav/<version>/
+   * <locale>`). When set, a collapsed group's children and an inactive
+   * drill-in panel's contents are left out of the page and fetched from
+   * `<fragmentBase>/<id>` on first open (see NavTreeScript); absent, every
+   * section renders in full.
+   */
+  fragmentBase?: string;
 }
 
 const {
@@ -39,7 +55,17 @@ const {
   idPrefix = "n",
   root = depth === 0,
   strings,
+  ids,
+  fragmentBase,
 } = Astro.props;
+
+/** A group's id: its stable full-tree id, else its position in this render. */
+const idOf = (node: NavNode, positional: string): string =>
+  ids?.get(node) ?? positional;
+
+/** The fragment a deferred section loads from, when sections are deferred. */
+const fragmentFor = (id: string): string | undefined =>
+  fragmentBase ? `${fragmentBase}/${id}` : undefined;
 
 // Merge over the English defaults so a label missing from a translation (or
 // from a not-yet-regenerated snapshot) still renders instead of coming out
@@ -69,18 +95,20 @@ const hasActivePage = (item: NavNode): boolean =>
 const collectPanels = (
   nodes: NavNode[],
   prefix: string,
-  parentId: string
+  parentId: string,
+  level = 1
 ): PagePanel[] => {
   const out: PagePanel[] = [];
   nodes.forEach((node, index) => {
     if (node.kind !== "group") {
       return;
     }
-    const id = `${prefix}.${index}`;
+    const id = idOf(node, `${prefix}.${index}`);
     if ((node.display ?? "flat") === "page") {
       out.push({
         active: hasActivePage(node),
         children: node.children,
+        depth: level,
         icon: node.icon,
         id,
         label: node.label,
@@ -88,9 +116,9 @@ const collectPanels = (
         parentId,
         route: node.route,
       });
-      out.push(...collectPanels(node.children, id, id));
+      out.push(...collectPanels(node.children, id, id, level + 1));
     } else {
-      out.push(...collectPanels(node.children, id, parentId));
+      out.push(...collectPanels(node.children, id, parentId, level));
     }
   });
   return out;
@@ -102,28 +130,33 @@ const panels = root ? collectPanels(items, idPrefix, "root") : [];
 const activePanels = panels.filter((panel) => panel.active);
 const initialId =
   activePanels.length > 0
-    ? activePanels.reduce((a, b) =>
-        b.id.split(".").length > a.id.split(".").length ? b : a
-      ).id
+    ? activePanels.reduce((a, b) => (b.depth > a.depth ? b : a)).id
     : "root";
 ---
 
+{root && (panels.length > 0 || fragmentBase) && <NavTreeScript />}
 {
   root && panels.length > 0 ? (
     <blume-nav class="block" data-initial={initialId}>
-      <NavTreeScript />
-      <div data-nav-panel="root" hidden={initialId !== "root"}>
+      <div data-nav-depth="0" data-nav-panel="root" hidden={initialId !== "root"}>
         <Self
           currentRoute={currentRoute}
           depth={0}
+          fragmentBase={fragmentBase}
           idPrefix={idPrefix}
+          ids={ids}
           items={items}
           root={false}
           strings={n}
         />
       </div>
       {panels.map((panel) => (
-        <div data-nav-panel={panel.id} hidden={panel.id !== initialId}>
+        <div
+          data-nav-depth={panel.depth}
+          data-nav-panel={panel.id}
+          data-nav-src={panel.active ? undefined : fragmentFor(panel.id)}
+          hidden={panel.id !== initialId}
+        >
           {/* The title is the only sidebar link to the section's own page, so
               a routed panel keeps it as a link; without a route the whole row
               becomes the back button. Either way every part of the row is
@@ -161,21 +194,28 @@ const initialId =
               <span class="flex-1 truncate">{panel.label}</span>
             </button>
           )}
+          {/* An inactive panel's contents are deferred (fetched into this
+              element on drill-in) when fragments are on; otherwise the
+              build-time cache renders them once. */}
           {panel.active ? (
             <Self
               currentRoute={currentRoute}
               depth={1}
+              fragmentBase={fragmentBase}
               idPrefix={panel.id}
+              ids={ids}
               items={panel.children}
               root={false}
               strings={n}
             />
-          ) : (
+          ) : fragmentBase ? null : (
             <NavTreeCache node={panel.node} variant={`${panel.id}|${n.back}|${n.deprecated}`}>
               <Self
                 currentRoute={currentRoute}
                 depth={1}
+                fragmentBase={fragmentBase}
                 idPrefix={panel.id}
+                ids={ids}
                 items={panel.children}
                 root={false}
                 strings={n}
@@ -233,7 +273,7 @@ const initialId =
         }
 
         const display = item.display ?? "flat";
-        const id = `${idPrefix}.${index}`;
+        const id = idOf(item, `${idPrefix}.${index}`);
         // Flat groups are section headers and want breathing room; collapsible
         // `group`/`page` rows are single rows and should stack tightly.
         const spacing =
@@ -320,12 +360,19 @@ const initialId =
                     <Icon name="chevron-right" size={13} />
                   </span>
                 </summary>
-                <div class="space-y-0.5 border-border border-l pl-3">
-                  {active ? (
+                <div
+                  class="space-y-0.5 border-border border-l pl-3"
+                  data-nav-src={open ? undefined : fragmentFor(id)}
+                >
+                  {/* A closed group's children are deferred (fetched into this
+                      element on first open) when fragments are on. */}
+                  {!open && fragmentBase ? null : active ? (
                     <Self
                       currentRoute={currentRoute}
                       depth={depth + 1}
+                      fragmentBase={fragmentBase}
                       idPrefix={id}
+                      ids={ids}
                       items={item.children}
                       root={false}
                       strings={n}
@@ -335,7 +382,9 @@ const initialId =
                       <Self
                         currentRoute={currentRoute}
                         depth={depth + 1}
+                        fragmentBase={fragmentBase}
                         idPrefix={id}
+                        ids={ids}
                         items={item.children}
                         root={false}
                         strings={n}
@@ -391,7 +440,9 @@ const initialId =
                 <Self
                   currentRoute={currentRoute}
                   depth={depth + 1}
+                  fragmentBase={fragmentBase}
                   idPrefix={id}
+                  ids={ids}
                   items={item.children}
                   root={false}
                   strings={n}
@@ -401,7 +452,9 @@ const initialId =
                   <Self
                     currentRoute={currentRoute}
                     depth={depth + 1}
+                    fragmentBase={fragmentBase}
                     idPrefix={id}
+                    ids={ids}
                     items={item.children}
                     root={false}
                     strings={n}

@@ -34,6 +34,10 @@ import type { RawMarkdownEntry } from "../ai/markdown.ts";
 import { buildMcpData } from "../ai/mcp/data.ts";
 import type { McpData } from "../ai/mcp/data.ts";
 import { buildMcpDiscovery, buildMcpServerCard } from "../ai/mcp/discovery.ts";
+import {
+  hasDeferrableGroups,
+  navVariants,
+} from "../components/layout/nav-utils.ts";
 import { normalizeBasePath } from "../core/base-path.ts";
 import { validateUsedComponents } from "../core/component-diagnostics.ts";
 import { analyzeComponentOverrides } from "../core/component-overrides.ts";
@@ -157,6 +161,7 @@ import {
   runtimePackageTemplate,
   runtimeTsconfigTemplate,
   featuresTemplate,
+  navFragmentTemplate,
   searchClientTemplate,
   searchEndpointTemplate,
   stagedContentDir,
@@ -1976,6 +1981,31 @@ export const languageIconCssFor = async (
 ): Promise<string> =>
   languageIconCssFrom(project, await buildRawMarkdown(project));
 
+/**
+ * The deferred sidebar fragments page, only when some group is a disclosure
+ * or a drill-in panel — a flat sidebar renders every row on every page, so
+ * there is nothing to fetch. A previous pass's page is an orphan the
+ * generator removes when the sidebar goes flat again.
+ */
+const writeNavFragments = (
+  write: (path: string, content: string) => Promise<boolean>,
+  srcDir: string,
+  navFragments: boolean
+): Promise<boolean> =>
+  navFragments
+    ? write(
+        join(
+          srcDir,
+          "pages",
+          "blume-nav",
+          "[version]",
+          "[locale]",
+          "[id].astro"
+        ),
+        navFragmentTemplate()
+      )
+    : Promise.resolve(false);
+
 /** {@link clientFeaturesFrom} over a fresh read of the raw Markdown (eject). */
 export const clientFeaturesFor = async (
   project: BlumeProject
@@ -2030,6 +2060,9 @@ export const generateRuntime = async (
   // and inspected here for the client features the site needs.
   const rawMarkdown = await buildRawMarkdown(project);
   const clientFeatures = clientFeaturesFrom(project, rawMarkdown);
+  const navFragments = navVariants(project.graph).some(({ navigation }) =>
+    hasDeferrableGroups(navigation.sidebar)
+  );
   const languageIcons = languageIconCssFrom(project, rawMarkdown);
   // Staged (non-filesystem) sources materialize into `.blume/content`; keyed by
   // entryId so i18n duplicates of one entry write a single file. Collected here
@@ -2189,9 +2222,11 @@ export const generateRuntime = async (
           exportEpub,
           exportPdf,
           mathEnabled: usesMath,
+          navFragments,
           needsReact,
         })
       ),
+      writeNavFragments(write, srcDir, navFragments),
       // The header's Ask trigger, behind the `blume:ask` alias. Always written
       // (even when Ask is off, as a component that renders nothing) so the alias
       // resolves — the same contract as `blume:search-client`.

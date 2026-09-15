@@ -1801,6 +1801,51 @@ describe("generateRuntime", () => {
     );
   });
 
+  it("writes the sidebar fragments page only for a sidebar with collapsible groups", async () => {
+    const grouped = await scanProject(
+      await writeProject({
+        "blume.config.ts": `export default { navigation: { sidebar: { display: "group" } } };
+`,
+        "docs/guides/one.md": "# One\n",
+        "docs/index.md": "# Home\n",
+      })
+    );
+    await generateRuntime(grouped);
+    const fragmentPage = join(
+      grouped.context.outDir,
+      "src/pages/blume-nav/[version]/[locale]/[id].astro"
+    );
+    expect(existsSync(fragmentPage)).toBe(true);
+    expect(
+      await readFile(
+        join(grouped.context.outDir, "src/pages/[...slug].astro"),
+        "utf-8"
+      )
+    ).toContain("navFragmentBase=");
+
+    const flat = await scanProject(
+      await writeProject({
+        "docs/guides/one.md": "# One\n",
+        "docs/index.md": "# Home\n",
+      })
+    );
+    await generateRuntime(flat);
+    expect(
+      existsSync(
+        join(
+          flat.context.outDir,
+          "src/pages/blume-nav/[version]/[locale]/[id].astro"
+        )
+      )
+    ).toBe(false);
+    expect(
+      await readFile(
+        join(flat.context.outDir, "src/pages/[...slug].astro"),
+        "utf-8"
+      )
+    ).not.toContain("navFragmentBase=");
+  });
+
   it("paints code-block language icons only for the languages the site uses", async () => {
     const project = await scanProject(
       await writeProject({

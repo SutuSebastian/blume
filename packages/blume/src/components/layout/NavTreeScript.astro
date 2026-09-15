@@ -1,17 +1,118 @@
 ---
-// The `<blume-nav>` drill-in behavior, split out of NavTree so a subtree
-// rendered into the sidebar cache (see nav-cache.ts) never carries a copy of
-// it: Astro emits a component's script where the component renders, and a
-// cached subtree would replay the copy captured on its first render on every
-// later page, next to the live root's own. Rendered by the root NavTree only,
-// and only when a `page`-mode group gives the panel stack something to do.
+// The sidebar's client behavior, split out of NavTree so a subtree rendered
+// into the sidebar cache (see nav-cache.ts) never carries a copy of it: Astro
+// emits a component's script where the component renders, and a cached
+// subtree would replay the copy captured on its first render on every later
+// page, next to the live root's own. Rendered by the root NavTree only, when
+// a `page`-mode group gives the panel stack something to do or sections are
+// deferred.
+//
+// Two jobs. The `<blume-nav>` drill-in panel stack; and deferred sections —
+// a collapsed group's children or an inactive panel's contents left out of
+// the page as an empty element with `data-nav-src`, fetched from the
+// prerendered fragment at that URL on first open (and prefetched on hover or
+// focus, so the open is usually instant). Fetched fragments are kept for the
+// session, so a section opened once is free on every later page.
 ---
 
 <script>
   const DURATION = 260;
   const EASING = "cubic-bezier(0.33, 1, 0.68, 1)";
 
+  /** Fragment URL → its HTML, once fetched (shared across router swaps). */
+  const fragments = new Map<string, Promise<string>>();
+
+  const loadFragment = (src: string): Promise<string> => {
+    let pending = fragments.get(src);
+    if (!pending) {
+      pending = fetch(src, { headers: { Accept: "text/html" } }).then(
+        (response) => {
+          if (!response.ok) {
+            throw new Error(`Sidebar fragment ${src} responded ${response.status}`);
+          }
+          return response.text();
+        }
+      );
+      fragments.set(src, pending);
+      // A failed fetch is retried on the next open rather than cached.
+      pending.catch(() => fragments.delete(src));
+    }
+    return pending;
+  };
+
+  /** Fill a deferred element from its fragment; a no-op once filled. */
+  const fillDeferred = async (slot: HTMLElement): Promise<void> => {
+    const src = slot.dataset.navSrc;
+    if (!src) {
+      return;
+    }
+    slot.setAttribute("aria-busy", "true");
+    try {
+      slot.innerHTML = await loadFragment(src);
+      delete slot.dataset.navSrc;
+    } finally {
+      slot.removeAttribute("aria-busy");
+    }
+  };
+
+  const deferredIn = (element: Element | null): HTMLElement | null =>
+    element instanceof HTMLElement && element.dataset.navSrc ? element : null;
+
+  // Delegated at the document so the handlers survive client-router swaps
+  // (the document persists; only its tree is replaced). Module scripts run
+  // once per real load, and the flag keeps a second copy of this module —
+  // a page that renders two trees — from doubling the listeners.
+  let installed = false;
+  const install = (): void => {
+    if (installed) {
+      return;
+    }
+    installed = true;
+    document.addEventListener(
+      "toggle",
+      (event) => {
+        const details = event.target;
+        if (!(details instanceof HTMLDetailsElement) || !details.open) {
+          return;
+        }
+        const slot = deferredIn(details.querySelector(":scope > [data-nav-src]"));
+        if (slot) {
+          void fillDeferred(slot);
+        }
+      },
+      true
+    );
+    // Prefetch on intent: a hovered or focused summary, or a drill-in row.
+    const prefetch = (event: Event): void => {
+      const target = event.target;
+      if (!(target instanceof Element)) {
+        return;
+      }
+      const summary = target.closest("summary");
+      const slot = summary
+        ? deferredIn(summary.parentElement?.querySelector(":scope > [data-nav-src]") ?? null)
+        : null;
+      if (slot?.dataset.navSrc) {
+        void loadFragment(slot.dataset.navSrc).catch(() => undefined);
+        return;
+      }
+      const drill = target.closest("[data-nav-to]");
+      const nav = drill?.closest("blume-nav");
+      if (drill && nav instanceof BlumeNav) {
+        const panel = deferredIn(nav.panel(drill.getAttribute("data-nav-to") ?? ""));
+        if (panel?.dataset.navSrc) {
+          void loadFragment(panel.dataset.navSrc).catch(() => undefined);
+        }
+      }
+    };
+    document.addEventListener("pointerover", prefetch);
+    document.addEventListener("focusin", prefetch);
+  };
+
   class BlumeNav extends HTMLElement {
+    active: HTMLElement | null = null;
+    finishSlide: (() => void) | null = null;
+
     connectedCallback() {
       if (this.dataset.ready) {
         return;
@@ -27,38 +128,39 @@
           const id = drill.getAttribute("data-nav-to");
           if (id && this.panel(id)) {
             event.preventDefault();
-            this.show(id, true);
+            void this.show(id, true);
           }
           return;
         }
         const back = target.closest("[data-nav-back]");
         if (back && this.contains(back)) {
           event.preventDefault();
-          this.show(back.getAttribute("data-nav-back") || "root", true);
+          void this.show(back.getAttribute("data-nav-back") || "root", true);
         }
       });
       // Initial panel is route-driven, so it snaps into place without a slide.
-      this.show(this.dataset.initial || "root", false);
+      void this.show(this.dataset.initial || "root", false);
     }
 
-    panel(id) {
+    panel(id: string): HTMLElement | null {
       return this.querySelector(`[data-nav-panel="${id}"]`);
     }
 
-    depth(id) {
-      return id === "root" ? 0 : id.split(".").length;
+    depth(panel: HTMLElement): number {
+      return Number(panel.dataset.navDepth ?? "0");
     }
 
-    reduced() {
+    reduced(): boolean {
       return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     }
 
-    show(id, animate) {
+    async show(id: string, animate: boolean): Promise<void> {
       const next = this.panel(id) || this.panel("root");
       if (!next) {
         return;
       }
-      const resolved = next.getAttribute("data-nav-panel");
+      // A deferred panel loads its contents before it slides in.
+      await fillDeferred(next);
       const prev = this.active;
       if (prev === next) {
         return;
@@ -68,21 +170,19 @@
         this.finishSlide();
       }
       this.active = next;
-      this.dataset.active = resolved;
+      this.dataset.active = next.dataset.navPanel;
 
       if (!(animate && prev) || this.reduced()) {
-        for (const panel of this.querySelectorAll("[data-nav-panel]")) {
+        for (const panel of this.querySelectorAll<HTMLElement>("[data-nav-panel]")) {
           panel.hidden = panel !== next;
         }
         return;
       }
 
-      const forward =
-        this.depth(resolved) > this.depth(prev.getAttribute("data-nav-panel"));
-      this.slide(prev, next, forward);
+      this.slide(prev, next, this.depth(next) > this.depth(prev));
     }
 
-    slide(out, into, forward) {
+    slide(out: HTMLElement, into: HTMLElement, forward: boolean): void {
       const rtl = getComputedStyle(this).direction === "rtl" ? -1 : 1;
       const sign = (forward ? -1 : 1) * rtl;
 
@@ -145,10 +245,11 @@
         this.finishSlide = null;
       };
       this.finishSlide = finish;
-      animations[0].finished.then(finish, finish);
+      animations[0]?.finished.then(finish, finish);
     }
   }
 
+  install();
   if (!customElements.get("blume-nav")) {
     customElements.define("blume-nav", BlumeNav);
   }

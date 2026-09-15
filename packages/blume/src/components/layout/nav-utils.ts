@@ -1,5 +1,5 @@
 import { isRootTab, isUnderPath } from "../../core/navigation.ts";
-import type { NavNode, NavTab } from "../../core/types.ts";
+import type { NavNode, NavTab, Navigation } from "../../core/types.ts";
 
 /** A flat, ordered page reference used for previous/next pagination. */
 export interface FlatPage {
@@ -238,3 +238,71 @@ export const getPagination = (flat: FlatPage[], route: string) => {
     prev: index > 0 ? (flat[index - 1] ?? null) : null,
   };
 };
+
+/**
+ * A stable id for every group in a sidebar — `g<n>` by pre-order position in
+ * the full tree. The layout hands `NavTree` a scoped view of that tree (a
+ * tab's section, or the sidebar minus the tab sections), so positions within
+ * the rendered slice differ from page to page; these ids name the same group
+ * everywhere, which the drill-in panels and the deferred-section fragments
+ * (`/blume-nav/…`) rely on. Keyed by node identity: the scoped views reuse
+ * the full tree's node objects.
+ */
+export const navGroupIds = (sidebar: NavNode[]): Map<NavNode, string> => {
+  const ids = new Map<NavNode, string>();
+  const walk = (nodes: NavNode[]): void => {
+    for (const node of nodes) {
+      if (node.kind === "group") {
+        ids.set(node, `g${ids.size}`);
+        walk(node.children);
+      }
+    }
+  };
+  walk(sidebar);
+  return ids;
+};
+
+/** Whether any group in a sidebar renders as a disclosure or a drill-in panel. */
+export const hasDeferrableGroups = (sidebar: NavNode[]): boolean =>
+  sidebar.some(
+    (node) =>
+      node.kind === "group" &&
+      ((node.display ?? "flat") !== "flat" ||
+        hasDeferrableGroups(node.children))
+  );
+
+/** One of the navigation trees a site renders, by URL segment. */
+export interface NavVariant {
+  /** `current`, or an archived version id. */
+  version: string;
+  /** `default`, or a locale code. */
+  locale: string;
+  navigation: Navigation;
+}
+
+/**
+ * Every navigation tree the runtime data holds — the default, each locale's,
+ * and each archived version's per locale — keyed the way the deferred
+ * sidebar fragments' URLs are (`/blume-nav/<version>/<locale>/…`). An
+ * unlocalized version tree is keyed by `""` in the data; it maps to
+ * `default` here.
+ */
+export const navVariants = (data: {
+  navigation: Navigation;
+  navigationByLocale: Record<string, Navigation>;
+  navigationByVersion: Record<string, Record<string, Navigation>>;
+}): NavVariant[] => [
+  { locale: "default", navigation: data.navigation, version: "current" },
+  ...Object.entries(data.navigationByLocale).map(([locale, navigation]) => ({
+    locale,
+    navigation,
+    version: "current",
+  })),
+  ...Object.entries(data.navigationByVersion).flatMap(([version, byLocale]) =>
+    Object.entries(byLocale).map(([locale, navigation]) => ({
+      locale: locale || "default",
+      navigation,
+      version,
+    }))
+  ),
+];

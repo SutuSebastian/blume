@@ -11,6 +11,9 @@ import {
   findBreadcrumbs,
   flattenPages,
   getPagination,
+  hasDeferrableGroups,
+  navGroupIds,
+  navVariants,
 } from "../src/components/layout/nav-utils.ts";
 import { searchLocaleFor } from "../src/components/layout/search-locale.ts";
 import { createSearch } from "../src/components/layout/search/endpoint.ts";
@@ -150,6 +153,65 @@ describe("flattenPages", () => {
     ]);
     expect(flat[0]?.label).toBe("Group");
     expect(flat[1]?.deprecated).toBe(true);
+  });
+});
+
+const navPage = (route: string): NavNode => ({
+  kind: "page",
+  label: route,
+  pageId: route,
+  route,
+});
+
+const navGroup = (
+  label: string,
+  children: NavNode[],
+  display: "flat" | "group" | "page" = "flat"
+): NavNode => ({ children, display, kind: "group", label });
+
+describe("navGroupIds", () => {
+  it("numbers every group by pre-order position, keyed by identity", () => {
+    const nested = navGroup("Nested", [navPage("/a/b")], "group");
+    const a = navGroup("A", [navPage("/a"), nested]);
+    const b = navGroup("B", [navPage("/b")], "page");
+    const ids = navGroupIds([navPage("/"), a, b]);
+    expect([...ids.values()]).toEqual(["g0", "g1", "g2"]);
+    expect(ids.get(nested)).toBe("g1");
+    // A scoped view (a tab's section) holds the same node objects, so the
+    // ids it resolves match the full tree's.
+    expect(navGroupIds([navPage("/"), a, b]).get(b)).toBe("g2");
+  });
+
+  it("lists every navigation tree by version and locale segment", () => {
+    // SAFETY: only the sidebar is read; the rest of a Navigation (tabs,
+    // selectors, root) is irrelevant to the variant walk.
+    const tree = (label: string) =>
+      ({
+        root: "/",
+        selectors: [],
+        sidebar: [navGroup(label, [])],
+        tabs: [],
+      }) as never;
+    const variants = navVariants({
+      navigation: tree("default"),
+      navigationByLocale: { ja: tree("ja") },
+      navigationByVersion: { "v1.0": { "": tree("v1"), ja: tree("v1-ja") } },
+    });
+    expect(
+      variants.map((variant) => `${variant.version}/${variant.locale}`)
+    ).toEqual(["current/default", "current/ja", "v1.0/default", "v1.0/ja"]);
+  });
+
+  it("reports whether any group is a disclosure or drill-in panel", () => {
+    expect(hasDeferrableGroups([navGroup("A", [navPage("/a")])])).toBe(false);
+    expect(
+      hasDeferrableGroups([
+        navGroup("A", [navGroup("Inner", [navPage("/a")], "group")]),
+      ])
+    ).toBe(true);
+    expect(hasDeferrableGroups([navGroup("B", [navPage("/b")], "page")])).toBe(
+      true
+    );
   });
 });
 
@@ -616,6 +678,38 @@ describe("layout chrome sources", () => {
     expect(actions).not.toContain('import("epub-gen-memory/bundle")');
   });
 
+  it("defers collapsed sections and inactive panels to fetched fragments", async () => {
+    // With a fragment base, a closed group's children and an inactive
+    // drill-in panel's contents stay out of the page; the empty element
+    // carries the fragment URL the script fills on first open. Without one,
+    // every section renders (the cache handles the repeats).
+    const source = await layoutSource("NavTree.astro");
+    expect(source).toContain(
+      "data-nav-src={open ? undefined : fragmentFor(id)}"
+    );
+    expect(source).toContain("{!open && fragmentBase ? null : active ? (");
+    expect(source).toContain(
+      "data-nav-src={panel.active ? undefined : fragmentFor(panel.id)}"
+    );
+    expect(source).toContain(") : fragmentBase ? null : (");
+    // Ids come from the full tree so scoped views and fragments agree.
+    expect(source).toContain(
+      `const id = idOf(item, \`\${idPrefix}.\${index}\`);`
+    );
+    expect(source).toContain(
+      "root && (panels.length > 0 || fragmentBase) && <NavTreeScript />"
+    );
+    const script = await layoutSource("NavTreeScript.astro");
+    expect(script).toContain(
+      'fetch(src, { headers: { Accept: "text/html" } })'
+    );
+    expect(script).toContain('document.addEventListener(\n      "toggle",');
+    expect(script).toContain("await fillDeferred(next);");
+    const root = await layoutSource("RootLayout.astro");
+    expect(root).toContain("const navIds = navGroupIds(navigation.sidebar);");
+    expect(root).toContain("fragmentBase={navFragmentBase}");
+  });
+
   it("renders the sidebar drill-in script once, from the root tree", async () => {
     // Cached subtrees (NavTreeCache) replay their first render on every later
     // page, so the `<blume-nav>` script lives in its own component that only
@@ -624,7 +718,7 @@ describe("layout chrome sources", () => {
     expect(source).not.toContain("<script>");
     expect(source).toContain("<NavTreeScript />");
     expect(source).toMatch(
-      /root && panels\.length > 0 \? \(\s*<blume-nav[^>]*>\s*<NavTreeScript \/>/u
+      /<NavTreeScript \/>\}\s*\{\s*root && panels\.length > 0 \? \(\s*<blume-nav/u
     );
   });
 
