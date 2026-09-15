@@ -95,6 +95,10 @@ Google-Familien werden beim Build geladen — ein Build, der sie verwendet, brau
 
 Ein explizites `og.fonts: []` deaktiviert das komplett: Cards behalten die eingebaute Schrift, selbst wenn `theme.fonts` gesetzt ist.
 
+## Card-Cache [#card-cache]
+
+Gerenderte Cards werden zwischen Builds auf der Festplatte zwischengespeichert, mit einem Schlüssel aus allem, was ihre Pixel bestimmt: Seitentitel und -beschreibung, Markentext, Logo, Palette, Fußzeilentext und Schriften (eine lokale Schriftdatei anhand ihres Inhalts) sowie die Blume-Version. Ein Rebuild rendert nur die Cards, deren Eingaben sich geändert haben, und liest den Rest aus dem Cache; das Build-Log meldet, wie viele wiederverwendet wurden. Der Cache liegt in `node_modules/.cache/blume/og`; auf einer Plattform, die `node_modules` zwischen Builds behält (Vercel und Netlify tun das, Cloudflare nicht), oder mit einem CI-Runner, der dieses Verzeichnis cacht (siehe [Build-Cache](/docs/deployment#build-cache)), rendert ein Deploy, der eine Handvoll Seiten ändert, auch nur eine Handvoll Cards neu. Cards, die keine Seite angefordert hat, werden nach jedem Build entfernt, sodass das Verzeichnis immer nur die Cards der aktuellen Site enthält.
+
 ## Eigene Seitentitel [#custom-page-titles]
 
 Eine benutzerdefinierte [`.astro`-Seite](/docs/advanced/custom-pages) hat kein Frontmatter zum Auslesen, daher wird ihre generierte Card betitelt, indem das letzte URL-Segment ihrer Route lesbar gemacht wird — aus `/getting-started` wird „Getting Started", aus `/cli` aber „Cli". Benenne solche Cards explizit mit `og.titles`, nach Route indiziert (`"/"` adressiert die Startseite, deren Card sonst den Site-Titel trägt):

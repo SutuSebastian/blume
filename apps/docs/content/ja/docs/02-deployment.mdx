@@ -141,6 +141,27 @@ redirects: [{ from: "/old", to: "/new", status: 301 }];
 
 ローカル開発では `.env.local` に、本番ではホストの環境に設定してください。検索インデックスの同期（Algolia、Orama Cloud、Typesense）に必要なビルド時のシークレットについては、同期ステップで個別に警告されます。
 
+## ビルドキャッシュ [#build-cache]
+
+Blume は、ビルドで再利用できる 2 つのキャッシュを保持します。Astro と Vite のキャッシュは `.blume/.cache/` 配下に置かれます（コンテンツストアや画像変換など）。レンダリング済みの [OG カード](/docs/discoverability/open-graph#card-cache) は `node_modules/.cache/blume/og` に置かれるため、再ビルド時にはタイトル、説明、ブランディングが変更されたカードだけがレンダリングされます。デプロイ間でこのディレクトリが保持されるかどうかはプラットフォームによって異なります:
+
+- **Vercel** はビルドキャッシュから `node_modules/**` を復元するため、カードは引き継がれます（キャッシュは 1 GB で 1 か月間保持され、ブランチごとにキーが分かれます — 新しいブランチは本番のキャッシュから開始します）。
+- **Netlify** は `node_modules` を復元するため、カードは引き継がれます。
+- **Cloudflare Workers Builds** が保持するのはパッケージマネージャーのキャッシュと、Astro プロジェクトとして検出された場合の `node_modules/.astro` のみです — `node_modules/.cache` は保持されません — そのため、デプロイのたびにすべてのカードがレンダリングされます。
+- **GitHub Actions** やその他の自前で管理するランナーは、自分でディレクトリをキャッシュしない限り何も保持しません:
+
+```yaml
+- uses: actions/cache@v4
+  with:
+    path: node_modules/.cache/blume/og
+    key: blume-og-${{ runner.os }}-${{ hashFiles('**/bun.lock', '**/package-lock.json', '**/pnpm-lock.yaml') }}
+    restore-keys: blume-og-${{ runner.os }}-
+```
+
+カードはコンテンツをキーにしているため、キーが厳密でなくても問題ありません。復元されたキャッシュはレンダリングを省くだけで、誤ったカードを配信することはありません。
+
+どのプラットフォームでもキャッシュを破棄してしまうインストールコマンドが 1 つあります: `npm ci` はインストール前に `node_modules` を削除します。キャッシュを再利用するには、インストールコマンドとして `npm install`、`bun install`、`pnpm install` のいずれかを使ってください。
+
 ## ビルドサマリー [#build-summary]
 
 ビルドのたびにサマリーが出力されます — 出力モード、アダプター、解決されたサイト URL、検索プロバイダー、リダイレクト数、サイトマップと `llms.txt` の状態、有効になっているサーバー機能 — デプロイ前に、何が反映されたのか（自動検出されたものも含めて）を確認できます。

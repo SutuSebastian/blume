@@ -95,6 +95,10 @@ As famílias do Google são buscadas no build — então um build que as usa pre
 
 Um `og.fonts: []` explícito desativa tudo: os cards mantêm a fonte embutida mesmo com `theme.fonts` definido.
 
+## Cache dos cards [#card-cache]
+
+Os cards renderizados ficam em cache no disco entre builds, indexados por tudo o que define seus pixels: o título e a descrição da página, o texto da marca, o logo, a paleta, o texto do rodapé e as fontes (um arquivo de fonte local pelo seu conteúdo), além da versão do Blume. Um novo build renderiza só os cards cujas entradas mudaram e reaproveita o resto; o log do build informa quantos foram reutilizados. O cache fica em `node_modules/.cache/blume/og`; em uma plataforma que mantém o `node_modules` entre builds (a Vercel e a Netlify mantêm, a Cloudflare não) ou em um runner de CI que faz cache desse diretório (veja [Cache de build](/docs/deployment#build-cache)), um deploy que mexe em meia dúzia de páginas renderiza de novo só meia dúzia de cards. Cards que nenhuma página pediu são removidos após cada build, então o diretório só guarda os cards do site atual.
+
 ## Títulos de páginas personalizadas [#custom-page-titles]
 
 Uma [página `.astro`](/docs/advanced/custom-pages) personalizada não tem frontmatter para ler, então o card gerado dela recebe o título humanizando o último segmento da URL da rota — `/getting-started` vira "Getting Started", mas `/cli` vira "Cli". Nomeie esses cards explicitamente com `og.titles`, indexado por rota (`"/"` endereça a home, cujo card, do contrário, carrega o título do site):

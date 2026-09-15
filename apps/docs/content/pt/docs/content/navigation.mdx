@@ -70,6 +70,8 @@ navigation: {
 O modo `page` mantém seções profundas organizadas — use-o quando os grupos tiverem muitos filhos e você preferir navegar dentro deles a rolar por eles.
 :::
 
+Nos modos `group` e `page`, uma seção que não está aberta na página atual fica de fora do HTML dessa página e é buscada na primeira vez que é aberta (ela é pré-carregada assim que o ponteiro ou o foco chega à sua linha, então a abertura costuma ser instantânea, e uma seção buscada uma vez é mantida pelo resto da visita). Em um site grande, isso representa a maior parte do peso de uma página: apenas as linhas da seção aberta são enviadas com a página. As linhas são fragmentos pré-renderizados sob `/blume-nav/`, então não precisam de servidor. Leitores sem JavaScript veem a seção aberta e as linhas dos grupos; o sitemap, os links de anterior/próximo e a seção aberta mantêm todas as páginas acessíveis para os crawlers.
+
 ### Substituições por grupo [#per-group-overrides]
 
 Qualquer grupo gerado pode abrir mão do modo global — sem precisar de uma barra lateral explícita. Defina `display` no [`meta.ts`](/docs/content/meta) da pasta ou — quando a pasta tem uma página `index` — sob `sidebar` no frontmatter dessa página, e apenas aquele grupo muda:

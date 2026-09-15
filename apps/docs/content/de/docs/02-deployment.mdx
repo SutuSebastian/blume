@@ -142,6 +142,27 @@ Wenn eine Funktion ein Laufzeit-Secret benötigt, warnt Blume bei `blume dev`/`b
 
 Setze sie in `.env.local` für die lokale Entwicklung und in der Umgebung deines Hosts für die Produktion. Vor fehlenden Build-Zeit-Secrets für die Synchronisierung des Suchindex (Algolia, Orama Cloud, Typesense) wird separat während des Sync-Schritts gewarnt.
 
+## Build-Cache [#build-cache]
+
+Blume verwendet zwei Caches, die ein Build wiederverwenden kann. Die Caches von Astro und Vite liegen unter `.blume/.cache/` (darunter der Content Store und die Bildtransformationen). Gerenderte [OG-Karten](/docs/discoverability/open-graph#card-cache) liegen in `node_modules/.cache/blume/og`, sodass ein erneuter Build nur die Karten rendert, deren Titel, Beschreibung oder Branding sich geändert hat. Ob eine Plattform dieses Verzeichnis zwischen Deployments behält, ist unterschiedlich:
+
+- **Vercel** stellt `node_modules/**` aus seinem Build-Cache wieder her, sodass Karten erhalten bleiben (der Cache ist 1 GB groß, wird einen Monat lang aufbewahrt und ist pro Branch getrennt — ein neuer Branch startet mit dem Produktions-Cache).
+- **Netlify** stellt `node_modules` wieder her, sodass Karten erhalten bleiben.
+- **Cloudflare Workers Builds** speichert nur Caches des Paketmanagers und, bei einem erkannten Astro-Projekt, `node_modules/.astro` — niemals `node_modules/.cache` —, sodass dort bei jedem Deployment jede Karte neu gerendert wird.
+- **GitHub Actions** und andere Runner, die du selbst verwaltest, behalten nichts, es sei denn, du cachst das Verzeichnis selbst:
+
+```yaml
+- uses: actions/cache@v4
+  with:
+    path: node_modules/.cache/blume/og
+    key: blume-og-${{ runner.os }}-${{ hashFiles('**/bun.lock', '**/package-lock.json', '**/pnpm-lock.yaml') }}
+    restore-keys: blume-og-${{ runner.os }}-
+```
+
+Karten werden anhand ihres Inhalts identifiziert, daher ist ein ungenauer Schlüssel kein Problem: Ein wiederhergestellter Cache spart immer nur Render-Vorgänge und liefert nie eine falsche Karte aus.
+
+Ein Installationsbefehl verwirft den Cache auf jeder Plattform: `npm ci` löscht `node_modules` vor der Installation. Verwende weiterhin `npm install`, `bun install` oder `pnpm install` als Installationsbefehl, um von der Wiederverwendung zu profitieren.
+
 ## Build-Zusammenfassung [#build-summary]
 
 Jeder Build gibt eine Zusammenfassung aus — Ausgabemodus, Adapter, aufgelöste Site-URL, Suchanbieter, Anzahl der Weiterleitungen, Status von Sitemap und `llms.txt` sowie alle aktivierten Serverfunktionen — damit du vor dem Deployment prüfen kannst, was ausgeliefert wurde (einschließlich aller automatisch erkannten Werte).

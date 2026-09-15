@@ -142,6 +142,27 @@ Quando um recurso precisa de um segredo em tempo de execução, o Blume avisa no
 
 Defina-as no `.env.local` para o desenvolvimento local e no ambiente do seu host para produção. Os segredos em tempo de build para a sincronização do índice de busca (Algolia, Orama Cloud, Typesense) são avisados separadamente durante a etapa de sincronização.
 
+## Cache de build [#build-cache]
+
+O Blume mantém dois caches que um build pode reaproveitar. Os caches do Astro e do Vite ficam em `.blume/.cache/` (entre eles, o armazenamento de conteúdo e as transformações de imagem). Os [cards OG](/docs/discoverability/open-graph#card-cache) renderizados ficam em `node_modules/.cache/blume/og`, de modo que um novo build renderiza apenas os cards cujo título, descrição ou identidade visual mudou. Se uma plataforma mantém esse diretório entre implantações varia:
+
+- A **Vercel** restaura `node_modules/**` a partir do seu cache de build, então os cards são aproveitados (o cache tem 1 GB, é mantido por um mês e é separado por branch — uma nova branch começa a partir do cache de produção).
+- A **Netlify** restaura `node_modules`, então os cards são aproveitados.
+- O **Cloudflare Workers Builds** persiste apenas os caches do gerenciador de pacotes e, para um projeto Astro detectado, `node_modules/.astro` — nunca `node_modules/.cache` — então cada implantação renderiza todos os cards ali.
+- O **GitHub Actions** e outros runners que você gerencia não mantêm nada, a menos que você mesmo faça cache do diretório:
+
+```yaml
+- uses: actions/cache@v4
+  with:
+    path: node_modules/.cache/blume/og
+    key: blume-og-${{ runner.os }}-${{ hashFiles('**/bun.lock', '**/package-lock.json', '**/pnpm-lock.yaml') }}
+    restore-keys: blume-og-${{ runner.os }}-
+```
+
+Os cards são identificados pelo conteúdo, então uma chave imprecisa não é problema: um cache restaurado só economiza renderizações, e nunca serve um card errado.
+
+Um comando de instalação descarta o cache em todas as plataformas: o `npm ci` apaga `node_modules` antes de instalar. Mantenha `npm install`, `bun install` ou `pnpm install` como comando de instalação para aproveitar o cache.
+
 ## Resumo do build [#build-summary]
 
 Todo build imprime um resumo — modo de saída, adaptador, URL do site resolvida, provedor de busca, contagem de redirecionamentos, status do sitemap e do `llms.txt`, e quaisquer recursos de servidor habilitados — para que você possa confirmar o que foi publicado (incluindo tudo o que foi detectado automaticamente) antes de implantar.
