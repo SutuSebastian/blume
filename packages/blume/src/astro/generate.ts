@@ -71,6 +71,10 @@ import { resolveTsconfigAliases } from "../core/tsconfig-aliases.ts";
 import type { Diagnostic, Navigation } from "../core/types.ts";
 import { getBlumeVersion } from "../core/version.ts";
 import { buildRssFeeds, renderRssFeed } from "../deploy/rss.ts";
+import {
+  languageIconCss,
+  languageIconSlugsIn,
+} from "../markdown/language-icon.ts";
 import { hasMermaidFence } from "../markdown/mermaid.ts";
 import { ogCacheDir } from "../og/cache.ts";
 import { missingFontFiles, resolveOgFonts } from "../og/derive.ts";
@@ -1946,6 +1950,32 @@ export const clientFeaturesFrom = (
     ),
 });
 
+/**
+ * The theme's code-block icon rules for the languages the site's Markdown
+ * uses (see `languageIconCss`), read from the raw-Markdown mirrors and the
+ * page records that carry their text.
+ */
+export const languageIconCssFrom = (
+  project: BlumeProject,
+  rawMarkdown: Record<string, RawMarkdownEntry>
+): string =>
+  languageIconCss(
+    languageIconSlugsIn(
+      [
+        ...Object.values(rawMarkdown).map(
+          (entry) => entry.mdx ?? entry.md ?? ""
+        ),
+        ...project.graph.pages.map((page) => page.body?.text ?? ""),
+      ].join("\n")
+    )
+  );
+
+/** {@link languageIconCssFrom} over a fresh read of the raw Markdown (eject). */
+export const languageIconCssFor = async (
+  project: BlumeProject
+): Promise<string> =>
+  languageIconCssFrom(project, await buildRawMarkdown(project));
+
 /** {@link clientFeaturesFrom} over a fresh read of the raw Markdown (eject). */
 export const clientFeaturesFor = async (
   project: BlumeProject
@@ -2000,6 +2030,7 @@ export const generateRuntime = async (
   // and inspected here for the client features the site needs.
   const rawMarkdown = await buildRawMarkdown(project);
   const clientFeatures = clientFeaturesFrom(project, rawMarkdown);
+  const languageIcons = languageIconCssFrom(project, rawMarkdown);
   // Staged (non-filesystem) sources materialize into `.blume/content`; keyed by
   // entryId so i18n duplicates of one entry write a single file. Collected here
   // so math detection also sees staged bodies (they never live under root).
@@ -2192,6 +2223,7 @@ export const generateRuntime = async (
         themePath,
         tailwindEntryTemplate({
           configTokens: `${buildThemeCss(config.theme)}${buildFontsCss(config.theme.fonts)}`,
+          languageIcons,
           sources: [
             `${BLUME_SRC}/**/*.{astro,ts,tsx}`,
             `${context.root}/**/*.{astro,mdx,ts,tsx}`,

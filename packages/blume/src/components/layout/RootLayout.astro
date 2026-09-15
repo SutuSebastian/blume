@@ -1,4 +1,6 @@
 ---
+import IconSprite from "./IconSprite.astro";
+import { createIconSprite } from "../icon-sprite.ts";
 import data from "blume:data";
 import { EN_UI } from "../../core/i18n-ui.ts";
 import type { UIStrings } from "../../core/i18n-ui.ts";
@@ -429,6 +431,10 @@ const structuredDataJson = structuredData
   : null;
 
 const bannerKey = banner?.dismissible ? banner.key : null;
+
+// Start the page's icon sprite before anything renders an icon (see
+// icon-sprite.ts); <IconSprite /> at the end of the body emits it.
+createIconSprite(Astro.locals);
 ---
 
 <!doctype html>
@@ -1058,5 +1064,6 @@ const bannerKey = banner?.dismissible ? banner.key : null;
       }
     </style>
     <WebMcp />
+  <IconSprite />
   </body>
 </html>

@@ -576,6 +576,32 @@ describe("layout chrome sources", () => {
     }
   });
 
+  it("renders set icons through the page sprite and emits it from every shell", async () => {
+    // A set icon is a <use> reference when the shell keeps a sprite, and each
+    // shell starts the registry up front and emits the sprite last in <body>
+    // (see icon-sprite.ts); a shell override without one gets inline icons.
+    const icon = await componentSource("Icon.astro");
+    expect(icon).toContain("registerIconSymbol(sprite, resolvedIcon.name, {");
+    expect(icon).toContain(`<use href={\`#\${symbolId}\`} />`);
+    expect(icon).toContain("set:html={resolvedIcon.body}");
+    const shells = await Promise.all(
+      ["RootLayout.astro", "PageLayout.astro", "ReferenceLayout.astro"].map(
+        layoutSource
+      )
+    );
+    for (const source of shells) {
+      expect(source).toContain("createIconSprite(Astro.locals);");
+      expect(source).toMatch(/<IconSprite \/>\s*<\/body>/u);
+    }
+    // The shell only leaves the slot; the middleware fills it once the page
+    // has rendered, which is the only point where every icon is registered.
+    const slot = await layoutSource("IconSprite.astro");
+    expect(slot).toContain("<Fragment set:html={ICON_SPRITE_SLOT} />");
+    expect(slot).not.toContain("renderIconSprite");
+    const cache = await layoutSource("NavTreeCache.astro");
+    expect(cache).toContain("referencedIconSymbols(rendered)");
+  });
+
   it("loads Mermaid and the EPUB generator through the generated feature loaders", async () => {
     // A direct import would put the library in every site's client bundle;
     // the loaders are null (and the library absent) for sites that don't use

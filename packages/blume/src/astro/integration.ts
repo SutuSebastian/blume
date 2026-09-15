@@ -374,8 +374,19 @@ export const blumeIntegration = (
           filename: MODULE_TYPES_FILE,
         });
       },
-      "astro:config:setup": ({ createCodegenDir, injectRoute }) => {
+      "astro:config:setup": ({
+        addMiddleware,
+        createCodegenDir,
+        injectRoute,
+      }) => {
         codegenDir = createCodegenDir();
+        // Splices each page's icon sprite in once the page has rendered (see
+        // components/icon-sprite-middleware.ts). Innermost, so a project's
+        // own middleware sees the finished HTML.
+        addMiddleware({
+          entrypoint: "blume/components/icon-sprite-middleware.ts",
+          order: "post",
+        });
         for (const page of options.pages) {
           injectRoute({
             entrypoint: page.entrypoint,

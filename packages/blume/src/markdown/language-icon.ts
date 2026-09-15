@@ -49,9 +49,10 @@ import {
   siYaml,
 } from "simple-icons";
 
-/** The slice of a `simple-icons` icon Blume reads (the SVG path data). */
+/** The slice of a `simple-icons` icon Blume reads: its slug and path data. */
 interface SimpleIcon {
   path: string;
+  slug: string;
 }
 
 /** Fence language (and common aliases) → icon. Unmapped languages get none. */
@@ -146,23 +147,6 @@ export interface LanguageIconTransformer {
   pre: (this: IconContext, node: IconPreNode) => void;
 }
 
-/** Build an inline SVG hast node from a simple-icons path. */
-const iconNode = (path: string): HastNode => ({
-  children: [
-    { children: [], properties: { d: path }, tagName: "path", type: "element" },
-  ],
-  properties: {
-    ariaHidden: "true",
-    className: ["blume-lang-icon"],
-    fill: "currentColor",
-    height: 14,
-    viewBox: "0 0 24 24",
-    width: 14,
-  },
-  tagName: "svg",
-  type: "element",
-});
-
 /** Build the transformer. Runs after Shiki's built-in `data-language` hook. */
 export const languageIconTransformer = (): LanguageIconTransformer => ({
   name: "blume:language-icon",
@@ -171,7 +155,67 @@ export const languageIconTransformer = (): LanguageIconTransformer => ({
     if (!icon) {
       return;
     }
-    node.children.unshift(iconNode(icon.path));
-    node.properties.dataIcon = "";
+    // The icon itself is CSS: the theme paints `pre[data-icon="<slug>"]::after`
+    // with the brand path as a mask (see `languageIconCss`), so a block
+    // carries a short attribute instead of ~1 kB of SVG — on a reference page
+    // with twenty TypeScript blocks, the difference is most of the page.
+    node.properties.dataIcon = icon.slug;
   },
 });
+
+/** The icon slug for a fence language, or null for an unmapped language. */
+export const languageIconSlug = (language: string): string | null =>
+  LANGUAGE_ICONS[language.toLowerCase()]?.slug ?? null;
+
+// Fence openers (```ts, ~~~tsx) and the `lang`/`language` props of code
+// components (<CodeBlock lang="ts">), which highlight through the same
+// transformer. Word characters plus the few punctuation marks languages use.
+const FENCE_LANGUAGE = /^[ \t]*(?:`{3,}|~{3,})[ \t]*(?<lang>[\w+#.-]+)/gmu;
+const PROP_LANGUAGE = /\blang(?:uage)?=["'](?<lang>[\w+#.-]+)["']/gu;
+
+/**
+ * The icon slugs a site's Markdown uses, sorted and deduped, so the theme
+ * carries a mask rule for each of them and none for the other thirty.
+ */
+export const languageIconSlugsIn = (markdown: string): string[] => {
+  const slugs = new Set<string>();
+  for (const pattern of [FENCE_LANGUAGE, PROP_LANGUAGE]) {
+    for (const match of markdown.matchAll(pattern)) {
+      const slug = languageIconSlug(match.groups?.lang ?? "");
+      if (slug) {
+        slugs.add(slug);
+      }
+    }
+  }
+  return [...slugs].toSorted();
+};
+
+const iconBySlug = (slug: string): SimpleIcon | undefined =>
+  Object.values(LANGUAGE_ICONS).find((icon) => icon.slug === slug);
+
+/** A simple-icons path as a `mask-image` data URI (24×24 viewBox). */
+const maskUri = (path: string): string =>
+  `url("data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="${path}"/></svg>`)}")`;
+
+/**
+ * The per-language rules that paint a code block's icon: each gives the
+ * block's `::after` (positioned by the theme) the brand path as a mask over
+ * the muted foreground. Only the listed slugs get a rule, so an unmapped or
+ * unused language paints nothing rather than a blank square.
+ */
+export const languageIconCss = (slugs: string[]): string =>
+  slugs
+    .map((slug) => {
+      const icon = iconBySlug(slug);
+      if (!icon) {
+        return "";
+      }
+      const mask = maskUri(icon.path);
+      return `.prose > :where(pre[data-language][data-icon="${slug}"])::after {
+  background-color: var(--blume-muted-foreground);
+  -webkit-mask-image: ${mask};
+  mask-image: ${mask};
+}`;
+    })
+    .filter((rule) => rule !== "")
+    .join("\n");

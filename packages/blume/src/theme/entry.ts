@@ -20,6 +20,8 @@ interface TailwindEntryOptions {
   userTheme: string;
   /** Twoslash rich-renderer styles (for fences with the `twoslash` meta). */
   twoslashCss?: string;
+  /** The code-block language icon rules (`languageIconCss`), if any. */
+  languageIcons?: string;
 }
 
 /** Dark mode is driven by `data-theme` on the root element (both sheets). */
@@ -484,15 +486,17 @@ blume-diff {
    CodeBlock (no title) never gets data-language, so without this gate the
    absolutely-positioned icon would overlap the first code line. Fenced code
    and titled blocks always have a header, so the icon shows there. */
-.blume-lang-icon {
-  display: none;
-}
-
-.prose > :where(pre[data-language][data-icon]) > .blume-lang-icon {
-  color: var(--blume-muted-foreground);
-  display: block;
+.prose > :where(pre[data-language][data-icon])::after {
+  content: "";
   height: 0.875rem;
   left: 1rem;
+  -webkit-mask-position: center;
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-size: contain;
+  mask-position: center;
+  mask-repeat: no-repeat;
+  mask-size: contain;
+  pointer-events: none;
   position: absolute;
   top: 0.875rem;
   width: 0.875rem;
@@ -501,6 +505,11 @@ blume-diff {
 .prose > :where(pre[data-language][data-icon])::before {
   padding-left: 2.5rem;
 }
+
+/* One mask rule per language the site's Markdown uses (see
+   markdown/language-icon.ts); the ::after above only gets a color and a mask
+   from these, so a block whose language has no rule paints nothing. */
+${options.languageIcons ?? ""}
 
 .prose :where(pre code) {
   background: transparent;

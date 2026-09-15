@@ -21,6 +21,7 @@ import {
   collectStaged,
   detectNeedsReact,
   detectUsesMath,
+  languageIconCssFor,
 } from "../astro/generate.ts";
 import { discoverIslands } from "../astro/islands.ts";
 import { customOgRoutes, discoverPages, routeIsTaken } from "../astro/pages.ts";
@@ -390,6 +391,7 @@ export const eject = async (
   const hasStaged = staged.size > 0;
   const stagedDir = "blume-staged";
   const features = await clientFeaturesFor(project);
+  const languageIcons = await languageIconCssFor(project);
 
   const files: {
     path: string;
@@ -481,6 +483,7 @@ export const eject = async (
     {
       content: tailwindEntryTemplate({
         configTokens: buildThemeCss(config.theme),
+        languageIcons,
         // Relative paths from src/generated/app.css keep the ejected app
         // portable; the blume glob resolves the real install location when
         // the package is hoisted out of the project's own node_modules.

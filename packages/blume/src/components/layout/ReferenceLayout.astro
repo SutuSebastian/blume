@@ -1,4 +1,6 @@
 ---
+import IconSprite from "./IconSprite.astro";
+import { createIconSprite } from "../icon-sprite.ts";
 import "blume:theme";
 import data from "blume:data";
 import type { BlumeFavicon } from "../../core/data.ts";
@@ -108,6 +110,10 @@ const strings = ui ?? EN_UI;
 const searchLocale = searchLocaleFor(data.config.i18n, locale);
 
 const bannerKey = banner?.dismissible ? banner.key : null;
+
+// Start the page's icon sprite before anything renders an icon (see
+// icon-sprite.ts); <IconSprite /> at the end of the body emits it.
+createIconSprite(Astro.locals);
 ---
 
 <!doctype html>
@@ -152,5 +158,6 @@ const bannerKey = banner?.dismissible ? banner.key : null;
       <script is:inline set:html={SCALAR_THEME_INIT_SCRIPT} />
     </div>
     <WebMcp />
+  <IconSprite />
   </body>
 </html>

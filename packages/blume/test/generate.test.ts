@@ -1801,6 +1801,21 @@ describe("generateRuntime", () => {
     );
   });
 
+  it("paints code-block language icons only for the languages the site uses", async () => {
+    const project = await scanProject(
+      await writeProject({
+        "docs/index.md": "# Home\n\n```ts\nconst a = 1;\n```\n",
+      })
+    );
+    await generateRuntime(project);
+    const css = await readFile(
+      join(project.context.outDir, "src/generated/app.css"),
+      "utf-8"
+    );
+    expect(css).toContain('pre[data-language][data-icon="typescript"])::after');
+    expect(css).not.toContain('data-icon="python"');
+  });
+
   it("ships the Mermaid element only when a page has a mermaid fence", async () => {
     // Mermaid is over 3 MB of client chunks (ELK, Cytoscape, KaTeX, every
     // diagram type); a site with no diagram must not bundle, or pre-bundle in

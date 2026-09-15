@@ -265,9 +265,12 @@ const CODEGEN_DIR = new URL(".astro/integrations/blume/", CONFIG_ROOT);
 const configDone = (withSetup: boolean): InjectedTypes | undefined => {
   const integration = blumeIntegration({ contentRoutes: [], pages: [] });
   if (withSetup) {
-    // SAFETY: the setup hook only calls `createCodegenDir` and `injectRoute`,
-    // both of which the fixture provides.
+    // SAFETY: the setup hook only calls `addMiddleware`, `createCodegenDir`,
+    // and `injectRoute`, all of which the fixture provides.
     integration.hooks["astro:config:setup"]?.({
+      addMiddleware: () => {
+        // The icon-sprite middleware; irrelevant to the injected types.
+      },
       createCodegenDir: () => CODEGEN_DIR,
       injectRoute: () => {
         // No pages configured, so this is never reached.
@@ -312,8 +315,9 @@ describe("blumeIntegration astro:config:done", () => {
 describe("blumeIntegration astro:config:setup", () => {
   it("injects each user page route as a prerendered route", () => {
     const injected: InjectedPageRoute[] = [];
-    // SAFETY: the hook only calls `createCodegenDir` and `injectRoute`, which
-    // the fixture provides.
+    const middleware: { entrypoint: string; order: string }[] = [];
+    // SAFETY: the hook only calls `addMiddleware`, `createCodegenDir`, and
+    // `injectRoute`, which the fixture provides.
     blumeIntegration({
       contentRoutes: [],
       pages: [
@@ -321,9 +325,20 @@ describe("blumeIntegration astro:config:setup", () => {
         { entrypoint: "/abs/example.astro", pattern: "/examples/[slug]" },
       ],
     }).hooks["astro:config:setup"]?.({
+      addMiddleware: (entry: { entrypoint: string; order: string }) =>
+        middleware.push(entry),
       createCodegenDir: () => CODEGEN_DIR,
       injectRoute: (route: InjectedPageRoute) => injected.push(route),
     } as never);
+
+    // The icon-sprite middleware runs innermost, so a project's own
+    // middleware sees the finished HTML.
+    expect(middleware).toEqual([
+      {
+        entrypoint: "blume/components/icon-sprite-middleware.ts",
+        order: "post",
+      },
+    ]);
 
     expect(injected).toEqual([
       {

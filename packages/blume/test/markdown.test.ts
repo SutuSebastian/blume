@@ -20,7 +20,12 @@ import {
   inlineCodeHighlightPlugin,
   parseInlineLang,
 } from "../src/markdown/inline-code.ts";
-import { languageIconTransformer } from "../src/markdown/language-icon.ts";
+import {
+  languageIconCss,
+  languageIconSlug,
+  languageIconSlugsIn,
+  languageIconTransformer,
+} from "../src/markdown/language-icon.ts";
 import { mathPlugin } from "../src/markdown/math.ts";
 import {
   codeBlock,
@@ -341,6 +346,47 @@ describe(parseInlineLang, () => {
   });
 });
 
+describe("language icon CSS", () => {
+  it("collects the icon slugs a site's fences and code props use", () => {
+    const markdown = [
+      "```ts",
+      "const a = 1;",
+      "```",
+      "~~~TSX",
+      "<x />",
+      "~~~",
+      '<CodeBlock lang="python" code="print(1)" />',
+      "```unknown-lang",
+      "```",
+      '  ```json title="x"',
+      "  ```",
+    ].join("\n");
+    expect(languageIconSlugsIn(markdown)).toEqual([
+      "json",
+      "python",
+      "react",
+      "typescript",
+    ]);
+    expect(languageIconSlugsIn("no fences here")).toEqual([]);
+  });
+
+  it("emits one mask rule per known slug and skips unknown ones", () => {
+    const css = languageIconCss(["typescript", "not-a-slug"]);
+    expect(css).toContain(
+      '.prose > :where(pre[data-language][data-icon="typescript"])::after {'
+    );
+    expect(css).toContain('mask-image: url("data:image/svg+xml,');
+    expect(css).toContain("background-color: var(--blume-muted-foreground);");
+    expect(css).not.toContain("not-a-slug");
+    expect(languageIconCss([])).toBe("");
+  });
+
+  it("maps a language to its icon slug", () => {
+    expect(languageIconSlug("Bash")).toBe("gnubash");
+    expect(languageIconSlug("nope")).toBeNull();
+  });
+});
+
 describe(languageIconTransformer, () => {
   type IconPreNode = Parameters<
     ReturnType<typeof languageIconTransformer>["pre"]
@@ -353,18 +399,17 @@ describe(languageIconTransformer, () => {
     return node;
   };
 
-  it("prepends an icon and marks the block for known languages", () => {
+  it("marks the block with its icon slug for known languages", () => {
+    // The icon is painted by the theme's mask rule for the slug (see
+    // languageIconCss); the block carries no SVG of its own.
     const node = runIcon("ts");
-    expect(node.properties.dataIcon).toBe("");
-    expect(node.children).toHaveLength(1);
-    expect(node.children[0]?.properties?.className).toStrictEqual([
-      "blume-lang-icon",
-    ]);
+    expect(node.properties.dataIcon).toBe("typescript");
+    expect(node.children).toHaveLength(0);
   });
 
   it("is case-insensitive and resolves aliases", () => {
-    expect(runIcon("TSX").properties.dataIcon).toBe("");
-    expect(runIcon("shell").children).toHaveLength(1);
+    expect(runIcon("TSX").properties.dataIcon).toBe("react");
+    expect(runIcon("shell").properties.dataIcon).toBe("gnubash");
   });
 
   it("leaves unknown languages untouched", () => {
@@ -1537,8 +1582,8 @@ describe("highlightCode", () => {
     // the first code line. See https://github.com/haydenbleasel/blume/issues/56
     const html = await highlightCode("const x = 1;", "ts");
     expect(html).not.toContain("data-language");
-    expect(html).toContain("data-icon");
-    expect(html).toContain("blume-lang-icon");
+    expect(html).toContain('data-icon="typescript"');
+    expect(html).not.toContain("blume-lang-icon");
   });
 
   it("applies an extra className to the <pre>", async () => {
