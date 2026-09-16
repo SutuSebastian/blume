@@ -1914,7 +1914,9 @@ describe("static endpoint templates", () => {
     expect(page).toContain('currentRoute=""');
     expect(page).toContain("fragmentBase={fragmentBase}");
     // Astro hoists getStaticPaths, so the variant walk comes from an import.
-    expect(page).toContain("navVariants(data).flatMap(");
+    expect(page).toContain(
+      "navVariants(data, hiddenDefaultLocale(data.config.i18n)).flatMap("
+    );
   });
 
   it("hands the catch-all page a fragment base only when sections are deferred", () => {
@@ -1924,7 +1926,7 @@ describe("static endpoint templates", () => {
       navFragments: true,
     });
     expect(withFragments).toContain(
-      `navFragmentBase={withBase(\`/blume-nav/\${version || "current"}/\${i18n ? locale : "default"}\`)}`
+      `navFragmentBase={withBase(\`/blume-nav/\${version || "current"}/\${i18n && localePrefix(locale) ? locale : "default"}\`)}`
     );
     expect(
       catchAllPageTemplate({ ...exportOpts, mathEnabled: false })

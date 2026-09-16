@@ -12,6 +12,7 @@ import {
   flattenPages,
   getPagination,
   hasDeferrableGroups,
+  hiddenDefaultLocale,
   navGroupIds,
   navVariants,
 } from "../src/components/layout/nav-utils.ts";
@@ -200,6 +201,52 @@ describe("navGroupIds", () => {
     expect(
       variants.map((variant) => `${variant.version}/${variant.locale}`)
     ).toEqual(["current/default", "current/ja", "v1.0/default", "v1.0/ja"]);
+  });
+
+  it("keys the hidden-prefix default locale's trees as default", () => {
+    // Astro's i18n routing 404s a page URL with the default locale's code as
+    // a segment while that locale is unprefixed, so `/blume-nav/…/de/…` is
+    // never emitted for it: its current tree is `navigation` already, and its
+    // archived trees take the `default` segment too.
+    // SAFETY: only the sidebar is read; the rest of a Navigation (tabs,
+    // selectors, root) is irrelevant to the variant walk.
+    const tree = (label: string) =>
+      ({
+        root: "/",
+        selectors: [],
+        sidebar: [navGroup(label, [])],
+        tabs: [],
+      }) as never;
+    const variants = navVariants(
+      {
+        navigation: tree("de"),
+        navigationByLocale: { de: tree("de"), en: tree("en") },
+        navigationByVersion: {
+          "v1.0": { de: tree("v1-de"), en: tree("v1-en") },
+        },
+      },
+      "de"
+    );
+    expect(
+      variants.map((variant) => `${variant.version}/${variant.locale}`)
+    ).toEqual(["current/default", "current/en", "v1.0/default", "v1.0/en"]);
+    expect(variants[2]?.navigation.sidebar[0]?.label).toBe("v1-de");
+  });
+
+  it("hides the default locale only while its prefix is hidden", () => {
+    expect(hiddenDefaultLocale(null)).toBeNull();
+    expect(
+      hiddenDefaultLocale({
+        defaultLocale: "de",
+        hideDefaultLocalePrefix: false,
+      })
+    ).toBeNull();
+    expect(
+      hiddenDefaultLocale({
+        defaultLocale: "de",
+        hideDefaultLocalePrefix: true,
+      })
+    ).toBe("de");
   });
 
   it("reports whether any group is a disclosure or drill-in panel", () => {

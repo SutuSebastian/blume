@@ -281,26 +281,44 @@ export interface NavVariant {
 }
 
 /**
+ * The locale whose code must not appear as a fragment URL segment: the
+ * default locale while its URL prefix is hidden. Astro's i18n routing 404s any
+ * page URL carrying that locale's code as a segment (it expects the default
+ * locale to be unprefixed), so its trees are keyed `default` instead, the same
+ * way its page routes drop the prefix. `null` when every locale is prefixed
+ * or the site is single-locale.
+ */
+export const hiddenDefaultLocale = (
+  i18n: { defaultLocale: string; hideDefaultLocalePrefix: boolean } | null
+): string | null => (i18n?.hideDefaultLocalePrefix ? i18n.defaultLocale : null);
+
+/**
  * Every navigation tree the runtime data holds — the default, each locale's,
  * and each archived version's per locale — keyed the way the deferred
  * sidebar fragments' URLs are (`/blume-nav/<version>/<locale>/…`). An
  * unlocalized version tree is keyed by `""` in the data; it maps to
- * `default` here.
+ * `default` here, as does the hidden-prefix default locale's (see
+ * `hiddenDefaultLocale`), whose current tree is `data.navigation` already.
  */
-export const navVariants = (data: {
-  navigation: Navigation;
-  navigationByLocale: Record<string, Navigation>;
-  navigationByVersion: Record<string, Record<string, Navigation>>;
-}): NavVariant[] => [
+export const navVariants = (
+  data: {
+    navigation: Navigation;
+    navigationByLocale: Record<string, Navigation>;
+    navigationByVersion: Record<string, Record<string, Navigation>>;
+  },
+  hiddenDefault: string | null = null
+): NavVariant[] => [
   { locale: "default", navigation: data.navigation, version: "current" },
-  ...Object.entries(data.navigationByLocale).map(([locale, navigation]) => ({
-    locale,
-    navigation,
-    version: "current",
-  })),
+  ...Object.entries(data.navigationByLocale)
+    .filter(([locale]) => locale !== hiddenDefault)
+    .map(([locale, navigation]) => ({
+      locale,
+      navigation,
+      version: "current",
+    })),
   ...Object.entries(data.navigationByVersion).flatMap(([version, byLocale]) =>
     Object.entries(byLocale).map(([locale, navigation]) => ({
-      locale: locale || "default",
+      locale: locale && locale !== hiddenDefault ? locale : "default",
       navigation,
       version,
     }))

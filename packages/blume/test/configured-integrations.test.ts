@@ -574,3 +574,51 @@ it("negotiates Markdown for content routes under deployment.base in dev", async 
     throw new Error(`${String(failure)}\n${stdout}\n${stderr}`);
   }
 }, 180_000);
+
+it("serves deferred sidebar fragments for an unprefixed default locale in dev", async () => {
+  // Astro's i18n routing (prefix-other-locales) 404s any page URL carrying the
+  // default locale's code as a segment, so a `/blume-nav/current/de/…` fragment
+  // URL never resolved on a site whose default locale is unprefixed. The
+  // fragment base keys that locale `default`, the same way its pages drop the
+  // prefix.
+  const root = await writeProject({
+    "blume.config.ts": `export default { i18n: { defaultLocale: "de", locales: [{ code: "de", label: "Deutsch" }] }, navigation: { sidebar: { display: "group" } }, ${offlineFontsSource} };\n`,
+    "docs/guides/advanced/tief.md": "---\ntitle: Tief\n---\n# Tief\n",
+    "docs/guides/erste.md": "---\ntitle: Erste\n---\n# Erste\n",
+    "docs/index.md": "# Start\n",
+  });
+  const { output, port, proc } = await startDevReady(root);
+  let failure: unknown;
+  try {
+    const page = await fetch(`http://127.0.0.1:${port}/guides/erste`, {
+      signal: AbortSignal.timeout(60_000),
+    });
+    expect(page.status).toBe(200);
+    const html = await page.text();
+    const fragments = [...new Set(html.match(/\/blume-nav\/[^"'\s]+/gu))];
+    expect(fragments.length).toBeGreaterThan(0);
+    for (const fragment of fragments) {
+      expect(fragment.startsWith("/blume-nav/current/default/")).toBe(true);
+    }
+    const bodies = await Promise.all(
+      fragments.map(async (fragment) => {
+        const response = await fetch(`http://127.0.0.1:${port}${fragment}`, {
+          signal: AbortSignal.timeout(60_000),
+        });
+        expect(response.status).toBe(200);
+        return response.text();
+      })
+    );
+    for (const body of bodies) {
+      expect(body).toContain("blume-nav-link");
+    }
+  } catch (error) {
+    failure = error;
+  } finally {
+    await stopDev(proc);
+  }
+  const [stdout, stderr] = await drainOutput(output);
+  if (failure) {
+    throw new Error(`${String(failure)}\n${stdout}\n${stderr}`);
+  }
+}, 180_000);
