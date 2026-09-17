@@ -5,6 +5,10 @@ import { setTimeout as sleep } from "node:timers/promises";
 
 import { join } from "pathe";
 
+import {
+  parseYouTubeId,
+  youtubeEmbedUrl,
+} from "../src/components/content/youtube.ts";
 import { blumeConfigSchema } from "../src/core/schema.ts";
 import { notionSource } from "../src/core/sources/notion.ts";
 import type { NotionClientLike } from "../src/core/sources/notion.ts";
@@ -161,14 +165,25 @@ const databases: NotionClientLike["databases"] = {
     Promise.resolve({ data_sources: [{ id: "ds1", name: "Handbook" }] }),
 };
 
-const client = (): NotionClientLike => ({
+type BlockList = Awaited<
+  ReturnType<NotionClientLike["blocks"]["children"]["list"]>
+>["results"];
+type PageList = Awaited<
+  ReturnType<NotionClientLike["dataSources"]["query"]>
+>["results"];
+
+/** A client serving one database whose pages hold the given block trees. */
+const clientFor = (
+  lists: Map<string, BlockList>,
+  pages: PageList
+): NotionClientLike => ({
   blocks: {
     children: {
       list: ({ block_id }: { block_id: string }) =>
         Promise.resolve({
           has_more: false,
           next_cursor: null,
-          results: blockLists.get(block_id) ?? [],
+          results: lists.get(block_id) ?? [],
         }),
     },
   },
@@ -177,11 +192,13 @@ const client = (): NotionClientLike => ({
       Promise.resolve({
         has_more: false,
         next_cursor: null,
-        results: [PAGE],
+        results: pages,
       }),
   },
   databases,
 });
+
+const client = (): NotionClientLike => clientFor(blockLists, [PAGE]);
 
 // `typeof fetch` carries the `preconnect` namespace member, so the stub borrows
 // it from the real fetch; the source only ever calls the function itself.
@@ -291,7 +308,7 @@ describe("notionSource", () => {
     expect(body).toContain("Body **bold**");
     expect(body).toContain("<Callout>");
     expect(body).toContain("be careful");
-    expect(body).toContain('<AccordionItem title="More">');
+    expect(body).toContain('<AccordionItem title={"More"}>');
     expect(body).toContain("hidden");
     expect(body).toContain("<Columns>");
     expect(body).toContain("<Column>");
@@ -509,27 +526,8 @@ describe("notionSource (block + property edge cases)", () => {
 
   const richBlockLists = new Map(Object.entries(richBlocks));
 
-  const richClient = (): NotionClientLike => ({
-    blocks: {
-      children: {
-        list: ({ block_id }: { block_id: string }) =>
-          Promise.resolve({
-            has_more: false,
-            next_cursor: null,
-            results: richBlockLists.get(block_id) ?? [],
-          }),
-      },
-    },
-    dataSources: {
-      query: () =>
-        Promise.resolve({
-          has_more: false,
-          next_cursor: null,
-          results: [richPage],
-        }),
-    },
-    databases,
-  });
+  const richClient = (): NotionClientLike =>
+    clientFor(richBlockLists, [richPage]);
 
   it("renders every leaf block type and inline annotation", async () => {
     const source = notionSource(
@@ -625,6 +623,194 @@ describe("notionSource (block + property edge cases)", () => {
 
 // Pages without a title property slug to their id, so any count is fine.
 const pageStub = (id: string) => ({ id, properties: {} });
+
+describe("notionSource (video blocks)", () => {
+  const videoPage = {
+    id: "vid",
+    last_edited_time: "2024-07-01T00:00:00Z",
+    properties: {
+      Name: { title: [rich("Video Page")], type: "title" },
+    },
+  };
+
+  // The sample video from issue #265, in the two spellings Notion stores: the
+  // watch URL a paste produces and the youtu.be short link.
+  const SAMPLE_ID = "uy6K0h132-c";
+  const SAMPLE_WATCH_URL = `https://www.youtube.com/watch?v=${SAMPLE_ID}`;
+  const SAMPLE_SHORT_URL = `https://youtu.be/${SAMPLE_ID}`;
+  const UPLOAD_URL = "https://notion.so/signed/clip.mp4?X-Amz=1";
+  const VIMEO_URL = "https://vimeo.com/123";
+
+  const videoBlocks = {
+    vid: [
+      // A YouTube link pasted into Notion: an external URL on a video block.
+      {
+        id: "yt-caption",
+        type: "video",
+        video: {
+          caption: [rich("Launch demo")],
+          external: { url: SAMPLE_WATCH_URL },
+        },
+      },
+      {
+        id: "yt-plain",
+        type: "video",
+        video: { external: { url: SAMPLE_SHORT_URL } },
+      },
+      // An uploaded video: a signed, expiring Notion-hosted file URL.
+      {
+        id: "upload",
+        type: "video",
+        video: {
+          caption: [rich("Screen recording")],
+          file: { url: UPLOAD_URL },
+        },
+      },
+      {
+        id: "direct",
+        type: "video",
+        video: { external: { url: "https://cdn.example.com/raw.mp4" } },
+      },
+      // A caption with a double quote, a soft line break, and an annotation.
+      {
+        id: "quoted",
+        type: "video",
+        video: {
+          caption: [
+            rich('Click the "Deploy"\nbutton'),
+            rich(" now", { bold: true }),
+          ],
+          external: { url: SAMPLE_SHORT_URL },
+        },
+      },
+      // A media URL whose path happens to fit YouTube's `/live/<id>` shape.
+      {
+        id: "lookalike",
+        type: "video",
+        video: {
+          external: { url: "https://cdn.example.com/live/promo-video.mp4" },
+        },
+      },
+      // A pasted Vimeo link: a video block whose URL is a watch page.
+      { id: "vimeo", type: "video", video: { external: { url: VIMEO_URL } } },
+      // A video block carrying neither an external nor a file url.
+      { id: "empty", type: "video", video: {} },
+    ],
+  };
+
+  const videoClient = (): NotionClientLike =>
+    clientFor(new Map(Object.entries(videoBlocks)), [videoPage]);
+
+  // Vimeo answers with its watch page; everything else is media bytes.
+  const videoFetch: typeof fetch = Object.assign(
+    (input: string | URL | Request) =>
+      Promise.resolve(
+        String(input) === VIMEO_URL
+          ? new Response("<!doctype html>", {
+              headers: { "content-type": "text/html" },
+            })
+          : new Response(new ArrayBuffer(8))
+      ),
+    fetch
+  );
+
+  const loadVideos = async () => {
+    const source = notionSource(
+      {
+        client: videoClient(),
+        database: "db1",
+        fetchImpl: videoFetch,
+        name: "handbook",
+      },
+      await ctxFor()
+    );
+    const { diagnostics, entries } = await source.load();
+    return { body: entries[0]?.body.text ?? "", diagnostics };
+  };
+
+  it("renders a YouTube video block as the embed component", async () => {
+    const { body } = await loadVideos();
+    // The caption is the Frame's caption, as for an upload; the iframe's
+    // accessible name is its plain text.
+    expect(body).toContain(
+      `<Frame caption={"Launch demo"}>\n<YouTube title={"Launch demo"} url="${SAMPLE_WATCH_URL}" />\n</Frame>`
+    );
+    expect(body).toContain(`<YouTube url="${SAMPLE_SHORT_URL}" />`);
+  });
+
+  it("emits a url the player resolves to the sample video's embed", async () => {
+    const { body } = await loadVideos();
+    // Close the loop the MDX text alone can't: feed each emitted `url` prop
+    // through the same helpers `<YouTube>` uses, so the assertion covers what
+    // the component will actually put in the iframe rather than just the
+    // string the source wrote.
+    const urls = [...body.matchAll(/<YouTube[^>]*\surl="(?<url>[^"]+)"/gu)].map(
+      (match) => match.groups?.url ?? ""
+    );
+    expect(urls).toHaveLength(3);
+    for (const url of urls) {
+      const id = parseYouTubeId(url);
+      expect(id).toBe(SAMPLE_ID);
+      expect(youtubeEmbedUrl(id ?? "")).toBe(
+        `https://www.youtube-nocookie.com/embed/${SAMPLE_ID}`
+      );
+    }
+  });
+
+  it("writes string props in expression form so quotes and breaks survive", async () => {
+    const { body } = await loadVideos();
+    // `caption="Click the \"Deploy\" button"` fails MDX compilation of the
+    // whole page: a quoted JSX attribute decodes no escapes. The expression
+    // form is a JSON string literal, which does.
+    expect(body).toContain(
+      `<Frame caption={"Click the \\"Deploy\\"\\nbutton** now**"}>`
+    );
+    expect(body).toContain(
+      `<YouTube title={"Click the \\"Deploy\\"\\nbutton now"}`
+    );
+  });
+
+  it("materializes an uploaded video and captions it with a Frame", async () => {
+    const { body } = await loadVideos();
+    expect(body).toContain('<Frame caption={"Screen recording"}>');
+    expect(body).toContain('<video controls src="/blume-assets/handbook/');
+    // The signed Notion URL expires, so it must not survive into the build.
+    expect(body).not.toContain("notion.so/signed");
+  });
+
+  it("renders an uncaptioned direct media url as a bare video element", async () => {
+    const { body } = await loadVideos();
+    // No Frame wrapper when the block carries no caption.
+    expect(body).not.toContain('<Frame caption={""}>');
+    expect(body).toContain("<video controls src=");
+  });
+
+  it("only treats a YouTube hostname as an embed", async () => {
+    const { body } = await loadVideos();
+    expect(body).not.toContain('<YouTube url="https://cdn.example.com');
+    expect(body).toContain('<video controls src="/blume-assets/handbook/');
+    expect(body).not.toContain("live/promo-video.mp4");
+  });
+
+  it("warns about a video link that is a web page, not a media file", async () => {
+    const { body, diagnostics } = await loadVideos();
+    expect(body).toContain(`<video controls src="${VIMEO_URL}" />`);
+    expect(diagnostics).toStrictEqual([
+      expect.objectContaining({
+        code: "BLUME_ASSET_FETCH_FAILED",
+        message: expect.stringContaining("text/html"),
+      }),
+    ]);
+  });
+
+  it("drops a video block that carries no url", async () => {
+    const { body } = await loadVideos();
+    expect(body).not.toContain('<video controls src=""');
+    // The unsupported-block comment is the pre-fix behavior; a video block
+    // must never fall through to it.
+    expect(body).not.toContain("unsupported Notion block: video");
+  });
+});
 
 describe("notionSource (request pacing)", () => {
   /**
