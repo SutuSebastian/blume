@@ -194,6 +194,15 @@ ${THEME_MAPPING}
     scroll-padding-top: 4.5rem;
     text-rendering: optimizeLegibility;
   }
+  /* Modal surfaces coordinate through independent root attributes. The lock
+     remains until every owner releases its attribute, while !important lets it
+     temporarily override (and therefore preserve) an authored inline value.
+     Classic (non-overlay) scrollbars would otherwise vanish while locked and
+     shift the page and the centered dialog sideways, so keep their gutter. */
+  html:where([data-blume-nav-open], [data-blume-search-dialog-open]) {
+    overflow: hidden !important;
+    scrollbar-gutter: stable;
+  }
   /* Headings use the display font (defaults to the body font when unset).
      The tightened tracking is part of the theme, not the font: display-tuned
      families bake it into their metrics, but a text family promoted to

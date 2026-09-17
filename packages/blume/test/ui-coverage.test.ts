@@ -612,6 +612,31 @@ describe("layout chrome sources", () => {
     expect(source).toMatch(
       /async open\(\) \{[^}]*if \(this\.dialog\.open\) \{\s*return;/u
     );
+    // Modal surfaces hold independent root attributes so one surface cannot
+    // release another's scroll lock (for example, nav closing on resize while
+    // search remains open).
+    expect(source).toContain(
+      'this.dialog.addEventListener("close", () => this.unlockPageScroll());'
+    );
+    expect(source).toContain(
+      'document.documentElement.setAttribute("data-blume-search-dialog-open", "");'
+    );
+    expect(source).toContain(
+      'document.documentElement.removeAttribute("data-blume-search-dialog-open");'
+    );
+    const header = await layoutSource("Header.astro");
+    expect(header).not.toContain("d.style.overflow");
+    const { tailwindEntryTemplate } = await import("../src/theme/entry.ts");
+    const css = tailwindEntryTemplate({
+      configTokens: "",
+      sources: [],
+      userTheme: "",
+    });
+    expect(css).toContain(
+      "html:where([data-blume-nav-open], [data-blume-search-dialog-open])"
+    );
+    expect(css).toContain("overflow: hidden !important;");
+    expect(css).toContain("scrollbar-gutter: stable;");
   });
 
   it("localizes the search section-filter All pill", async () => {

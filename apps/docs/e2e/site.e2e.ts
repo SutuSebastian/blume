@@ -54,18 +54,45 @@ test.describe("mobile sidebar", () => {
     const html = page.locator("html");
     await page.locator("[data-blume-nav-toggle]").first().click();
     await expect(html).toHaveAttribute("data-blume-nav-open", "");
+    await expect(html).toHaveCSS("overflow", "hidden");
+
+    // Search and the drawer independently own the page lock. When resizing
+    // closes the drawer, search must keep the page locked until it also closes.
+    await page.keyboard.press("Control+k");
+    await expect(page.locator("[data-blume-search-dialog]")).toBeVisible();
+    await page.setViewportSize({ height: 800, width: 1280 });
+    await expect(html).not.toHaveAttribute("data-blume-nav-open", "");
+    await expect(html).toHaveCSS("overflow", "hidden");
+    await page.keyboard.press("Escape");
+    await expect(html).toHaveCSS("overflow", "visible");
   });
 });
 
 test.describe("search", () => {
   test("opens the search dialog and accepts a query", async ({ page }) => {
     await page.goto("/docs");
-    await page.locator("[data-blume-search-open]").first().click();
+    await page.evaluate(() =>
+      window.scrollTo({ behavior: "instant", top: 300 })
+    );
+    // Playwright's `click` scrolls the sticky header button into view first,
+    // which resets the document to the top and would mask the lock. Dispatch
+    // the click instead so the scroll position survives the open.
+    await page.locator("button[data-blume-search-open]").dispatchEvent("click");
     const dialog = page.locator("[data-blume-search-dialog]");
     await expect(dialog).toBeVisible();
+    await expect(page.locator("html")).toHaveCSS("overflow", "hidden");
+    await page.mouse.wheel(0, 500);
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(300);
     await page.locator("[data-blume-search-input]").fill("quickstart");
     await expect(dialog).toContainText(/quickstart/iu);
+    // Chrome's search input consumes the first Escape to clear the query, so
+    // the dialog (and the lock) only release on the second.
     await page.keyboard.press("Escape");
+    await expect(page.locator("[data-blume-search-input]")).toHaveValue("");
+    await expect(page.locator("html")).toHaveCSS("overflow", "hidden");
+    await page.keyboard.press("Escape");
+    await expect(dialog).toBeHidden();
+    await expect(page.locator("html")).toHaveCSS("overflow", "visible");
   });
 });
 
