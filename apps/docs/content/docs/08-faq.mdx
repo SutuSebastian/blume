@@ -160,3 +160,24 @@ Patch oxfmt so it preserves the line break that sits directly against a `:::` fe
 :::warning[Version-pinned]
 The patch targets a specific oxfmt build — its diff references a file whose name is hashed per release (`dist/markdown-*.js`). When you bump oxfmt, regenerate the patch (e.g. `bun patch oxfmt`) or check whether the upstream fix has landed and the patch is no longer needed.
 :::
+
+## Why does Knip report my `blume.config.ts` dependencies as unused?
+
+[Knip](https://knip.dev) only follows imports from files it knows are entry points, and it learns those from its built-in plugins. There is no Blume plugin yet, and Knip's Astro plugin doesn't switch on either: it looks for `astro` in your own `package.json`, but a Blume project depends on `blume`, and the generated `.blume/` Astro project is gitignored, so Knip never sees it. Nothing references `blume.config.ts`, so any package it imports gets reported as unused.
+
+Register the files Blume loads from your project root as entries. In `knip.json`:
+
+```json knip.json
+{
+  "entry": [
+    "blume.config.{ts,mjs,js}",
+    "components.{ts,tsx}",
+    "islands/**/*.{ts,tsx}",
+    "pages/**/*"
+  ]
+}
+```
+
+In a monorepo, put the same `entry` list under the docs workspace in `workspaces` instead. Drop any line for a convention you don't use — `components.ts` for [component overrides](/docs/configuration/customization#component-overrides), `islands/` for [interactive islands](/docs/configuration/customization#interactive-islands), and `pages/` for [custom pages](/docs/configuration/customization#custom-pages) (adjust the last one if you've changed `content.pages`).
+
+Knip can only follow real imports. A package that's only named inside a string — say, an [Astro integration](/docs/configuration/customization#astro-integrations) that calls `injectScript("page", "import('some-package')")` — still needs an `ignoreDependencies` entry.
