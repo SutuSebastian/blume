@@ -454,40 +454,79 @@ describe("examplesPageTemplate", () => {
   });
 });
 
+const changelogOpts = { ...exportOpts, mathEnabled: false };
+
+const componentMapOf = (source: string) =>
+  /const components = \{[^}]*\};/u.exec(source)?.[0];
+
 describe("changelogIndexTemplate", () => {
   it("imports layout overrides and passes them to RootLayout", () => {
-    const out = changelogIndexTemplate({ ...exportOpts, staged: false });
+    const out = changelogIndexTemplate({ ...changelogOpts, staged: false });
     expect(out).toContain(
-      'import { layoutOverrides } from "../generated/components.ts"'
+      'import { mdxComponents as userMdx, layoutOverrides } from "../generated/components.ts"'
     );
     expect(out).toContain("layout={layoutOverrides}");
   });
 
+  it("renders every entry body with the same component map as the catch-all", () => {
+    const out = changelogIndexTemplate({ ...changelogOpts, staged: false });
+    const page = catchAllPageTemplate({ ...exportOpts, mathEnabled: false });
+    // A `:::` directive compiles to `<Callout>`; without the map, an MDX body
+    // that uses one throws "Expected component `Callout` to be defined" on the
+    // index (build and dev) while the entry's own page renders it fine.
+    expect(out).toContain(
+      'import Callout from "blume/components/content/Callout.astro"'
+    );
+    expect(out).toContain(
+      'import { islandComponents } from "../generated/islands.ts"'
+    );
+    expect(componentMapOf(out)).toBeDefined();
+    expect(componentMapOf(out)).toBe(componentMapOf(page));
+    expect(out).not.toContain("<Content />");
+    expect(out.match(/<Content components=\{components\} \/>/gu)).toHaveLength(
+      3
+    );
+  });
+
+  it("adds Math to the entry component map when math is enabled", () => {
+    const out = changelogIndexTemplate({
+      ...changelogOpts,
+      mathEnabled: true,
+      staged: false,
+    });
+    expect(out).toContain(
+      'import Math from "blume/components/content/Math.astro"'
+    );
+    expect(out).toContain("  Math,\n  ...islandComponents,");
+    const off = changelogIndexTemplate({ ...changelogOpts, staged: false });
+    expect(off).not.toContain("Math.astro");
+  });
+
   it("reads only the docs collection when no staged sources exist", () => {
-    const out = changelogIndexTemplate({ ...exportOpts, staged: false });
+    const out = changelogIndexTemplate({ ...changelogOpts, staged: false });
     expect(out).toContain('...(await getCollection("docs")),');
     expect(out).not.toContain('getCollection("staged")');
   });
 
   it("folds in the staged collection when staged sources exist", () => {
-    const out = changelogIndexTemplate({ ...exportOpts, staged: true });
+    const out = changelogIndexTemplate({ ...changelogOpts, staged: true });
     expect(out).toContain('...(await getCollection("docs")),');
     expect(out).toContain('...(await getCollection("staged")),');
   });
 
   it("leaves the Ask AI trigger to the header", () => {
-    const out = changelogIndexTemplate({ ...exportOpts, staged: false });
+    const out = changelogIndexTemplate({ ...changelogOpts, staged: false });
     expect(out).not.toContain("AskAI");
     expect(out).not.toContain("askEnabled");
   });
 
   it("renders through the sidebar-less, TOC-less bare layout", () => {
-    const out = changelogIndexTemplate({ ...exportOpts, staged: false });
+    const out = changelogIndexTemplate({ ...changelogOpts, staged: false });
     expect(out).toContain('contentLayout="bare"');
   });
 
   it("canonicalizes under the deployment base, like the catch-all", () => {
-    const out = changelogIndexTemplate({ ...exportOpts, staged: false });
+    const out = changelogIndexTemplate({ ...changelogOpts, staged: false });
     expect(out).toContain(
       'import { withBase } from "blume/components/islands/base-path.ts"'
     );
@@ -496,7 +535,7 @@ describe("changelogIndexTemplate", () => {
   });
 
   it("wires the generated OG card, gated on og.enabled", () => {
-    const out = changelogIndexTemplate({ ...exportOpts, staged: false });
+    const out = changelogIndexTemplate({ ...changelogOpts, staged: false });
     expect(out).toContain(
       'const ogPath = data.config.og.enabled ? withBase("/og/changelog.png") : null;'
     );
@@ -508,13 +547,13 @@ describe("changelogIndexTemplate", () => {
   it("leaves the site-title suffix to the layout", () => {
     // Prefixing config.title here doubled the brand in the document title
     // ("Acme Changelog - Acme").
-    const out = changelogIndexTemplate({ ...exportOpts, staged: false });
+    const out = changelogIndexTemplate({ ...changelogOpts, staged: false });
     expect(out).toContain("const pageTitle = changelogTitle;");
     expect(out).not.toContain('data.config.title + " " + changelogTitle');
   });
 
   it("links each timeline heading to its own generated page", () => {
-    const out = changelogIndexTemplate({ ...exportOpts, staged: false });
+    const out = changelogIndexTemplate({ ...changelogOpts, staged: false });
     // Route lookup keyed by the collection entry id (matches the manifest).
     expect(out).toContain(
       "data.routes.map((route) => [route.entryId, route.path])"
@@ -536,7 +575,7 @@ describe("changelogIndexTemplate", () => {
   });
 
   it("suffixes repeated heading slugs so each entry keeps its own anchor", () => {
-    const out = changelogIndexTemplate({ ...exportOpts, staged: false });
+    const out = changelogIndexTemplate({ ...changelogOpts, staged: false });
     const start = out.indexOf("const seenIds");
     const end = out.indexOf("// A changelog is semver-paginated");
     expect(start).toBeGreaterThan(-1);
@@ -564,7 +603,7 @@ describe("changelogIndexTemplate", () => {
   });
 
   it("passes the resolved UI dictionary and default-locale lang/dir to the layout", () => {
-    const out = changelogIndexTemplate({ ...exportOpts, staged: false });
+    const out = changelogIndexTemplate({ ...changelogOpts, staged: false });
     // Mirrors the catch-all: default locale under i18n, English baseline
     // otherwise, so /changelog chrome doesn't revert to EN_UI / dir="ltr".
     expect(out).toContain('const htmlLang = i18n ? i18n.defaultLocale : "en";');
@@ -575,7 +614,7 @@ describe("changelogIndexTemplate", () => {
   });
 
   it("localizes the changelog heading, page title, and description", () => {
-    const out = changelogIndexTemplate({ ...exportOpts, staged: false });
+    const out = changelogIndexTemplate({ ...changelogOpts, staged: false });
     // The chrome comes from the same translatable `changelog` group as the
     // reveal button, with English fallback for a stale data snapshot.
     expect(out).toContain(
@@ -590,7 +629,7 @@ describe("changelogIndexTemplate", () => {
     expect(out).not.toContain("<h1>Changelog</h1>");
     // The island-hooks snapshot reuses the same localized page title.
     const reactOut = changelogIndexTemplate({
-      ...exportOpts,
+      ...changelogOpts,
       needsReact: true,
       staged: false,
     });
@@ -600,7 +639,7 @@ describe("changelogIndexTemplate", () => {
   });
 
   it("paginates by major version when the releases are semver", () => {
-    const out = changelogIndexTemplate({ ...exportOpts, staged: false });
+    const out = changelogIndexTemplate({ ...changelogOpts, staged: false });
     // Detects a full major.minor.patch and groups older majors behind a button.
     expect(out).toContain("const majorVersion");
     expect(out).toContain("const paginate = majors.length > 1");

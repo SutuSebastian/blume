@@ -2339,6 +2339,7 @@ export const generateRuntime = async (
       changelogIndexTemplate({
         exportEpub,
         exportPdf,
+        mathEnabled: usesMath,
         needsReact,
         staged: hasStaged,
       })
