@@ -164,7 +164,7 @@ Um token de leitura para um dataset privado vem da variável de ambiente `SANITY
 
 ## Notion
 
-A fonte integrada `notion` transforma um banco de dados do Notion em uma coleção: cada linha vira uma página, suas propriedades viram frontmatter e sua árvore de blocos vira MDX. Callouts, toggles, colunas e blocos de código são mapeados para os componentes correspondentes do Blume. O `@notionhq/client` (v5 ou posterior) é uma dependência peer opcional; o Blume lê o banco de dados por meio da primeira fonte de dados dele.
+A fonte integrada `notion` transforma um banco de dados do Notion em uma coleção: cada linha vira uma página, suas propriedades viram frontmatter e sua árvore de blocos vira MDX. Callouts, toggles, colunas e blocos de código são mapeados para os componentes correspondentes do Blume. Blocos de vídeo viram um embed `<YouTube>` quando contêm um link do YouTube e um player `<video>` caso contrário, com a legenda do bloco como legenda de `<Frame>` nos dois casos; um link para uma página de vídeo em vez de um arquivo de mídia (uma URL do Vimeo ou do Loom, digamos) é reportado como um aviso em vez de ser incorporado. O `@notionhq/client` (v5 ou posterior) é uma dependência peer opcional; o Blume lê o banco de dados por meio da primeira fonte de dados dele.
 
 ```ts blume.config.ts
 import { defineConfig } from "blume";
@@ -186,7 +186,7 @@ export default defineConfig({
 });
 ```
 
-O token de integração vem da variável de ambiente `NOTION_TOKEN` (compartilhe o banco de dados com a sua integração). Por padrão, todas as páginas são importadas; defina `publishedValue` para fazer da propriedade `Status` um controle de publicação — qualquer outro valor passa então a ser mapeado para `draft: true`, que os builds de produção descartam. **As URLs de imagem do Notion são assinadas e expiram**, portanto o adaptador as baixa em tempo de build para os assets do site e reescreve as referências — uma imagem de CMS nunca apodrece um build estático. As chamadas à API são ritmadas por um pequeno pool de requisições (3 por vez, correspondendo ao limite de taxa por integração do Notion), de modo que bancos de dados com centenas de páginas são importados sem esbarrar em respostas `429`; defina `concurrency` na fonte para ajustar isso.
+O token de integração vem da variável de ambiente `NOTION_TOKEN` (compartilhe o banco de dados com a sua integração). Por padrão, todas as páginas são importadas; defina `publishedValue` para fazer da propriedade `Status` um controle de publicação — qualquer outro valor passa então a ser mapeado para `draft: true`, que os builds de produção descartam. **As URLs de imagem e de vídeo do Notion são assinadas e expiram**, portanto o adaptador as baixa em tempo de build para os assets do site e reescreve as referências — um asset de CMS nunca apodrece um build estático. As chamadas à API são ritmadas por um pequeno pool de requisições (3 por vez, correspondendo ao limite de taxa por integração do Notion), de modo que bancos de dados com centenas de páginas são importados sem esbarrar em respostas `429`; defina `concurrency` na fonte para ajustar isso.
 
 ## Preview e sincronização [#preview-and-sync]
 

@@ -160,3 +160,24 @@ Regenerate the project with blume dev.
 :::warning[バージョン固定]
 このパッチは特定の oxfmt ビルドを対象としています — その差分は、リリースごとにハッシュ化された名前を持つファイル（`dist/markdown-*.js`）を参照しています。oxfmt を更新する際は、パッチを再生成する（例: `bun patch oxfmt`）か、上流の修正が取り込まれてパッチが不要になっていないか確認してください。
 :::
+
+## なぜ Knip は `blume.config.ts` の依存関係を未使用と報告するのですか？ [#why-does-knip-report-my-blumeconfigts-dependencies-as-unused]
+
+[Knip](https://knip.dev) は、エントリポイントだと分かっているファイルからのインポートしか追跡せず、それらは組み込みプラグインから学習します。Blume 用のプラグインはまだ存在せず、Knip の Astro プラグインも有効になりません: このプラグインはあなた自身の `package.json` に `astro` があるかを探しますが、Blume プロジェクトが依存しているのは `blume` であり、生成される `.blume/` の Astro プロジェクトは gitignore されているため、Knip がそれを見ることはありません。`blume.config.ts` を参照するものが何もないため、そこでインポートされているパッケージはすべて未使用として報告されてしまいます。
+
+Blume がプロジェクトルートから読み込むファイルをエントリとして登録してください。`knip.json` では:
+
+```json knip.json
+{
+  "entry": [
+    "blume.config.{ts,mjs,js}",
+    "components.{ts,tsx}",
+    "islands/**/*.{ts,tsx}",
+    "pages/**/*"
+  ]
+}
+```
+
+モノレポでは、同じ `entry` のリストを `workspaces` 内のドキュメント用ワークスペース配下に置いてください。使っていない規約の行は削除してかまいません — `components.ts` は[コンポーネントのオーバーライド](/docs/configuration/customization#component-overrides)、`islands/` は[インタラクティブなアイランド](/docs/configuration/customization#interactive-islands)、`pages/` は[カスタムページ](/docs/configuration/customization#custom-pages)のためのものです（最後の 1 つは `content.pages` を変更している場合に合わせて調整してください）。
+
+Knip が追跡できるのは実際のインポートだけです。文字列の中でしか名前が出てこないパッケージ — たとえば `injectScript("page", "import('some-package')")` を呼び出す [Astro インテグレーション](/docs/configuration/customization#astro-integrations) — には、依然として `ignoreDependencies` のエントリが必要です。

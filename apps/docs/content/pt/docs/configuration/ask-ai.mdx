@@ -167,6 +167,22 @@ ai: {
 
 Defina `apiKeyEnv` (e, para os provedores nomeados, `baseUrl`) em qualquer backend para apontar para uma variável de ambiente ou proxy diferente.
 
+Para enviar cabeçalhos de requisição estáticos em toda chamada — um cabeçalho que identifica quem chama num backend compartilhado, por exemplo, para que a observabilidade ou a limitação de taxa dele consiga distinguir a sua documentação do restante do tráfego — defina `headers`. Funciona em todos os backends, inclusive no gateway:
+
+```ts blume.config.ts lineNumbers
+ai: {
+  ask: {
+    enabled: true,
+    provider: "openai-compatible",
+    baseUrl: "https://llm.internal.example.com/v1",
+    apiKeyEnv: "INTERNAL_LLM_API_KEY",
+    headers: { "X-Caller-Id": "docs" },
+  },
+}
+```
+
+Os valores são escritos na rota gerada como estão, então mantenha os segredos em `apiKeyEnv` em vez de em `headers`. O cabeçalho `Authorization` da chave de API é aplicado primeiro, então um cabeçalho personalizado não consegue substituí-lo.
+
 :::note
 O **Inkeep** responde a partir do conteúdo que você indexou no painel do Inkeep — ele roda a própria recuperação — então o Blume o deixa sem fundamentação. Todos os outros backends são [fundamentados](#grounding) nas páginas deste site.
 :::

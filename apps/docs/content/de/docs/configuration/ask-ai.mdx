@@ -167,6 +167,22 @@ ai: {
 
 Setze `apiKeyEnv` (und für die benannten Provider `baseUrl`) bei jedem Backend, um auf eine andere Umgebungsvariable oder einen Proxy zu zeigen.
 
+Um bei jedem Aufruf statische Request-Header mitzusenden — etwa einen Header, der den Aufrufer identifiziert, bei einem gemeinsam genutzten Backend, damit dessen eigene Observability oder sein Rate Limiting deine Docs von anderem Traffic unterscheiden kann — setze `headers`. Das funktioniert bei jedem Backend, auch beim Gateway:
+
+```ts blume.config.ts lineNumbers
+ai: {
+  ask: {
+    enabled: true,
+    provider: "openai-compatible",
+    baseUrl: "https://llm.internal.example.com/v1",
+    apiKeyEnv: "INTERNAL_LLM_API_KEY",
+    headers: { "X-Caller-Id": "docs" },
+  },
+}
+```
+
+Die Werte werden unverändert in die generierte Route geschrieben, halte Secrets also in `apiKeyEnv` statt in `headers`. Der `Authorization`-Header des API-Keys wird zuerst angewendet, ein eigener Header kann ihn also nicht verdrängen.
+
 :::note
 **Inkeep** antwortet anhand der Inhalte, die du im Inkeep-Dashboard indexiert hast — es führt sein eigenes Retrieval aus — deshalb lässt Blume es ungegroundet. Jedes andere Backend ist in den Seiten dieser Site [verankert](#grounding).
 :::

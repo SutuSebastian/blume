@@ -161,3 +161,24 @@ Aplique um patch no oxfmt para que ele preserve a quebra de linha que fica encos
 :::warning[Fixado em uma versão]
 O patch tem como alvo um build específico do oxfmt — o diff dele referencia um arquivo cujo nome tem um hash por release (`dist/markdown-*.js`). Quando você atualizar o oxfmt, regere o patch (por exemplo, `bun patch oxfmt`) ou verifique se a correção upstream já chegou e o patch não é mais necessário.
 :::
+
+## Por que o Knip reporta as dependências do meu `blume.config.ts` como não usadas? [#why-does-knip-report-my-blumeconfigts-dependencies-as-unused]
+
+O [Knip](https://knip.dev) só segue imports a partir de arquivos que ele sabe que são pontos de entrada, e ele descobre isso pelos plugins integrados dele. Ainda não existe um plugin do Blume, e o plugin do Astro do Knip também não é ativado: ele procura `astro` no seu próprio `package.json`, mas um projeto Blume depende do `blume`, e o projeto Astro gerado em `.blume/` está no gitignore, então o Knip nunca o enxerga. Nada referencia o `blume.config.ts`, então qualquer pacote que ele importa acaba sendo reportado como não usado.
+
+Registre como entries os arquivos que o Blume carrega a partir da raiz do seu projeto. No `knip.json`:
+
+```json knip.json
+{
+  "entry": [
+    "blume.config.{ts,mjs,js}",
+    "components.{ts,tsx}",
+    "islands/**/*.{ts,tsx}",
+    "pages/**/*"
+  ]
+}
+```
+
+Em um monorepo, coloque essa mesma lista de `entry` sob o workspace da documentação em `workspaces`. Remova qualquer linha de uma convenção que você não usa — `components.ts` para [substituições de componentes](/docs/configuration/customization#component-overrides), `islands/` para [ilhas interativas](/docs/configuration/customization#interactive-islands) e `pages/` para [páginas personalizadas](/docs/configuration/customization#custom-pages) (ajuste a última se você tiver mudado o `content.pages`).
+
+O Knip só consegue seguir imports reais. Um pacote que só aparece nomeado dentro de uma string — digamos, uma [integração do Astro](/docs/configuration/customization#astro-integrations) que chama `injectScript("page", "import('some-package')")` — ainda precisa de uma entrada em `ignoreDependencies`.

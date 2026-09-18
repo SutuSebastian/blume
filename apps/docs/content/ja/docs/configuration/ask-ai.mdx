@@ -167,6 +167,22 @@ ai: {
 
 いずれのバックエンドでも `apiKeyEnv`（および名前付きプロバイダーの場合は `baseUrl`）を設定すれば、別の環境変数やプロキシを指定できます。
 
+すべての呼び出しで静的なリクエストヘッダーを送信するには、`headers` を設定します。たとえば共有バックエンドに対して呼び出し元を識別するヘッダーを付与すれば、そのバックエンド側の可観測性やレート制限がドキュメントからのトラフィックを他のトラフィックと区別できます。これはゲートウェイを含むすべてのバックエンドで動作します。
+
+```ts blume.config.ts lineNumbers
+ai: {
+  ask: {
+    enabled: true,
+    provider: "openai-compatible",
+    baseUrl: "https://llm.internal.example.com/v1",
+    apiKeyEnv: "INTERNAL_LLM_API_KEY",
+    headers: { "X-Caller-Id": "docs" },
+  },
+}
+```
+
+値は生成されたルートにそのまま書き込まれるため、シークレットは `headers` ではなく `apiKeyEnv` に保持してください。API キーの `Authorization` ヘッダーが最初に適用されるため、カスタムヘッダーがそれを置き換えることはできません。
+
 :::note
 **Inkeep** は Inkeep ダッシュボードでインデックス化したコンテンツから回答し、独自の検索を実行するため、Blume はグラウンディングを適用しません。それ以外のすべてのバックエンドは、このサイトのページに[グラウンディング](#grounding)されます。
 :::

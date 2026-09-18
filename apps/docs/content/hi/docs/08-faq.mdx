@@ -161,3 +161,24 @@ oxfmt को इस तरह पैच करें कि वह उस ला
 :::warning[संस्करण-निर्धारित]
 यह पैच एक विशिष्ट oxfmt बिल्ड को लक्षित करता है — इसका diff एक ऐसी फ़ाइल का संदर्भ देता है जिसका नाम हर रिलीज़ पर हैश किया जाता है (`dist/markdown-*.js`)। जब आप oxfmt को अपग्रेड करें, तो पैच को फिर से जनरेट करें (उदाहरण के लिए `bun patch oxfmt`) या जाँचें कि क्या अपस्ट्रीम फ़िक्स आ चुका है और पैच की अब ज़रूरत नहीं है।
 :::
+
+## Knip मेरी `blume.config.ts` डिपेंडेंसीज़ को अनयूज़्ड क्यों बताता है? [#why-does-knip-report-my-blumeconfigts-dependencies-as-unused]
+
+[Knip](https://knip.dev) केवल उन्हीं फ़ाइलों से imports का अनुसरण करता है जिन्हें वह एंट्री पॉइंट्स के रूप में जानता है, और यह जानकारी उसे अपने बिल्ट-इन प्लगइन्स से मिलती है। अभी तक कोई Blume प्लगइन नहीं है, और Knip का Astro प्लगइन भी सक्रिय नहीं होता: वह आपके अपने `package.json` में `astro` खोजता है, लेकिन एक Blume प्रोजेक्ट `blume` पर निर्भर करता है, और जनरेट किया गया `.blume/` Astro प्रोजेक्ट gitignored होता है, इसलिए Knip उसे कभी देख ही नहीं पाता। `blume.config.ts` का कोई संदर्भ नहीं देता, इसलिए वह जो भी पैकेज import करता है उसे अनयूज़्ड बता दिया जाता है।
+
+Blume आपके प्रोजेक्ट रूट से जिन फ़ाइलों को लोड करता है, उन्हें entries के रूप में रजिस्टर करें। `knip.json` में:
+
+```json knip.json
+{
+  "entry": [
+    "blume.config.{ts,mjs,js}",
+    "components.{ts,tsx}",
+    "islands/**/*.{ts,tsx}",
+    "pages/**/*"
+  ]
+}
+```
+
+मोनोरिपो में, इसके बजाय यही `entry` सूची `workspaces` के अंतर्गत डॉक्स वर्कस्पेस में रखें। जिस परंपरा का आप उपयोग नहीं करते, उसकी लाइन हटा दें — [कंपोनेंट ओवरराइड्स](/docs/configuration/customization#component-overrides) के लिए `components.ts`, [इंटरैक्टिव आइलैंड्स](/docs/configuration/customization#interactive-islands) के लिए `islands/`, और [कस्टम पेजेज़](/docs/configuration/customization#custom-pages) के लिए `pages/` (यदि आपने `content.pages` बदला है तो आख़िरी वाली को समायोजित करें)।
+
+Knip केवल वास्तविक imports का ही अनुसरण कर सकता है। ऐसा पैकेज जिसका नाम केवल किसी स्ट्रिंग के भीतर आता है — जैसे कोई [Astro इंटीग्रेशन](/docs/configuration/customization#astro-integrations) जो `injectScript("page", "import('some-package')")` कॉल करता है — उसके लिए अब भी एक `ignoreDependencies` एंट्री की ज़रूरत होती है।

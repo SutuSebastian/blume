@@ -161,3 +161,24 @@ Patche oxfmt so, dass es den Zeilenumbruch erhält, der direkt an einer `:::`-Au
 :::warning[An eine Version gebunden]
 Der Patch zielt auf einen bestimmten oxfmt-Build ab — sein Diff verweist auf eine Datei, deren Name pro Release gehasht wird (`dist/markdown-*.js`). Wenn du oxfmt aktualisierst, erzeuge den Patch neu (z. B. mit `bun patch oxfmt`) oder prüfe, ob die Korrektur upstream gelandet ist und der Patch nicht mehr nötig ist.
 :::
+
+## Warum meldet Knip die Abhängigkeiten meiner `blume.config.ts` als ungenutzt? [#why-does-knip-report-my-blumeconfigts-dependencies-as-unused]
+
+[Knip](https://knip.dev) verfolgt nur Importe aus Dateien, von denen es weiß, dass sie Einstiegspunkte sind, und das erfährt es über seine eingebauten Plugins. Ein Blume-Plugin gibt es noch nicht, und Knips Astro-Plugin springt ebenfalls nicht an: Es sucht nach `astro` in deiner eigenen `package.json`, aber ein Blume-Projekt hängt von `blume` ab, und das erzeugte Astro-Projekt in `.blume/` steht in der Gitignore, sodass Knip es nie zu Gesicht bekommt. Nichts verweist auf `blume.config.ts`, also wird jedes Paket, das sie importiert, als ungenutzt gemeldet.
+
+Registriere die Dateien, die Blume aus deinem Projekt-Stammverzeichnis lädt, als Einstiegspunkte. In `knip.json`:
+
+```json knip.json
+{
+  "entry": [
+    "blume.config.{ts,mjs,js}",
+    "components.{ts,tsx}",
+    "islands/**/*.{ts,tsx}",
+    "pages/**/*"
+  ]
+}
+```
+
+In einem Monorepo legst du dieselbe `entry`-Liste stattdessen unter dem Docs-Workspace in `workspaces` ab. Lass jede Zeile weg, deren Konvention du nicht nutzt — `components.ts` für [Komponenten-Overrides](/docs/configuration/customization#component-overrides), `islands/` für [interaktive Islands](/docs/configuration/customization#interactive-islands) und `pages/` für [eigene Seiten](/docs/configuration/customization#custom-pages) (passe Letzteres an, wenn du `content.pages` geändert hast).
+
+Knip kann nur echten Importen folgen. Ein Paket, das nur innerhalb einer Zeichenkette genannt wird — etwa eine [Astro-Integration](/docs/configuration/customization#astro-integrations), die `injectScript("page", "import('some-package')")` aufruft — braucht weiterhin einen Eintrag unter `ignoreDependencies`.
