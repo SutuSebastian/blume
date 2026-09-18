@@ -1080,16 +1080,23 @@ export const askEndpointTemplate = (
   ];
   let setup = "";
   let modelExpr = JSON.stringify(backend.model);
+  // `ai.ask.headers`, inlined as literals: every provider factory below takes
+  // the same `headers` option, so one line serves all three.
+  const headersField = backend.headers
+    ? `\n  headers: ${JSON.stringify(backend.headers)},`
+    : "";
   if (backend.kind === "gateway") {
-    setup = `\nconst gateway = createGateway({ apiKey: getSecret("AI_GATEWAY_API_KEY") });\n`;
+    setup = `\nconst gateway = createGateway({
+  apiKey: getSecret("AI_GATEWAY_API_KEY"),${headersField}
+});\n`;
     modelExpr = `gateway(${JSON.stringify(backend.model)})`;
   } else if (backend.kind === "openrouter") {
     imports.push(
       'import { createOpenRouter } from "@openrouter/ai-sdk-provider";'
     );
-    setup = `\nconst openrouter = createOpenRouter({ apiKey: getSecret(${JSON.stringify(
-      backend.apiKeyEnv
-    )}) });\n`;
+    setup = `\nconst openrouter = createOpenRouter({
+  apiKey: getSecret(${JSON.stringify(backend.apiKeyEnv)}),${headersField}
+});\n`;
     modelExpr = `openrouter(${JSON.stringify(backend.model)})`;
   } else if (backend.kind === "openai-compatible") {
     imports.push(
@@ -1097,7 +1104,7 @@ export const askEndpointTemplate = (
     );
     setup = `\nconst provider = createOpenAICompatible({
   apiKey: getSecret(${JSON.stringify(backend.apiKeyEnv)}),
-  baseURL: ${JSON.stringify(backend.baseUrl)},
+  baseURL: ${JSON.stringify(backend.baseUrl)},${headersField}
   name: ${JSON.stringify(backend.name)},
 });\n`;
     modelExpr = `provider(${JSON.stringify(backend.model)})`;

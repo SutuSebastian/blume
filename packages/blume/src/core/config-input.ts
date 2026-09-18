@@ -724,6 +724,13 @@ export interface AskConfig {
    */
   endpoint?: string;
   /**
+   * Static request headers sent to the provider on every call — a
+   * caller-identifying header for a shared backend, for example. Values are
+   * written into the generated route as literals, so keep secrets in
+   * `apiKeyEnv` rather than here.
+   */
+  headers?: Record<string, string>;
+  /**
    * Extra system-prompt text appended to the built-in instructions — use it
    * for identity, language, or tone. The built-in grounding behavior (answer
    * from the retrieved excerpts, cite pages as Markdown links) is preserved.

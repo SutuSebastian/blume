@@ -7,15 +7,30 @@ import type { AskAiConfig } from "../core/schema.ts";
  * AI SDK's OpenAI-compatible provider.
  */
 export type AskBackend =
-  | { kind: "gateway"; model: string }
-  | { apiKeyEnv: string; kind: "openrouter"; model: string }
+  | { headers?: AskHeaders; kind: "gateway"; model: string }
+  | {
+      apiKeyEnv: string;
+      headers?: AskHeaders;
+      kind: "openrouter";
+      model: string;
+    }
   | {
       apiKeyEnv: string;
       baseUrl: string;
+      headers?: AskHeaders;
       kind: "openai-compatible";
       model: string;
       name: string;
     };
+
+/**
+ * Static request headers (`ai.ask.headers`) every backend forwards to its
+ * provider factory. Every provider Blume generates against accepts the same
+ * `headers` option, so the map travels unchanged; the OpenAI-compatible
+ * provider applies them after the `Authorization` header it derives from the
+ * API key, so a custom header can't displace auth.
+ */
+export type AskHeaders = Record<string, string>;
 
 interface AskPreset {
   apiKeyEnv: string;
@@ -69,17 +84,28 @@ const ASK_PRESETS: AskPresetRegistry = {
 
 const DEFAULT_MODEL = "openai/gpt-5.5";
 
+/**
+ * The `headers` field every backend variant shares. An empty map is dropped so
+ * the generated route only carries a `headers` option when there is something
+ * to send.
+ */
+const askHeadersField = (ask?: AskAiConfig): { headers?: AskHeaders } =>
+  ask?.headers && Object.keys(ask.headers).length > 0
+    ? { headers: ask.headers }
+    : {};
+
 /** Resolve the `ai.ask` config into the backend the endpoint is built against. */
 export const resolveAskBackend = (ask?: AskAiConfig): AskBackend => {
   const provider = ask?.provider ?? "gateway";
   const model = ask?.model ?? DEFAULT_MODEL;
+  const headers = askHeadersField(ask);
   if (provider === "gateway") {
-    return { kind: "gateway", model };
+    return { ...headers, kind: "gateway", model };
   }
   const preset = ASK_PRESETS[provider];
   const apiKeyEnv = ask?.apiKeyEnv ?? preset?.apiKeyEnv ?? "API_KEY";
   if (provider === "openrouter") {
-    return { apiKeyEnv, kind: "openrouter", model };
+    return { apiKeyEnv, ...headers, kind: "openrouter", model };
   }
   // `llmgateway`, `inkeep`, and the generic `openai-compatible` provider all
   // stream through the AI SDK's OpenAI-compatible provider. The schema requires
@@ -87,6 +113,7 @@ export const resolveAskBackend = (ask?: AskAiConfig): AskBackend => {
   return {
     apiKeyEnv,
     baseUrl: ask?.baseUrl ?? preset?.baseUrl ?? "",
+    ...headers,
     kind: OPENAI_COMPATIBLE,
     model,
     name: preset?.name ?? OPENAI_COMPATIBLE,

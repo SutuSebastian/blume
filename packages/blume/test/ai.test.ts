@@ -1977,9 +1977,55 @@ describe("resolveAskBackend", () => {
       name: "openai-compatible",
     });
   });
+
+  it("carries ai.ask.headers on every backend kind", () => {
+    const headers = { "X-Caller-Id": "docs" };
+    expect(resolveAskBackend(askConfig({ headers }))).toStrictEqual({
+      headers,
+      kind: "gateway",
+      model: "openai/gpt-5.5",
+    });
+    expect(
+      resolveAskBackend(askConfig({ headers, provider: "openrouter" }))
+    ).toStrictEqual({
+      apiKeyEnv: "OPENROUTER_API_KEY",
+      headers,
+      kind: "openrouter",
+      model: "openai/gpt-5.5",
+    });
+    expect(
+      resolveAskBackend(askConfig({ headers, provider: "llmgateway" }))
+    ).toMatchObject({ headers, kind: "openai-compatible" });
+  });
+
+  it("drops an empty headers map so the route carries no headers option", () => {
+    expect(resolveAskBackend(askConfig({ headers: {} }))).toStrictEqual({
+      kind: "gateway",
+      model: "openai/gpt-5.5",
+    });
+    expect(
+      resolveAskBackend(askConfig({ headers: {}, provider: "openrouter" }))
+    ).not.toHaveProperty("headers");
+    expect(
+      resolveAskBackend(askConfig({ headers: {}, provider: "inkeep" }))
+    ).not.toHaveProperty("headers");
+  });
 });
 
 describe("ai.ask schema", () => {
+  it("accepts a string-valued headers map and rejects other values", () => {
+    expect(
+      blumeConfigSchema.parse({
+        ai: { ask: { enabled: true, headers: { "X-Caller-Id": "docs" } } },
+      }).ai.ask?.headers
+    ).toStrictEqual({ "X-Caller-Id": "docs" });
+    expect(() =>
+      blumeConfigSchema.parse({
+        ai: { ask: { enabled: true, headers: { "X-Retries": 3 } } },
+      })
+    ).toThrow();
+  });
+
   it("requires baseUrl for the openai-compatible provider", () => {
     expect(() =>
       blumeConfigSchema.parse({

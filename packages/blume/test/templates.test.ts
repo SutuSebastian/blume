@@ -1668,11 +1668,65 @@ describe("askEndpointTemplate", () => {
     const out = askEndpointTemplate(resolveAskBackend(), true);
     expect(out).toContain('import { createGateway, streamText } from "ai";');
     expect(out).toContain(
-      'const gateway = createGateway({ apiKey: getSecret("AI_GATEWAY_API_KEY") });'
+      'const gateway = createGateway({\n  apiKey: getSecret("AI_GATEWAY_API_KEY"),\n});'
     );
     expect(out).toContain('model: gateway("openai/gpt-5.5")');
     expect(out).not.toContain("createOpenRouter");
     expect(out).not.toContain("process.env");
+    expect(out).not.toContain("headers:");
+  });
+
+  it("inlines ai.ask.headers into every provider factory", () => {
+    const headers = { "X-Caller-Id": "docs", "X-Team": "platform" };
+    const expected = `  headers: ${JSON.stringify(headers)},`;
+
+    const gateway = askEndpointTemplate(
+      resolveAskBackend(askConfig({ enabled: true, headers })),
+      true
+    );
+    expect(gateway).toContain(
+      `createGateway({\n  apiKey: getSecret("AI_GATEWAY_API_KEY"),\n${expected}\n});`
+    );
+
+    const openrouter = askEndpointTemplate(
+      resolveAskBackend(
+        askConfig({ enabled: true, headers, provider: "openrouter" })
+      ),
+      true
+    );
+    expect(openrouter).toContain(
+      `createOpenRouter({\n  apiKey: getSecret("OPENROUTER_API_KEY"),\n${expected}\n});`
+    );
+
+    const compatible = askEndpointTemplate(
+      resolveAskBackend(
+        askConfig({
+          baseUrl: "https://api.example.com/v1",
+          enabled: true,
+          headers,
+          provider: "openai-compatible",
+        })
+      ),
+      true
+    );
+    // Sits between the key and the name so the API key's `Authorization`
+    // header is applied first and custom headers can't displace it.
+    expect(compatible).toContain(
+      `  apiKey: getSecret("API_KEY"),\n  baseURL: "https://api.example.com/v1",\n${expected}\n  name: "openai-compatible",`
+    );
+  });
+
+  it("leaves headers out of the factories when the map is empty", () => {
+    const out = askEndpointTemplate(
+      resolveAskBackend(
+        askConfig({ enabled: true, headers: {}, provider: "openrouter" })
+      ),
+      true
+    );
+    expect(out).toContain(
+      'createOpenRouter({\n  apiKey: getSecret("OPENROUTER_API_KEY"),\n});'
+    );
+    expect(out).not.toContain("headers:");
   });
 
   it("wires the OpenRouter provider", () => {

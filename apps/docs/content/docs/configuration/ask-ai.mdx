@@ -166,6 +166,22 @@ ai: {
 
 Set `apiKeyEnv` (and, for the named providers, `baseUrl`) on any backend to point at a different env var or proxy.
 
+To send static request headers with every call — a caller-identifying header for a shared backend, say, so its own observability or rate limiting can tell your docs apart from other traffic — set `headers`. It works on every backend, including the gateway:
+
+```ts blume.config.ts lineNumbers
+ai: {
+  ask: {
+    enabled: true,
+    provider: "openai-compatible",
+    baseUrl: "https://llm.internal.example.com/v1",
+    apiKeyEnv: "INTERNAL_LLM_API_KEY",
+    headers: { "X-Caller-Id": "docs" },
+  },
+}
+```
+
+The values are written into the generated route as-is, so keep secrets in `apiKeyEnv` rather than in `headers`. The API key's `Authorization` header is applied first, so a custom header can't displace it.
+
 :::note
 **Inkeep** answers from the content you've indexed in the Inkeep dashboard — it runs its own retrieval — so Blume leaves it ungrounded. Every other backend is [grounded](#grounding) in this site's pages.
 :::

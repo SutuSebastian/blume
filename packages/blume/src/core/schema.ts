@@ -877,6 +877,11 @@ const aiConfigSchema = z.strictObject({
       // and host Ask AI in an existing backend. Absolute URLs and root-relative
       // paths are both valid; the built-in request/stream contract is unchanged.
       endpoint: askEndpointSchema.optional(),
+      // Static request headers the generated endpoint sends the provider on
+      // every call (a caller-identifying header for a shared backend, say).
+      // Values are inlined into the generated route as literals, so the API
+      // key stays in `apiKeyEnv`; these are for non-secret metadata.
+      headers: z.record(z.string(), z.string()).optional(),
       // Extra system-prompt text (identity, language, tone) appended to the
       // built-in instructions, so the grounding contract — answer from the
       // retrieved excerpts, cite pages as Markdown links — stays intact.
