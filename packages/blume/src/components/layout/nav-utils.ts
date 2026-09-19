@@ -151,11 +151,20 @@ const isTabSection = (node: NavNode, tabPaths: Set<string>): boolean => {
  * instead of duplicating each tab as a sidebar group. A container left empty by
  * this pruning is dropped too, so no bare heading is stranded. The root tab
  * spans everything, so it never removes anything.
+ *
+ * A group with no tab section anywhere beneath it is kept as the same object:
+ * the stable group ids (`navGroupIds`) and the build-time subtree cache are
+ * both keyed by node identity, so a copy would lose its id — its collapsed
+ * fragment was then requested by a positional name no route serves — and
+ * re-render on every page. A container that did lose a section is rebuilt,
+ * and registered in `ids` under the original's id when the caller passes
+ * the map.
  */
 const withoutTabSections = (
   nodes: NavNode[],
   tabs: NavTab[],
-  root: string
+  root: string,
+  ids?: Map<NavNode, string>
 ): NavNode[] => {
   const tabPaths = new Set<string>();
   for (const tab of tabs) {
@@ -173,11 +182,21 @@ const withoutTabSections = (
         continue;
       }
       if (item.kind === "group") {
-        // A container left empty by pruning is dropped, so no bare heading is
-        // stranded.
         const children = prune(item.children);
-        if (children.length > 0) {
-          kept.push({ ...item, children });
+        if (
+          children.length === item.children.length &&
+          children.every((child, index) => child === item.children[index])
+        ) {
+          kept.push(item);
+        } else if (children.length > 0) {
+          // A container left empty by pruning is dropped, so no bare heading
+          // is stranded.
+          const rebuilt = { ...item, children };
+          const id = ids?.get(item);
+          if (ids && id !== undefined) {
+            ids.set(rebuilt, id);
+          }
+          kept.push(rebuilt);
         }
       } else {
         kept.push(item);
@@ -212,18 +231,23 @@ const withoutTabSections = (
  * would leak every *other* tab's section (e.g. the OpenAPI operations) onto the
  * page. On a route under no tab, hiding the tab sections falls back to the full
  * sidebar only when it would otherwise blank, so an un-tabbed route stays full.
+ *
+ * `ids` is the full tree's group id map (`navGroupIds`); the un-tabbed view
+ * registers every container it rebuilds there so the renderer resolves the
+ * same ids for it as for the full tree.
  */
 export const sidebarForRoute = (
   sidebar: NavNode[],
   tabs: NavTab[],
   route: string,
-  root = "/"
+  root = "/",
+  ids?: Map<NavNode, string>
 ): NavNode[] => {
   const tab = activeTabForRoute(tabs, route);
   if (tab && !isRootTab(tab, root)) {
     return sectionChildren(sidebar, tab.path) ?? [];
   }
-  const scoped = withoutTabSections(sidebar, tabs, root);
+  const scoped = withoutTabSections(sidebar, tabs, root, ids);
   return scoped.length > 0 ? scoped : sidebar;
 };
 

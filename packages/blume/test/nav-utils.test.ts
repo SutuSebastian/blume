@@ -3,6 +3,7 @@ import { describe, expect, it } from "bun:test";
 import {
   activeTabForRoute,
   currentTabForRoute,
+  navGroupIds,
   sidebarForRoute,
 } from "../src/components/layout/nav-utils.ts";
 import type { NavNode, NavTab } from "../src/core/types.ts";
@@ -37,6 +38,10 @@ const TABS: NavTab[] = [
 ];
 
 const labels = (nodes: NavNode[]): string[] => nodes.map((node) => node.label);
+
+/** A node's children (a page has none), so tests can walk without asserting. */
+const childrenOf = (node: NavNode | undefined): NavNode[] =>
+  node?.kind === "group" ? node.children : [];
 
 describe("activeTabForRoute", () => {
   it("uses the root tab as a fallback for child routes", () => {
@@ -341,5 +346,51 @@ describe("sidebarForRoute", () => {
     expect(labels(sidebarForRoute(tree, tabs, "/adapters/s3"))).toStrictEqual([
       "S3",
     ]);
+  });
+
+  it("keeps the full tree's groups by identity on a route outside every tab", () => {
+    // The sidebar's stable group ids (`navGroupIds`) and the build-time
+    // subtree cache are both keyed by node identity. Pruning the tab-owned
+    // sections must hand back the untouched groups themselves — a copy would
+    // resolve to no id, so its deferred fragment was requested by a
+    // positional `n.<index>` name that no route serves (#272).
+    const help = group("Help", "/help", [page("FAQ", "/help/faq")]);
+    const tree: NavNode[] = [page("Overview", "/"), help, ...TREE];
+    const ids = navGroupIds(tree);
+    const scoped = sidebarForRoute(tree, TABS, "/changelog", "/", ids);
+    expect(labels(scoped)).toStrictEqual(["Overview", "Help"]);
+    expect(scoped[1]).toBe(help);
+    expect(ids.get(help)).toBe("g0");
+  });
+
+  it("names a container pruned of a tab section by the original's id", () => {
+    // A container holding a tab section next to loose content is rebuilt
+    // without that section, so the rebuilt node is a new object. It inherits
+    // the original's id, so its collapsed fragment still resolves.
+    const guides = group("Guides", "/docs/guides", [
+      page("Intro", "/docs/guides/intro"),
+    ]);
+    const docs = group("Docs", "/docs", [
+      guides,
+      group("API", "/docs/api", [page("Files", "/docs/api/files")]),
+    ]);
+    const tree: NavNode[] = [page("Overview", "/"), docs];
+    const tabs: NavTab[] = [{ label: "API", path: "/docs/api" }];
+    const ids = navGroupIds(tree);
+    const scoped = sidebarForRoute(tree, tabs, "/", "/", ids);
+    expect(labels(scoped)).toStrictEqual(["Overview", "Docs"]);
+    const [, rebuilt] = scoped;
+    expect(rebuilt).not.toBe(docs);
+    expect(labels(childrenOf(rebuilt))).toStrictEqual(["Guides"]);
+    expect(ids.get(rebuilt ?? docs)).toBe("g0");
+    expect(childrenOf(rebuilt)[0]).toBe(guides);
+    expect(ids.get(guides)).toBe("g1");
+  });
+
+  it("resolves a tab section's groups by identity", () => {
+    const ids = navGroupIds(TREE);
+    const scoped = sidebarForRoute(TREE, TABS, "/adapters/s3", "/", ids);
+    expect(scoped).toBe(childrenOf(TREE[0]));
+    expect(ids.size).toBe(2);
   });
 });

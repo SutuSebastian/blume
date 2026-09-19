@@ -575,6 +575,56 @@ it("negotiates Markdown for content routes under deployment.base in dev", async 
   }
 }, 180_000);
 
+it("serves deferred sidebar fragments on a route outside every header tab in dev", async () => {
+  // With header tabs configured, a route under no tab renders the sidebar
+  // minus the tab-owned sections. That pruned view must still address its
+  // collapsed groups by their full-tree ids (`g<n>`) — a positional fallback
+  // (`n.<index>`) names a fragment no route serves, so every group 404ed on
+  // first open (#272).
+  const root = await writeProject({
+    "blume.config.ts": `export default { i18n: { defaultLocale: "de", locales: [{ code: "de", label: "Deutsch" }] }, navigation: { sidebar: { display: "group" }, tabs: [{ label: "API", path: "/api" }] }, ${offlineFontsSource} };\n`,
+    "docs/api/files.md": "---\ntitle: Files\n---\n# Files\n",
+    "docs/guides/advanced/tief.md": "---\ntitle: Tief\n---\n# Tief\n",
+    "docs/guides/erste.md": "---\ntitle: Erste\n---\n# Erste\n",
+    "docs/index.md": "# Start\n",
+    "docs/reference/eins.md": "---\ntitle: Eins\n---\n# Eins\n",
+  });
+  const { output, port, proc } = await startDevReady(root);
+  let failure: unknown;
+  try {
+    const page = await fetch(`http://127.0.0.1:${port}/guides/erste`, {
+      signal: AbortSignal.timeout(60_000),
+    });
+    expect(page.status).toBe(200);
+    const html = await page.text();
+    const fragments = [...new Set(html.match(/\/blume-nav\/[^"'\s]+/gu))];
+    expect(fragments.length).toBeGreaterThan(0);
+    for (const fragment of fragments) {
+      expect(fragment).toMatch(/^\/blume-nav\/current\/default\/g\d+$/u);
+    }
+    const bodies = await Promise.all(
+      fragments.map(async (fragment) => {
+        const response = await fetch(`http://127.0.0.1:${port}${fragment}`, {
+          signal: AbortSignal.timeout(60_000),
+        });
+        expect(response.status).toBe(200);
+        return response.text();
+      })
+    );
+    for (const body of bodies) {
+      expect(body).toContain("blume-nav-link");
+    }
+  } catch (error) {
+    failure = error;
+  } finally {
+    await stopDev(proc);
+  }
+  const [stdout, stderr] = await drainOutput(output);
+  if (failure) {
+    throw new Error(`${String(failure)}\n${stdout}\n${stderr}`);
+  }
+}, 180_000);
+
 it("serves deferred sidebar fragments for an unprefixed default locale in dev", async () => {
   // Astro's i18n routing (prefix-other-locales) 404s any page URL carrying the
   // default locale's code as a segment, so a `/blume-nav/current/de/…` fragment
