@@ -256,13 +256,55 @@ const availablePort = async (): Promise<number> => {
   return port;
 };
 
-const waitForDevServer = (port: number, timeout = 30_000): Promise<void> =>
-  waitUntil(
+/**
+ * Collect a piped stream to a string while handing every growing prefix to
+ * `onText`, so a caller can react to a line the moment it lands instead of
+ * after the process exits.
+ */
+const collectOutput = async (
+  stream: ReadableStream<Uint8Array>,
+  onText: (text: string) => void
+): Promise<string> => {
+  const decoder = new TextDecoder();
+  let text = "";
+  for await (const chunk of stream) {
+    text += decoder.decode(chunk, { stream: true });
+    onText(text);
+  }
+  return text + decoder.decode();
+};
+
+/**
+ * Wait for the dev server to announce its address, then for it to answer.
+ *
+ * The port must not be touched before the announcement. Vite checks that the
+ * requested port is free by binding a throwaway `net.Server` to each wildcard
+ * address and closing it inside its `listening` callback, all before the real
+ * server binds. A readiness connect that lands in that window is accepted by
+ * the throwaway server, and under Bun (which runs the CLI here) `close()`
+ * then never calls back: Vite's availability check hangs, the real server
+ * never listens, and the output ends right after `[content] Synced content`.
+ * Polling the port every 50ms against three sub-millisecond windows hit
+ * about 7% of starts on the Linux runners and never on macOS. Vite prints
+ * `Local http://…` only once the real server is bound, so waiting for that
+ * line makes the first connect safe.
+ */
+const waitForDevServer = async (
+  session: { isListening: () => boolean; port: number },
+  timeout = 30_000
+): Promise<void> => {
+  const expiresAt = Date.now() + timeout;
+  await waitUntil(
+    session.isListening,
+    `Timed out waiting for dev server on port ${session.port}.`,
+    timeout
+  );
+  await waitUntil(
     async () => {
       try {
         // A wedged server can bind the port yet never answer; an unbounded
         // fetch would then hang this poll (and the whole test) forever.
-        await fetch(`http://127.0.0.1:${port}/`, {
+        await fetch(`http://127.0.0.1:${session.port}/`, {
           signal: AbortSignal.timeout(2000),
         });
         return true;
@@ -270,9 +312,10 @@ const waitForDevServer = (port: number, timeout = 30_000): Promise<void> =>
         return false;
       }
     },
-    `Timed out waiting for dev server on port ${port}.`,
-    timeout
+    `Dev server on port ${session.port} announced itself but never answered.`,
+    Math.max(expiresAt - Date.now(), 0)
   );
+};
 
 const startDev = async (root: string) => {
   const port = await availablePort();
@@ -285,11 +328,15 @@ const startDev = async (root: string) => {
       stdout: "pipe",
     }
   );
+  // Vite's startup banner names the bound address; see `waitForDevServer`.
+  let listening = false;
   const output = Promise.all([
-    new Response(proc.stdout).text(),
-    new Response(proc.stderr).text(),
+    collectOutput(proc.stdout, (text) => {
+      listening ||= text.includes(`http://127.0.0.1:${port}/`);
+    }),
+    collectOutput(proc.stderr, () => {}),
   ]);
-  return { output, port, proc };
+  return { isListening: () => listening, output, port, proc };
 };
 
 const stopDev = async (
@@ -308,9 +355,11 @@ const stopDev = async (
 
 /**
  * Relaunch once if the dev server never reaches listen. The fixtures' local
- * fonts (see `offlineFontsSource`) remove the known cause — Astro waiting on
- * Google Fonts before listening — so this only guards a persistent startup
- * failure, which still surfaces after the retry.
+ * fonts (see `offlineFontsSource`) and the announcement-gated readiness wait
+ * (see `waitForDevServer`) remove the known causes — Astro waiting on Google
+ * Fonts before listening, and a readiness connect wedging Vite's port check —
+ * so this only guards a persistent startup failure, which still surfaces
+ * after the retry.
  */
 const startDevReady = async (
   root: string,
@@ -318,7 +367,7 @@ const startDevReady = async (
 ): Promise<Awaited<ReturnType<typeof startDev>>> => {
   const session = await startDev(root);
   try {
-    await waitForDevServer(session.port);
+    await waitForDevServer(session);
     return session;
   } catch (error) {
     await stopDev(session.proc);
