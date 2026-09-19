@@ -15,7 +15,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.4.0
+          bun-version: 1.4.2
       - run: bun install --frozen-lockfile
       # Build caches a fresh runner would otherwise rebuild from scratch:
       # Astro's build-mode cache (the content store, digest-keyed so unchanged
@@ -63,7 +63,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.4.0
+          bun-version: 1.4.2
       - run: bun install --frozen-lockfile
       - uses: actions/cache@v6
         name: Restore build caches
