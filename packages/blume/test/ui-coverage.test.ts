@@ -757,13 +757,19 @@ describe("layout chrome sources", () => {
     // every section renders (the cache handles the repeats).
     const source = await layoutSource("NavTree.astro");
     expect(source).toContain(
-      "data-nav-src={open ? undefined : fragmentFor(id)}"
+      "data-nav-src={open ? undefined : fragmentFor(item, id)}"
     );
-    expect(source).toContain("{!open && fragmentBase ? null : active ? (");
     expect(source).toContain(
-      "data-nav-src={panel.active ? undefined : fragmentFor(panel.id)}"
+      "{!open && fragmentFor(item, id) ? null : active ? ("
     );
-    expect(source).toContain(") : fragmentBase ? null : (");
+    expect(source).toContain(
+      "const src = panel.active ? undefined : fragmentFor(panel.node, panel.id);"
+    );
+    expect(source).toContain("data-nav-src={src}");
+    expect(source).toContain(") : src ? null : (");
+    // A group the tab scoping rebuilt has no stable id, so it has no fragment
+    // and renders in full.
+    expect(source).toContain("fragmentBase && (ids?.has(node) ?? true) ?");
     // Ids come from the full tree so scoped views and fragments agree.
     expect(source).toContain(
       `const id = idOf(item, \`\${idPrefix}.\${index}\`);`

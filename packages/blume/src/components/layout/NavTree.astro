@@ -35,7 +35,10 @@ interface Props {
   /**
    * Stable ids for the full sidebar's groups (`navGroupIds`), so panel and
    * fragment ids match across the scoped views the layout renders. Absent,
-   * ids fall back to positions within this render.
+   * ids fall back to positions within this render. A group missing from the
+   * map exists only in this render — a container the tab scoping rebuilt
+   * without a nested tab section — so no fragment can serve it: it renders
+   * in full instead of being deferred.
    */
   ids?: Map<NavNode, string>;
   /**
@@ -63,9 +66,12 @@ const {
 const idOf = (node: NavNode, positional: string): string =>
   ids?.get(node) ?? positional;
 
-/** The fragment a deferred section loads from, when sections are deferred. */
-const fragmentFor = (id: string): string | undefined =>
-  fragmentBase ? `${fragmentBase}/${id}` : undefined;
+/**
+ * The fragment a group's section loads from, when sections are deferred and
+ * the group is one the fragments know (in `ids`, or `ids` is absent).
+ */
+const fragmentFor = (node: NavNode, id: string): string | undefined =>
+  fragmentBase && (ids?.has(node) ?? true) ? `${fragmentBase}/${id}` : undefined;
 
 // Merge over the English defaults so a label missing from a translation (or
 // from a not-yet-regenerated snapshot) still renders instead of coming out
@@ -150,66 +156,56 @@ const initialId =
           strings={n}
         />
       </div>
-      {panels.map((panel) => (
-        <div
-          data-nav-depth={panel.depth}
-          data-nav-panel={panel.id}
-          data-nav-src={panel.active ? undefined : fragmentFor(panel.id)}
-          hidden={panel.id !== initialId}
-        >
-          {/* The title is the only sidebar link to the section's own page, so
-              a routed panel keeps it as a link; without a route the whole row
-              becomes the back button. Either way every part of the row is
-              interactive. */}
-          {panel.route ? (
-            <div class="mb-3 flex items-center gap-0.5">
+      {panels.map((panel) => {
+        const src = panel.active ? undefined : fragmentFor(panel.node, panel.id);
+        return (
+          <div
+            data-nav-depth={panel.depth}
+            data-nav-panel={panel.id}
+            data-nav-src={src}
+            hidden={panel.id !== initialId}
+          >
+            {/* The title is the only sidebar link to the section's own page, so
+                a routed panel keeps it as a link; without a route the whole row
+                becomes the back button. Either way every part of the row is
+                interactive. */}
+            {panel.route ? (
+              <div class="mb-3 flex items-center gap-0.5">
+                <button
+                  aria-label={n.back}
+                  class="-ml-1 flex shrink-0 items-center justify-center self-stretch rounded-[0.65rem] px-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                  data-nav-back={panel.parentId}
+                  type="button"
+                >
+                  <Icon class="rtl:-scale-x-100" name="arrow-left" size={16} />
+                </button>
+                <a
+                  aria-current={panel.route === currentRoute ? "page" : undefined}
+                  class="flex-1 truncate rounded-[0.65rem] px-1 py-1 font-semibold text-foreground text-sm transition-colors hover:bg-muted"
+                  href={withBase(panel.route)}
+                >
+                  {panel.label}
+                </a>
+              </div>
+            ) : (
               <button
-                aria-label={n.back}
-                class="-ml-1 flex shrink-0 items-center justify-center self-stretch rounded-[0.65rem] px-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                aria-label={`${n.back}: ${panel.label}`}
+                class="-ml-1 mb-3 flex w-full items-center gap-1.5 rounded-[0.65rem] p-1 text-left font-semibold text-foreground text-sm transition-colors hover:bg-muted"
                 data-nav-back={panel.parentId}
                 type="button"
               >
-                <Icon class="rtl:-scale-x-100" name="arrow-left" size={16} />
+                <Icon
+                  class="shrink-0 text-muted-foreground rtl:-scale-x-100"
+                  name="arrow-left"
+                  size={16}
+                />
+                <span class="flex-1 truncate">{panel.label}</span>
               </button>
-              <a
-                aria-current={panel.route === currentRoute ? "page" : undefined}
-                class="flex-1 truncate rounded-[0.65rem] px-1 py-1 font-semibold text-foreground text-sm transition-colors hover:bg-muted"
-                href={withBase(panel.route)}
-              >
-                {panel.label}
-              </a>
-            </div>
-          ) : (
-            <button
-              aria-label={`${n.back}: ${panel.label}`}
-              class="-ml-1 mb-3 flex w-full items-center gap-1.5 rounded-[0.65rem] p-1 text-left font-semibold text-foreground text-sm transition-colors hover:bg-muted"
-              data-nav-back={panel.parentId}
-              type="button"
-            >
-              <Icon
-                class="shrink-0 text-muted-foreground rtl:-scale-x-100"
-                name="arrow-left"
-                size={16}
-              />
-              <span class="flex-1 truncate">{panel.label}</span>
-            </button>
-          )}
-          {/* An inactive panel's contents are deferred (fetched into this
-              element on drill-in) when fragments are on; otherwise the
-              build-time cache renders them once. */}
-          {panel.active ? (
-            <Self
-              currentRoute={currentRoute}
-              depth={1}
-              fragmentBase={fragmentBase}
-              idPrefix={panel.id}
-              ids={ids}
-              items={panel.children}
-              root={false}
-              strings={n}
-            />
-          ) : fragmentBase ? null : (
-            <NavTreeCache node={panel.node} variant={`${panel.id}|${n.back}|${n.deprecated}`}>
+            )}
+            {/* An inactive panel's contents are deferred (fetched into this
+                element on drill-in) when it has a fragment; otherwise the
+                build-time cache renders them once. */}
+            {panel.active ? (
               <Self
                 currentRoute={currentRoute}
                 depth={1}
@@ -220,10 +216,23 @@ const initialId =
                 root={false}
                 strings={n}
               />
-            </NavTreeCache>
-          )}
-        </div>
-      ))}
+            ) : src ? null : (
+              <NavTreeCache node={panel.node} variant={`${panel.id}|${n.back}|${n.deprecated}`}>
+                <Self
+                  currentRoute={currentRoute}
+                  depth={1}
+                  fragmentBase={fragmentBase}
+                  idPrefix={panel.id}
+                  ids={ids}
+                  items={panel.children}
+                  root={false}
+                  strings={n}
+                />
+              </NavTreeCache>
+            )}
+          </div>
+        );
+      })}
     </blume-nav>
   ) : (
     <ul class="m-0 list-none space-y-px p-0">
@@ -362,11 +371,11 @@ const initialId =
                 </summary>
                 <div
                   class="space-y-0.5 border-border border-l pl-3"
-                  data-nav-src={open ? undefined : fragmentFor(id)}
+                  data-nav-src={open ? undefined : fragmentFor(item, id)}
                 >
                   {/* A closed group's children are deferred (fetched into this
-                      element on first open) when fragments are on. */}
-                  {!open && fragmentBase ? null : active ? (
+                      element on first open) when it has a fragment. */}
+                  {!open && fragmentFor(item, id) ? null : active ? (
                     <Self
                       currentRoute={currentRoute}
                       depth={depth + 1}

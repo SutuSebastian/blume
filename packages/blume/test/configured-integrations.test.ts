@@ -580,23 +580,33 @@ it("serves deferred sidebar fragments on a route outside every header tab in dev
   // minus the tab-owned sections. That pruned view must still address its
   // collapsed groups by their full-tree ids (`g<n>`) — a positional fallback
   // (`n.<index>`) names a fragment no route serves, so every group 404ed on
-  // first open (#272).
+  // first open (#272). A container that lost a nested tab section (Guides,
+  // minus the SDK tab) has no fragment at all: one would render the full
+  // tree's version, section included, so it renders in full instead.
   const root = await writeProject({
-    "blume.config.ts": `export default { i18n: { defaultLocale: "de", locales: [{ code: "de", label: "Deutsch" }] }, navigation: { sidebar: { display: "group" }, tabs: [{ label: "API", path: "/api" }] }, ${offlineFontsSource} };\n`,
+    "blume.config.ts": `export default { i18n: { defaultLocale: "de", locales: [{ code: "de", label: "Deutsch" }] }, navigation: { sidebar: { display: "group" }, tabs: [{ label: "API", path: "/api" }, { label: "SDK", path: "/guides/sdk" }] }, ${offlineFontsSource} };\n`,
     "docs/api/files.md": "---\ntitle: Files\n---\n# Files\n",
     "docs/guides/advanced/tief.md": "---\ntitle: Tief\n---\n# Tief\n",
     "docs/guides/erste.md": "---\ntitle: Erste\n---\n# Erste\n",
+    "docs/guides/sdk/install.md": "---\ntitle: Install\n---\n# Install\n",
     "docs/index.md": "# Start\n",
     "docs/reference/eins.md": "---\ntitle: Eins\n---\n# Eins\n",
   });
   const { output, port, proc } = await startDevReady(root);
   let failure: unknown;
   try {
-    const page = await fetch(`http://127.0.0.1:${port}/guides/erste`, {
+    const page = await fetch(`http://127.0.0.1:${port}/reference/eins`, {
       signal: AbortSignal.timeout(60_000),
     });
     expect(page.status).toBe(200);
     const html = await page.text();
+    // Neither tab section is in the sidebar (the header tabs still link to
+    // them); the rebuilt Guides container renders its remaining rows inline.
+    const sidebar =
+      html.match(/<nav data-blume-nav-tree>[\s\S]*?<\/nav>/u)?.[0] ?? "";
+    expect(sidebar).not.toContain("/api/files");
+    expect(sidebar).not.toContain("/guides/sdk/install");
+    expect(sidebar).toContain("/guides/erste");
     const fragments = [...new Set(html.match(/\/blume-nav\/[^"'\s]+/gu))];
     expect(fragments.length).toBeGreaterThan(0);
     for (const fragment of fragments) {
@@ -613,6 +623,7 @@ it("serves deferred sidebar fragments on a route outside every header tab in dev
     );
     for (const body of bodies) {
       expect(body).toContain("blume-nav-link");
+      expect(body).not.toContain("/guides/sdk/install");
     }
   } catch (error) {
     failure = error;

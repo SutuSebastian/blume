@@ -400,17 +400,18 @@ const mcpUrl =
 // versionized (`/v1.0`) while tabs stay in current-docs space, so the root
 // tab is matched by containment and the snapshot renders unscoped — the same
 // reason no tab is marked current there (tabs link back to current docs).
-// Stable group ids over the full tree, so the scoped view names its panels
-// and deferred fragments the same way every other page does; the scoping
-// registers any container it rebuilds under the original's id.
-const navIds = navGroupIds(navigation.sidebar);
 const sidebar = sidebarForRoute(
   navigation.sidebar,
   navigation.tabs,
   page.route,
-  navigation.root,
-  navIds
+  navigation.root
 );
+// Stable group ids over the full tree, so the scoped view above names its
+// panels and deferred fragments the same way every other page does. A
+// container the scoping rebuilt is not in the map, and NavTree renders it in
+// full rather than deferring it to a fragment that would render the full
+// tree's version.
+const navIds = navGroupIds(navigation.sidebar);
 const activeTab = currentTabForRoute(
   navigation.tabs,
   page.route,

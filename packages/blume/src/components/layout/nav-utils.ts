@@ -157,14 +157,14 @@ const isTabSection = (node: NavNode, tabPaths: Set<string>): boolean => {
  * both keyed by node identity, so a copy would lose its id — its collapsed
  * fragment was then requested by a positional name no route serves — and
  * re-render on every page. A container that did lose a section is rebuilt,
- * and registered in `ids` under the original's id when the caller passes
- * the map.
+ * so it has no id: the deferred fragments render from the full tree, which
+ * would put the section back, so `NavTree` renders such a container in full
+ * instead (its untouched children still defer by their own ids).
  */
 const withoutTabSections = (
   nodes: NavNode[],
   tabs: NavTab[],
-  root: string,
-  ids?: Map<NavNode, string>
+  root: string
 ): NavNode[] => {
   const tabPaths = new Set<string>();
   for (const tab of tabs) {
@@ -191,12 +191,7 @@ const withoutTabSections = (
         } else if (children.length > 0) {
           // A container left empty by pruning is dropped, so no bare heading
           // is stranded.
-          const rebuilt = { ...item, children };
-          const id = ids?.get(item);
-          if (ids && id !== undefined) {
-            ids.set(rebuilt, id);
-          }
-          kept.push(rebuilt);
+          kept.push({ ...item, children });
         }
       } else {
         kept.push(item);
@@ -231,23 +226,18 @@ const withoutTabSections = (
  * would leak every *other* tab's section (e.g. the OpenAPI operations) onto the
  * page. On a route under no tab, hiding the tab sections falls back to the full
  * sidebar only when it would otherwise blank, so an un-tabbed route stays full.
- *
- * `ids` is the full tree's group id map (`navGroupIds`); the un-tabbed view
- * registers every container it rebuilds there so the renderer resolves the
- * same ids for it as for the full tree.
  */
 export const sidebarForRoute = (
   sidebar: NavNode[],
   tabs: NavTab[],
   route: string,
-  root = "/",
-  ids?: Map<NavNode, string>
+  root = "/"
 ): NavNode[] => {
   const tab = activeTabForRoute(tabs, route);
   if (tab && !isRootTab(tab, root)) {
     return sectionChildren(sidebar, tab.path) ?? [];
   }
-  const scoped = withoutTabSections(sidebar, tabs, root, ids);
+  const scoped = withoutTabSections(sidebar, tabs, root);
   return scoped.length > 0 ? scoped : sidebar;
 };
 

@@ -357,16 +357,18 @@ describe("sidebarForRoute", () => {
     const help = group("Help", "/help", [page("FAQ", "/help/faq")]);
     const tree: NavNode[] = [page("Overview", "/"), help, ...TREE];
     const ids = navGroupIds(tree);
-    const scoped = sidebarForRoute(tree, TABS, "/changelog", "/", ids);
+    const scoped = sidebarForRoute(tree, TABS, "/changelog");
     expect(labels(scoped)).toStrictEqual(["Overview", "Help"]);
     expect(scoped[1]).toBe(help);
     expect(ids.get(help)).toBe("g0");
   });
 
-  it("names a container pruned of a tab section by the original's id", () => {
+  it("rebuilds a container pruned of a nested tab section without an id", () => {
     // A container holding a tab section next to loose content is rebuilt
-    // without that section, so the rebuilt node is a new object. It inherits
-    // the original's id, so its collapsed fragment still resolves.
+    // without that section, so it is a new object with no stable id — the
+    // signal for NavTree to render it in full rather than defer it to a
+    // fragment rendered from the full tree (which would put the section
+    // back). Its untouched children keep their identity and ids.
     const guides = group("Guides", "/docs/guides", [
       page("Intro", "/docs/guides/intro"),
     ]);
@@ -377,19 +379,19 @@ describe("sidebarForRoute", () => {
     const tree: NavNode[] = [page("Overview", "/"), docs];
     const tabs: NavTab[] = [{ label: "API", path: "/docs/api" }];
     const ids = navGroupIds(tree);
-    const scoped = sidebarForRoute(tree, tabs, "/", "/", ids);
+    const scoped = sidebarForRoute(tree, tabs, "/");
     expect(labels(scoped)).toStrictEqual(["Overview", "Docs"]);
     const [, rebuilt] = scoped;
     expect(rebuilt).not.toBe(docs);
+    expect(ids.has(rebuilt ?? docs)).toBe(false);
     expect(labels(childrenOf(rebuilt))).toStrictEqual(["Guides"]);
-    expect(ids.get(rebuilt ?? docs)).toBe("g0");
     expect(childrenOf(rebuilt)[0]).toBe(guides);
     expect(ids.get(guides)).toBe("g1");
   });
 
   it("resolves a tab section's groups by identity", () => {
     const ids = navGroupIds(TREE);
-    const scoped = sidebarForRoute(TREE, TABS, "/adapters/s3", "/", ids);
+    const scoped = sidebarForRoute(TREE, TABS, "/adapters/s3");
     expect(scoped).toBe(childrenOf(TREE[0]));
     expect(ids.size).toBe(2);
   });
