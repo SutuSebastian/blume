@@ -110,6 +110,37 @@ Blume sendet denselben `POST`-Body wie seine eingebaute Route:
 
 Gib eine erfolgreiche Antwort zurück, deren Body ein reiner UTF-8-Textstream ist. Liegt der Endpunkt auf einem anderen Origin, erlaube den Docs-Origin per CORS: akzeptiere `OPTIONS` und `POST`, lasse den Request-Header `content-type` zu und gib die CORS-Header sowohl beim Preflight als auch bei der gestreamten Antwort zurück. Mit gesetztem `endpoint` erzeugt Blume die Chat-UI, aber keine Server-Route, keinen Grounding-Snapshot, keine Provider-Abhängigkeit und keine Warnung zu Provider-Secrets; dein Backend verantwortet Retrieval, Authentifizierung, Rate Limiting, Modellzugriff und Zitate.
 
+## Cross-Origin-Aufrufer [#cross-origin-callers]
+
+Der generierte Endpunkt antwortet dem In-Page-Assistenten auf dessen eigenem Origin. Um ihn auch von einer anderen Site aus aufzurufen — etwa von einer Marketing-Seite mit einem Frage-Feld — führe den Origin dieser Site in `cors` auf:
+
+```ts blume.config.ts lineNumbers
+ai: {
+  ask: {
+    enabled: true,
+    cors: ["https://www.example.com"],
+  },
+}
+```
+
+Die Route antwortet dann auf den `OPTIONS`-Preflight des Browsers und nennt einen aufgeführten Origin bei jeder Antwort — bei der gestreamten Antwort genauso wie bei den Fehler-Status, damit der Aufrufer einen abgelehnten Body von einem Provider-Ausfall unterscheiden kann. Origins, die nicht aufgeführt sind, bekommen keinen Header und bleiben der Same-Origin-Regel des Browsers unterworfen. Jeder Eintrag wird auf seinen Origin reduziert, `https://www.example.com/docs/` und `https://www.example.com` bedeuten also dasselbe. Damit jede Seite die Route aufrufen darf, führe `"*"` statt einzelner Origins auf.
+
+Der Aufrufer sendet denselben `POST`-Body, den der Vertrag für den [externen Endpunkt](#external-endpoint) beschreibt, und liest denselben Textstream zurück. Sende ihn als JSON mit einem `content-type: application/json`-Header:
+
+```ts
+const response = await fetch("https://docs.example.com/api/ask", {
+  body: JSON.stringify({
+    messages: [{ role: "user", content: "How do I deploy?" }],
+  }),
+  headers: { "content-type": "application/json" },
+  method: "POST",
+});
+```
+
+Der Content-Type ist entscheidend: Astros Cross-Site-Request-Prüfung weist einen Cross-Origin-`POST` ohne Content-Type oder mit einem formularartigen wie `text/plain` mit einem 403 ab, bevor die Route läuft, und diese Antwort trägt keine CORS-Header, sodass der Browser sie als Netzwerkfehler statt als Status meldet. Der Preflight erlaubt alle Request-Header, die der Aufrufer anfragt, ein Fetch-Wrapper, der eigene Header hinzufügt, braucht also keine zusätzliche Konfiguration.
+
+`cors` betrifft nur die generierte Route; mit einem externen `endpoint` ist CORS Sache dieses Backends, und beides zugleich zu setzen ist ein Konfigurationsfehler. Der Endpunkt bleibt in beiden Fällen unauthentifiziert, die Hinweise zum [Rate Limiting](#rate-limiting) gelten also auch für Cross-Origin-Traffic.
+
 ## Server-Ausgabe erforderlich [#server-output-required]
 
 Blumes eingebautes Ask-AI-Backend ist eine Server-Route (`POST /api/ask`) und kann daher nicht auf einem statischen Build laufen. Wechsle zur Server-Ausgabe und wähle einen Adapter:
@@ -188,6 +219,22 @@ Die Werte werden unverändert in die generierte Route geschrieben, halte Secrets
 :::
 
 Keys werden über Astros [`getSecret()`](https://docs.astro.build/en/guides/environment-variables/#retrieving-secrets-programmatically) gelesen, sodass jeder Adapter sie auf seine eigene Weise bereitstellt: als Umgebungsvariablen auf Node, Vercel und Netlify und über die [Bindings](https://docs.astro.build/en/guides/integrations-guide/cloudflare/#environment-variables-and-secrets) des Workers auf Cloudflare. Ask AI zu aktivieren schaltet außerdem React für die In-Page-Island ein — siehe [Customization](/docs/configuration/customization#interactive-islands).
+
+## Reasoning
+
+Reasoning-Modelle denken nach, bevor sie antworten, und wie viel sie das standardmäßig tun, unterscheidet sich je Modell. Bei verankerten Docs-Q&A tragen die abgerufenen Auszüge die Antwort, der größte Teil dieses Nachdenkens ist also Latenz, die der Leser aussitzt. `reasoning` legt fest, wie viel das Modell nachdenkt: `"none"`, `"minimal"`, `"low"`, `"medium"`, `"high"` oder `"xhigh"`:
+
+```ts blume.config.ts lineNumbers
+ai: {
+  ask: {
+    enabled: true,
+    model: "openai/gpt-5.5",
+    reasoning: "none",
+  },
+}
+```
+
+Der Wert wird als die eigene Reasoning-Effort-Steuerung des Backends gesendet. Über das Gateway reist er als [`reasoning`-Option des AI SDK](https://ai-sdk.dev/docs/ai-sdk-core/reasoning), die das Gateway auf die Einstellung des Modells abbildet — etwa auf OpenAIs `reasoning_effort`. Bei OpenRouter wird er als `reasoning.effort` gesendet und bei LLMGateway oder einem eigenen `openai-compatible`-Endpunkt als `reasoning_effort` im Request, der Endpunkt muss diesen Parameter also akzeptieren. Das Modell muss die von dir gewählte Stufe unterstützen: OpenAI weist eine Stufe ab, die ein Modell nicht anbietet (`"none"` und `"xhigh"` gibt es nur bei manchen), prüfe also die Dokumentation des Modells, bevor du eine setzt. Inkeep führt seine eigene QA-Pipeline aus und hat keine Reasoning-Steuerung, `reasoning` mit diesem Backend zu setzen ist also ein Konfigurationsfehler. Lässt du es weg, bleibt der Standard des Modells erhalten. Wie die [Retrieval-Größe](#retrieval-size) tauscht es Gründlichkeit gegen die Zeit bis zum ersten Token, und Antworten bleiben in beiden Fällen verankert.
 
 ## Rate Limiting
 
