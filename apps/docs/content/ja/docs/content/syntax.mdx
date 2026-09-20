@@ -60,6 +60,16 @@ Pandoc、kramdown、および Markdown ベースの仕様策定ツールチェ�
 **Bold**, _italic_, ~~strikethrough~~, and `inline code`.
 ```
 
+## キーボードキー [#keyboard-keys]
+
+ショートカットやキー入力のために使います。`<kbd>` 要素は、検索ダイアログで使われているものと同じ枠線付きのキーバッジとしてレンダリングされます — Markdown、MDX、そして `<Steps>` や `<Callout>` のようなコンポーネントの内部でも同様です。
+
+<kbd>⌘</kbd> <kbd>K</kbd> を押すと検索が開き、<kbd>Esc</kbd> を押すと閉じます。
+
+```md
+Press <kbd>⌘</kbd> <kbd>K</kbd> to open search, or <kbd>Esc</kbd> to close it.
+```
+
 ## 上付き文字と下付き文字 [#superscript-and-subscript]
 
 脚注記号、序数、そして科学表記や化学表記をインラインで表現するために使います。
