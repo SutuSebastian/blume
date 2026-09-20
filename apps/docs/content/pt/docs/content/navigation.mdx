@@ -13,6 +13,7 @@ Por padrão, a barra lateral espelha a sua árvore de conteúdo:
 - pastas viram **grupos**, arquivos viram **páginas**
 - o rótulo de uma página é o `title` do seu frontmatter; o rótulo de um grupo é o nome humanizado da pasta
 - os itens são ordenados por [prefixo numérico](/docs/content) e depois alfabeticamente, e a página `index` de uma pasta vem primeiro
+- uma pasta com uma página `index` liga a linha do seu grupo a essa página, então clicar no nome da seção abre a página de destino da seção
 
 Isso já basta para muitos sites — tudo abaixo é opcional.
 
@@ -134,6 +135,8 @@ Oculte uma página da barra lateral — e da paginação de anterior/próximo �
 sidebar:
   hidden: true
 ```
+
+A página `index` de uma pasta aparece tanto como o link da linha do grupo quanto como a primeira linha dentro do grupo. Oculte a página de índice para manter apenas o cabeçalho com link: a linha do grupo continua abrindo a página de destino, e os links de anterior/próximo continuam passando por ela.
 
 ## Abas [#tabs]
 

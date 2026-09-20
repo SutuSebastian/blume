@@ -236,6 +236,20 @@ ai: {
 
 O valor é enviado como o controle de esforço de raciocínio do próprio backend. Pelo gateway ele viaja como a [opção `reasoning` do AI SDK](https://ai-sdk.dev/docs/ai-sdk-core/reasoning), que o gateway mapeia para a configuração do modelo — o `reasoning_effort` da OpenAI, por exemplo. No OpenRouter é enviado como `reasoning.effort`, e no LLMGateway ou num endpoint `openai-compatible` personalizado como `reasoning_effort` na requisição, então o endpoint precisa aceitar esse parâmetro. O modelo precisa suportar o nível que você escolher: a OpenAI rejeita um nível que o modelo não oferece (`"none"` e `"xhigh"` existem apenas em alguns), então confira a documentação do modelo antes de definir um. O Inkeep roda o próprio pipeline de QA e não tem controle de raciocínio, então definir `reasoning` com aquele backend é um erro de configuração. Deixe sem definir para manter o padrão do modelo. Assim como o [tamanho da recuperação](#retrieval-size), isso troca abrangência por tempo até o primeiro token, e as respostas continuam fundamentadas de qualquer forma.
 
+## Analytics
+
+Com um [provedor de analytics](/docs/configuration/analytics) configurado, o assistente reporta seu uso através do mesmo `track()` que o widget de feedback da página usa, então as perguntas aparecem ao lado das suas visualizações de página:
+
+| Evento | Quando | Propriedades |
+| --- | --- | --- |
+| `ask` | Uma pergunta é enviada | `path`, `questionChars` |
+| `ask_answer` | A resposta termina de ser transmitida | `path`, `questionChars`, `ms`, `chars` |
+| `ask_error` | A requisição falha, quebra ou volta vazia | `path`, `questionChars`, `ms`, `status` |
+
+`path` é a página de onde o leitor perguntou (o pathname servido, então ele corresponde ao widget de feedback e às suas visualizações de página sob um `base`), `questionChars` o comprimento da pergunta, `ms` o tempo entre o envio da pergunta e o último chunk, e `chars` o comprimento da resposta. `status` é o status HTTP: `0` quando nenhuma resposta chegou (offline, DNS, CORS), e `200` quando a resposta estava certa mas o fluxo dela quebrou no meio da resposta — como um erro de provedor ou de credencial se manifesta, já que o backend já enviou os cabeçalhos — ou não entregou nada. Limpar a conversa no meio de uma resposta não reporta nenhum dos dois resultados.
+
+O texto da pergunta nunca chega a um provedor: é entrada livre do leitor (chaves coladas, logs de erro, nomes) que violaria os termos e os limites de tamanho por valor da maioria dos provedores. Ele viaja apenas no evento de DOM `blume:track`, como `question` em `detail.props`, então um listener que você escreva pode encaminhá-lo para onde você decidir que ele pertence. Uma interface de chat personalizada construída sobre o `useAskAI` de `blume/hooks` reporta os mesmos eventos. Sem nenhum provedor configurado, as chamadas ao provedor interno não fazem nada, mas o evento `blume:track` ainda é disparado, então uma integração personalizada que o escute recebe esses eventos.
+
 ## Limitação de taxa [#rate-limiting]
 
 O endpoint `POST /api/ask` é **não autenticado** — ele precisa ser, para que o assistente na página possa chamá-lo. O Blume valida cada requisição — rejeitando corpos malformados, limitando a 1–40 mensagens e aceitando apenas os papéis `user`/`assistant` para que quem chama não possa injetar o próprio system prompt e reaproveitar a rota como um proxy genérico de LLM — para limitar quanto uma única chamada pode gastar com o seu modelo, mas isso não impede alguém de chamar o endpoint repetidamente. Se o abuso de custos for uma preocupação, coloque a rota atrás de um limitador de taxa — a limitação de taxa na borda do seu host (a da Vercel, por exemplo), um middleware, ou os limites de gasto por chave do seu provedor de modelos.

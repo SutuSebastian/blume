@@ -51,6 +51,8 @@ sidebar:
   display: page
 ```
 
+`hidden` entfernt die Seite aus der Sidebar und aus der Zurück-/Weiter-Navigation. Auf der `index`-Seite eines Ordners entfernt es nur die Zeile der Seite selbst: Die Gruppenzeile verlinkt weiterhin auf die Seite, und Zurück-/Weiter-Links führen weiterhin durch sie hindurch.
+
 `display` legt den Rendermodus der Ordnergruppe der Seite fest ([Overrides pro Gruppe](/docs/content/navigation#per-group-overrides)) und ist nur auf der `index`-Seite eines Ordners unter der generierten Sidebar sinnvoll — überall sonst (auf einer Nicht-Index-Seite, auf der `index`-Seite des Content-Roots selbst oder auf einer beliebigen Seite unter einer expliziten `navigation.sidebar`) gibt es keine Gruppe zu konfigurieren, und Blume warnt mit `BLUME_SIDEBAR_DISPLAY_IGNORED`.
 
 ## SEO
@@ -112,7 +114,7 @@ reviewedAt: 2026-06-20
 ---
 ```
 
-Schemas werden über die [Standard-Schema](https://standardschema.dev)-Schnittstelle akzeptiert, sodass Zod (in der Version, die Ihr Projekt installiert), Valibot und ArkType allesamt funktionieren. Jeder deklarierte Schlüssel wird auf jeder Seite validiert — auch fehlende —, sodass ein erforderliches Schema den Schlüssel site-weit erzwingt; markieren Sie ihn mit `.optional()`, um nur dort zu validieren, wo er vorhanden ist. Alle übrigen Schlüssel bleiben streng validiert, und eingebaute Felder können nicht neu deklariert werden.
+Schemas werden über die [Standard-Schema](https://standardschema.dev)-Schnittstelle akzeptiert, sodass Zod (in der Version, die dein Projekt installiert), Valibot und ArkType allesamt funktionieren. Jeder deklarierte Schlüssel wird auf jeder Seite validiert — auch fehlende —, sodass ein erforderliches Schema den Schlüssel site-weit erzwingt; markiere ihn mit `.optional()`, um nur dort zu validieren, wo er vorhanden ist. Alle übrigen Schlüssel bleiben streng validiert, und eingebaute Felder können nicht neu deklariert werden.
 
 ### Schlüssel pro Typ [#per-type-keys]
 

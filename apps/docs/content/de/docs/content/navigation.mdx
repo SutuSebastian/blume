@@ -13,6 +13,7 @@ Standardmäßig spiegelt die Seitenleiste deinen Inhaltsbaum wider:
 - Ordner werden zu **Gruppen**, Dateien werden zu **Seiten**
 - Die Beschriftung einer Seite ist ihr Frontmatter-`title`; die Beschriftung einer Gruppe ist der lesbar gemachte Ordnername
 - Einträge werden nach [numerischem Präfix](/docs/content) sortiert, dann alphabetisch, und die `index`-Seite eines Ordners steht an erster Stelle
+- Ein Ordner mit einer `index`-Seite verlinkt seine Gruppenzeile auf diese Seite, sodass ein Klick auf den Abschnittsnamen die Landing-Page des Abschnitts öffnet
 
 Für viele Websites reicht das bereits – alles Weitere ist optional.
 
@@ -135,6 +136,8 @@ Blende eine Seite aus der Seitenleiste – und aus der Zurück-/Weiter-Navigatio
 sidebar:
   hidden: true
 ```
+
+Die `index`-Seite eines Ordners erscheint sowohl als Link der Gruppenzeile als auch als erste Zeile innerhalb der Gruppe. Blende die Index-Seite aus, um nur die verlinkte Überschrift zu behalten: Die Gruppenzeile öffnet weiterhin die Landing-Page, und die Zurück-/Weiter-Links führen weiterhin durch sie hindurch.
 
 ## Tabs
 

@@ -236,6 +236,20 @@ ai: {
 
 Der Wert wird als die eigene Reasoning-Effort-Steuerung des Backends gesendet. Über das Gateway reist er als [`reasoning`-Option des AI SDK](https://ai-sdk.dev/docs/ai-sdk-core/reasoning), die das Gateway auf die Einstellung des Modells abbildet — etwa auf OpenAIs `reasoning_effort`. Bei OpenRouter wird er als `reasoning.effort` gesendet und bei LLMGateway oder einem eigenen `openai-compatible`-Endpunkt als `reasoning_effort` im Request, der Endpunkt muss diesen Parameter also akzeptieren. Das Modell muss die von dir gewählte Stufe unterstützen: OpenAI weist eine Stufe ab, die ein Modell nicht anbietet (`"none"` und `"xhigh"` gibt es nur bei manchen), prüfe also die Dokumentation des Modells, bevor du eine setzt. Inkeep führt seine eigene QA-Pipeline aus und hat keine Reasoning-Steuerung, `reasoning` mit diesem Backend zu setzen ist also ein Konfigurationsfehler. Lässt du es weg, bleibt der Standard des Modells erhalten. Wie die [Retrieval-Größe](#retrieval-size) tauscht es Gründlichkeit gegen die Zeit bis zum ersten Token, und Antworten bleiben in beiden Fällen verankert.
 
+## Analytics
+
+Mit einem konfigurierten [Analytics-Provider](/docs/configuration/analytics) meldet der Assistent seine Nutzung über dasselbe `track()`, das auch das Seiten-Feedback-Widget nutzt, sodass Fragen direkt neben deinen Seitenaufrufen landen:
+
+| Ereignis | Wann | Eigenschaften |
+| --- | --- | --- |
+| `ask` | Eine Frage wird abgesendet | `path`, `questionChars` |
+| `ask_answer` | Die Antwort ist fertig gestreamt | `path`, `questionChars`, `ms`, `chars` |
+| `ask_error` | Die Anfrage schlägt fehl, bricht ab oder kommt leer zurück | `path`, `questionChars`, `ms`, `status` |
+
+`path` ist die Seite, von der aus der Leser gefragt hat (der ausgelieferte Pfadname, er stimmt also mit dem Feedback-Widget und deinen Seitenaufrufen unter einem `base` überein), `questionChars` die Länge der Frage, `ms` die Zeit vom Absenden der Frage bis zum letzten Chunk und `chars` die Länge der Antwort. `status` ist der HTTP-Status: `0`, wenn überhaupt keine Antwort ankam (offline, DNS, CORS), und `200`, wenn die Antwort in Ordnung war, ihr Stream aber mitten in der Antwort abbrach — so zeigt sich ein Provider- oder Credential-Fehler, da das Backend seine Header schon gesendet hat — oder nichts lieferte. Wird die Konversation mitten in der Antwort geleert, wird keines der beiden Ergebnisse gemeldet.
+
+Der Text der Frage erreicht nie einen Provider: Es ist freie Lesereingabe (eingefügte Keys, Fehlerlogs, Namen), die gegen die Bedingungen und die Größenlimits pro Wert der meisten Provider verstoßen würde. Er reist nur auf dem DOM-Event `blume:track`, als `question` in `detail.props`, sodass ein Listener, den du schreibst, ihn dorthin weiterleiten kann, wo er nach deiner Entscheidung hingehört. Eine eigene Chat-UI, die auf `useAskAI` aus `blume/hooks` aufbaut, meldet dieselben Ereignisse. Ist kein Provider konfiguriert, sind die eingebauten Provider-Aufrufe No-ops, aber das `blume:track`-Event wird trotzdem ausgelöst, sodass eine eigene Integration, die darauf lauscht, sie erhält.
+
 ## Rate Limiting
 
 Der Endpunkt `POST /api/ask` ist **nicht authentifiziert** — er muss es sein, damit der In-Page-Assistent ihn aufrufen kann. Blume validiert jede Anfrage — verwirft fehlerhafte Bodies, begrenzt sie auf 1–40 Nachrichten und akzeptiert nur die Rollen `user`/`assistant`, damit ein Aufrufer keinen eigenen System-Prompt injizieren und die Route als allgemeinen LLM-Proxy umnutzen kann — um zu begrenzen, wie viel ein einzelner Aufruf bei deinem Modell verbrauchen kann; verhindern kann es aber nicht, dass jemand den Endpunkt wiederholt aufruft. Wenn Kostenmissbrauch ein Thema ist, stelle einen Rate Limiter vor die Route — das Edge-Rate-Limiting deines Hosters (z. B. von Vercel), eine Middleware oder die Ausgabelimits pro Key bei deinem Modellanbieter.

@@ -56,13 +56,14 @@ seo: {
 
 ```http
 Link: </.well-known/api-catalog>; rel="api-catalog"; type="application/linkset+json",
+  </.well-known/ai-catalog.json>; rel="ai-catalog"; type="application/ai-catalog+json",
   </openapi.json>; rel="service-desc"; type="application/json",
   </agent-readability.json>; rel="describedby"; type="application/json",
   </llms.txt>; rel="describedby"; type="text/plain",
   </index.md>; rel="alternate"; type="text/markdown"
 ```
 
-प्रत्येक प्रविष्टि केवल तभी दिखाई देती है जब उसकी सुविधा चालू हो। `alternate` लिंक होमपेज के Markdown मिरर की ओर संकेत करता है — जब होम रूट एक कॉन्टेंट पेज हो तो पेज का अपना [रॉ Markdown](/docs/discoverability/markdown), या जब वह एक लैंडिंग पेज हो तो संश्लेषित `llms.txt` फ़ॉलबैक। `service-desc` लिंक ([RFC 8631](https://www.rfc-editor.org/rfc/rfc8631)) [JSON API](/docs/discoverability/json-api) के OpenAPI विवरण की ओर संकेत करता है, और `api-catalog` [जनरेट किए गए API कैटलॉग](#api-catalog) की ओर। यह हेडर हर उस सरफेस पर चलता है जिसे Blume नियंत्रित करता है: dev सर्वर (`curl -I localhost:4321` से इसे जाँचें), उत्सर्जित `_headers` फ़ाइल के माध्यम से स्टैटिक बिल्ड (Netlify और Cloudflare), और डिप्लॉय के रूटिंग नियमों के माध्यम से Vercel सर्वर बिल्ड।
+प्रत्येक प्रविष्टि केवल तभी दिखाई देती है जब उसकी सुविधा चालू हो। `alternate` लिंक होमपेज के Markdown मिरर की ओर संकेत करता है — जब होम रूट एक कॉन्टेंट पेज हो तो पेज का अपना [रॉ Markdown](/docs/discoverability/markdown), या जब वह एक लैंडिंग पेज हो तो संश्लेषित `llms.txt` फ़ॉलबैक। `service-desc` लिंक ([RFC 8631](https://www.rfc-editor.org/rfc/rfc8631)) [JSON API](/docs/discoverability/json-api) के OpenAPI विवरण की ओर संकेत करता है, `api-catalog` [जनरेट किए गए API कैटलॉग](#api-catalog) की ओर, और `ai-catalog` [AI कैटलॉग](#ai-catalog) की ओर। यह हेडर हर उस सरफेस पर चलता है जिसे Blume नियंत्रित करता है: dev सर्वर (`curl -I localhost:4321` से इसे जाँचें), उत्सर्जित `_headers` फ़ाइल के माध्यम से स्टैटिक बिल्ड (Netlify और Cloudflare), और डिप्लॉय के रूटिंग नियमों के माध्यम से Vercel सर्वर बिल्ड।
 
 हालाँकि हर एजेंट रूट से प्रवेश नहीं करता — कोई एजेंट जो किसी खोज परिणाम या साझा किए गए लिंक का अनुसरण करता है, वह किसी गहरे पेज पर पहुँचता है और होमपेज हेडर कभी नहीं देखता। इसलिए हर रेंडर किया गया पेज भी उन्हीं IANA-पंजीकृत रिलेशनों का उपयोग करते हुए, अपने HTML `<head>` में वही डिस्कवरी लिंक रखता है:
 
@@ -73,6 +74,12 @@ Link: </.well-known/api-catalog>; rel="api-catalog"; type="application/linkset+j
   type="application/json"
 />
 <link rel="describedby" href="/llms.txt" type="text/plain" />
+<link
+  rel="ai-catalog"
+  href="/.well-known/ai-catalog.json"
+  type="application/ai-catalog+json"
+/>
+<link rel="ard" href="/.well-known/ard.json" type="application/json" />
 <link rel="alternate" href="/docs/example.md" type="text/markdown" />
 ```
 
@@ -121,6 +128,80 @@ Link: </.well-known/api-catalog>; rel="api-catalog"; type="application/linkset+j
 ```
 
 ऐसी साइट जिसमें कोई API रेफ़रेंस नहीं है, कोई MCP सर्वर नहीं है, और [JSON API](/docs/discoverability/json-api) बंद है, कोई कैटलॉग उत्सर्जित नहीं करती — उसमें कुछ होता ही नहीं। हर जगह की तरह, आपके द्वारा स्वयं भेजी गई `public/.well-known/api-catalog` फ़ाइल जनरेट की गई फ़ाइल पर वरीयता पाती है।
+
+## AI कैटलॉग [#ai-catalog]
+
+API कैटलॉग API सूचीबद्ध करता है। **AI कैटलॉग** वह सब कुछ सूचीबद्ध करता है जिसे कोई एजेंट साइट से उठा सकता है — MCP सर्वर, प्रत्येक प्रकाशित स्किल, JSON API, प्रत्येक रेंडर किया गया API रेफ़रेंस, और `llms.txt` — उसी प्रारूप में जिसे एजेंट रजिस्ट्रियाँ इंडेक्स करती हैं: `/.well-known/ai-catalog.json` पर एक [AI Catalog](https://github.com/Agent-Card/ai-catalog) डॉक्यूमेंट, जो वही मैनिफ़ेस्ट भी है जिसे [Agentic Resource Discovery (ARD)](https://agenticresourcediscovery.org/) उपभोक्ता हल करते हैं। प्रत्येक प्रविष्टि एक डोमेन-एंकर किया गया `urn:air:<host>:<namespace>:<name>` पहचानकर्ता, एक प्रदर्शन नाम, आर्टिफ़ैक्ट का मीडिया प्रकार, उसका URL, और कुछ `representativeQueries` रखती है — नमूना प्रश्न जिनका उत्तर वह संसाधन दे सकता है, जिन्हें रजिस्ट्रियाँ सिमेंटिक खोज के लिए एम्बेड करती हैं:
+
+```json .well-known/ai-catalog.json
+{
+  "specVersion": "1.0",
+  "host": {
+    "displayName": "Acme",
+    "identifier": "did:web:docs.example.com",
+    "documentationUrl": "https://docs.example.com/"
+  },
+  "entries": [
+    {
+      "identifier": "urn:air:docs.example.com:mcp:acme",
+      "displayName": "Acme",
+      "type": "application/mcp-server-card+json",
+      "url": "https://docs.example.com/.well-known/mcp/server-card.json",
+      "capabilities": [
+        "search_docs",
+        "get_page",
+        "list_pages",
+        "get_navigation"
+      ],
+      "representativeQueries": [
+        "search the Acme documentation",
+        "get a Acme docs page as Markdown",
+        "list every page in the Acme docs"
+      ]
+    },
+    {
+      "identifier": "urn:air:docs.example.com:skill:acme",
+      "displayName": "acme",
+      "type": "application/agent-skills+md",
+      "url": "https://docs.example.com/.well-known/agent-skills/acme/SKILL.md",
+      "representativeQueries": [
+        "load the acme agent skill",
+        "how do I use acme"
+      ]
+    },
+    {
+      "identifier": "urn:air:docs.example.com:api:docs",
+      "displayName": "Acme docs API",
+      "type": "application/vnd.oai.openapi+json",
+      "url": "https://docs.example.com/openapi.json",
+      "representativeQueries": [
+        "fetch a Acme docs page as JSON",
+        "list the pages in the Acme docs",
+        "get the Acme docs navigation tree"
+      ]
+    }
+  ]
+}
+```
+
+ARD का वर्तमान संशोधन मैनिफ़ेस्ट को `/.well-known/ard.json` से पढ़ता है और `ai-catalog.json` को पूर्ववर्ती पथ कहता है, इसलिए Blume वही डॉक्यूमेंट दोनों जगह लिखता है, हर पेज के हेड में उसे दोनों लिंक रिलेशनों (`ai-catalog` और `ard`) के अंतर्गत प्रचारित करता है, और उसे `llms.txt` तथा `agent-readability.json` में सूचीबद्ध करता है। कैटलॉग और उसके `.well-known` पड़ोसी (API कैटलॉग, MCP डिस्कवरी फ़ाइलें) हर बिल्ड सरफेस पर `Access-Control-Allow-Origin: *` के साथ सर्व किए जाते हैं, ताकि किसी अन्य ऑरिजिन से उन्हें पढ़ने वाली रजिस्ट्री ब्लॉक न हो।
+
+प्रविष्टि पहचानकर्ता आपके डोमेन पर एंकर किए जाते हैं, इसलिए कैटलॉग को एक [`deployment.site`](/docs/deployment) की आवश्यकता होती है — उसके बिना कुछ भी उत्सर्जित नहीं होता। यह डिफ़ॉल्ट रूप से चालू है; `ai.catalog: false` इसे बंद कर देता है। जनरेट किए गए प्रश्न साइट शीर्षक और प्रत्येक प्रविष्टि के अपने विवरण से व्युत्पन्न होते हैं। किसी प्रविष्टि के लिए अपने स्वयं के प्रश्न लिखने हेतु, उन्हें पहचानकर्ता की पूँछ (`<namespace>:<name>`) द्वारा कुंजीबद्ध करें:
+
+```ts blume.config.ts
+export default defineConfig({
+  ai: {
+    catalog: {
+      queries: {
+        "mcp:acme": ["how do I install Acme", "search the Acme docs"],
+        "skill:acme": ["set up an Acme project", "write an Acme plugin"],
+      },
+    },
+  },
+});
+```
+
+कोई सूची उस प्रविष्टि के लिए जनरेट किए गए प्रश्नों को प्रतिस्थापित कर देती है; जिन प्रविष्टियों का नाम आप नहीं लेते वे अपने प्रश्न बनाए रखती हैं। हर जगह की तरह, आपके द्वारा स्वयं भेजी गई `public/.well-known/ai-catalog.json` (या `ard.json`) जनरेट की गई फ़ाइल पर वरीयता पाती है।
 
 ## WebMCP
 

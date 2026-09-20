@@ -56,13 +56,14 @@ seo: {
 
 ```http
 Link: </.well-known/api-catalog>; rel="api-catalog"; type="application/linkset+json",
+  </.well-known/ai-catalog.json>; rel="ai-catalog"; type="application/ai-catalog+json",
   </openapi.json>; rel="service-desc"; type="application/json",
   </agent-readability.json>; rel="describedby"; type="application/json",
   </llms.txt>; rel="describedby"; type="text/plain",
   </index.md>; rel="alternate"; type="text/markdown"
 ```
 
-各エントリは、その機能が有効な場合にのみ現れます。`alternate` リンクはホームページの Markdown ミラーを指します — ホームルートがコンテンツページの場合はそのページ自身の[生の Markdown](/docs/discoverability/markdown)、ランディングページの場合は合成された `llms.txt` フォールバックです。`service-desc` リンク（[RFC 8631](https://www.rfc-editor.org/rfc/rfc8631)）は [JSON API](/docs/discoverability/json-api) の OpenAPI 記述を、`api-catalog` は[生成された API カタログ](#api-catalog)を指します。このヘッダーは Blume が制御するすべてのサーフェスに載ります: 開発サーバー（`curl -I localhost:4321` で確認できます）、出力される `_headers` ファイル経由の静的ビルド（Netlify と Cloudflare）、そしてデプロイのルーティングルール経由の Vercel サーバービルドです。
+各エントリは、その機能が有効な場合にのみ現れます。`alternate` リンクはホームページの Markdown ミラーを指します — ホームルートがコンテンツページの場合はそのページ自身の[生の Markdown](/docs/discoverability/markdown)、ランディングページの場合は合成された `llms.txt` フォールバックです。`service-desc` リンク（[RFC 8631](https://www.rfc-editor.org/rfc/rfc8631)）は [JSON API](/docs/discoverability/json-api) の OpenAPI 記述を、`api-catalog` は[生成された API カタログ](#api-catalog)を、`ai-catalog` は [AI カタログ](#ai-catalog)を指します。このヘッダーは Blume が制御するすべてのサーフェスに載ります: 開発サーバー（`curl -I localhost:4321` で確認できます）、出力される `_headers` ファイル経由の静的ビルド（Netlify と Cloudflare）、そしてデプロイのルーティングルール経由の Vercel サーバービルドです。
 
 とはいえ、すべてのエージェントがルートから入ってくるわけではありません — 検索結果や共有リンクをたどるエージェントは深い階層のページに着地し、ホームページのヘッダーを目にすることはありません。そのため、レンダリングされるすべてのページも、同じ IANA 登録済みリレーションを使って、HTML の `<head>` に同じ検出リンクを含めます:
 
@@ -73,6 +74,12 @@ Link: </.well-known/api-catalog>; rel="api-catalog"; type="application/linkset+j
   type="application/json"
 />
 <link rel="describedby" href="/llms.txt" type="text/plain" />
+<link
+  rel="ai-catalog"
+  href="/.well-known/ai-catalog.json"
+  type="application/ai-catalog+json"
+/>
+<link rel="ard" href="/.well-known/ard.json" type="application/json" />
 <link rel="alternate" href="/docs/example.md" type="text/markdown" />
 ```
 
@@ -121,6 +128,80 @@ Link: </.well-known/api-catalog>; rel="api-catalog"; type="application/linkset+j
 ```
 
 API リファレンスがなく、MCP サーバーもなく、[JSON API](/docs/discoverability/json-api) も無効になっているサイトでは、カタログは出力されません — 中身が何もないからです。他の箇所と同様に、自分で配置した `public/.well-known/api-catalog` ファイルが生成されたものより優先されます。
+
+## AI カタログ [#ai-catalog]
+
+API カタログは API を列挙します。**AI カタログ**は、エージェントがサイトから取り込みうるものすべて — MCP サーバー、公開された各スキル、JSON API、レンダリングされた各 API リファレンス、そして `llms.txt` — を、エージェントレジストリがインデックス化する形式で列挙します: `/.well-known/ai-catalog.json` にある [AI Catalog](https://github.com/Agent-Card/ai-catalog) ドキュメントであり、これは [Agentic Resource Discovery（ARD）](https://agenticresourcediscovery.org/)のコンシューマーが解決するマニフェストでもあります。各エントリは、ドメインをアンカーとする `urn:air:<host>:<namespace>:<name>` 識別子、表示名、成果物のメディアタイプ、その URL、そしていくつかの `representativeQueries` — そのリソースが答えられるサンプル質問で、レジストリがセマンティック検索のために埋め込むもの — を持ちます:
+
+```json .well-known/ai-catalog.json
+{
+  "specVersion": "1.0",
+  "host": {
+    "displayName": "Acme",
+    "identifier": "did:web:docs.example.com",
+    "documentationUrl": "https://docs.example.com/"
+  },
+  "entries": [
+    {
+      "identifier": "urn:air:docs.example.com:mcp:acme",
+      "displayName": "Acme",
+      "type": "application/mcp-server-card+json",
+      "url": "https://docs.example.com/.well-known/mcp/server-card.json",
+      "capabilities": [
+        "search_docs",
+        "get_page",
+        "list_pages",
+        "get_navigation"
+      ],
+      "representativeQueries": [
+        "search the Acme documentation",
+        "get a Acme docs page as Markdown",
+        "list every page in the Acme docs"
+      ]
+    },
+    {
+      "identifier": "urn:air:docs.example.com:skill:acme",
+      "displayName": "acme",
+      "type": "application/agent-skills+md",
+      "url": "https://docs.example.com/.well-known/agent-skills/acme/SKILL.md",
+      "representativeQueries": [
+        "load the acme agent skill",
+        "how do I use acme"
+      ]
+    },
+    {
+      "identifier": "urn:air:docs.example.com:api:docs",
+      "displayName": "Acme docs API",
+      "type": "application/vnd.oai.openapi+json",
+      "url": "https://docs.example.com/openapi.json",
+      "representativeQueries": [
+        "fetch a Acme docs page as JSON",
+        "list the pages in the Acme docs",
+        "get the Acme docs navigation tree"
+      ]
+    }
+  ]
+}
+```
+
+ARD の現行リビジョンはマニフェストを `/.well-known/ard.json` から読み取り、`ai-catalog.json` を先行パスと呼んでいます。そのため Blume は同じドキュメントを両方に書き出し、すべてのページの head で両方のリンクリレーション（`ai-catalog` と `ard`）のもとに告知し、`llms.txt` と `agent-readability.json` にも列挙します。このカタログと、その `.well-known` の隣人たち（API カタログ、MCP 検出ファイル）は、すべてのビルドサーフェスで `Access-Control-Allow-Origin: *` とともに配信されるため、別オリジンからそれらを読み取るレジストリがブロックされることはありません。
+
+エントリ識別子はあなたのドメインをアンカーとするため、カタログには [`deployment.site`](/docs/deployment) が必要です — 設定されていない場合は何も出力されません。デフォルトで有効で、`ai.catalog: false` で無効にできます。生成されるクエリは、サイトタイトルと各エントリ自身の説明から導出されます。あるエントリに独自のクエリを書くには、識別子の末尾（`<namespace>:<name>`）をキーにしてください:
+
+```ts blume.config.ts
+export default defineConfig({
+  ai: {
+    catalog: {
+      queries: {
+        "mcp:acme": ["how do I install Acme", "search the Acme docs"],
+        "skill:acme": ["set up an Acme project", "write an Acme plugin"],
+      },
+    },
+  },
+});
+```
+
+リストを指定すると、そのエントリの生成済みクエリが置き換えられます。指定しなかったエントリは元のクエリを保持します。他の箇所と同様に、自分で配置した `public/.well-known/ai-catalog.json`（または `ard.json`）が生成されたものより優先されます。
 
 ## WebMCP
 
