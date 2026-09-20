@@ -149,6 +149,20 @@ describe("tailwindEntryTemplate", () => {
     expect(entry).toContain('@plugin "@tailwindcss/typography";');
   });
 
+  it("styles kbd as a bordered badge inside not-prose components too", () => {
+    // Typography's kbd rule is excluded under not-prose (Steps, Callout,
+    // Card), so Blume draws the badge itself, unlayered and unexcluded, and
+    // neutralizes the plugin's near-black defaults that ignore dark mode.
+    expect(entry).toContain("--tw-prose-kbd: inherit;");
+    expect(entry).toContain("--tw-prose-kbd-shadows: transparent;");
+    const rule = entry.match(/\.prose kbd \{[^}]*\}/u)?.[0];
+    expect(rule).toBeDefined();
+    expect(rule).toContain("background: var(--blume-muted);");
+    expect(rule).toContain("border: 1px solid var(--blume-border);");
+    expect(rule).toContain("font-family: var(--font-mono);");
+    expect(rule).not.toContain("not-prose");
+  });
+
   it("emits a @source line for each scanned source", () => {
     expect(entry).toContain('@source "../pkg";');
     expect(entry).toContain('@source "../project";');

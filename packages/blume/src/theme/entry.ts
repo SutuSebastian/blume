@@ -298,6 +298,11 @@ ${THEME_MAPPING}
   --tw-prose-pre-bg: var(--blume-code-background);
   --tw-prose-th-borders: var(--blume-border);
   --tw-prose-td-borders: var(--blume-border);
+  /* Neutralized: the plugin defaults are near-black text and shadow with no
+     dark counterpart (Blume never applies prose-invert), and the kbd rule
+     below draws the badge with Blume tokens instead. */
+  --tw-prose-kbd: inherit;
+  --tw-prose-kbd-shadows: transparent;
   color: var(--blume-muted-foreground);
   font-size: 0.875rem;
   line-height: 1.7;
@@ -825,6 +830,24 @@ pre:has(.line.focused):hover .line:not(.focused) {
 .prose :not(pre) > code::before,
 .prose :not(pre) > code::after {
   content: none;
+}
+
+/* Keyboard keys (<kbd>) render as the same bordered badge the search dialog
+   uses for its shortcut hints. Typography's own kbd rule is scoped with
+   :not(.not-prose *), so it never reaches a key inside <Steps>, <Callout>,
+   <Card>, or any other not-prose component; this rule is deliberately
+   unscoped from that exclusion so a key looks the same everywhere in the
+   content column. Unlayered, so it outranks the plugin's layered rule. */
+.prose kbd {
+  background: var(--blume-muted);
+  border: 1px solid var(--blume-border);
+  border-radius: 0.25rem;
+  box-shadow: none;
+  color: inherit;
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  font-weight: 500;
+  padding: 0.125rem 0.25rem;
 }
 
 /* Inline code highlighting: Shiki colors the tokens of a \`code\`{:lang} snippet
