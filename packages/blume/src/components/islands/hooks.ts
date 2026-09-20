@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { BlumeClientData } from "../../core/data.ts";
+import { track } from "../layout/analytics-client.ts";
 import type { SearchFn, SearchResult } from "../layout/search/types.ts";
 import { joinBase, stripBase } from "./base-path.ts";
 
@@ -196,6 +197,42 @@ export const useAskAI = (options: UseAskAIOptions = {}): UseAskAI => {
       const controller = new AbortController();
       abortRef.current = controller;
       const live = () => current === generation.current;
+      const path = currentPath();
+      // Usage reaches the configured analytics providers the same way page
+      // feedback does: the question now, its outcome once the stream settles.
+      // A reset mid-answer revokes the outcome along with the UI update.
+      // Analytics keys on the raw pathname, like page feedback and the
+      // providers' own pageviews, so the events join under a `base`; the
+      // endpoint gets the base-stripped route for grounding. Providers receive
+      // the question's length only: its text is free-form reader input (pasted
+      // keys, error logs) that would breach their PII terms and their
+      // per-value size caps, so it rides the `blume:track` event alone for a
+      // site to bridge on its own terms.
+      const { pathname } = window.location;
+      const report = (
+        event: "ask" | "ask_answer" | "ask_error",
+        props: Record<string, number>
+      ) =>
+        track(
+          event,
+          { ...props, path: pathname, questionChars: trimmed.length },
+          { question: trimmed }
+        );
+      report("ask", {});
+      // A monotonic clock: the wall clock can jump mid-stream (NTP, sleep).
+      const startedAt = performance.now();
+      const outcome = (
+        event: "ask_answer" | "ask_error",
+        props: Record<string, number>
+      ) =>
+        report(event, {
+          ...props,
+          ms: Math.round(performance.now() - startedAt),
+        });
+      // The HTTP status once a response exists. `streamText` defers provider
+      // errors to stream consumption, so a 200 can still break mid-flight;
+      // that reports as a 200 error, not as "no response".
+      let status = 0;
       const history: AskMessage[] = [
         ...messages,
         { content: trimmed, role: "user" },
@@ -207,16 +244,18 @@ export const useAskAI = (options: UseAskAIOptions = {}): UseAskAI => {
         const response = await fetch(endpoint, {
           body: JSON.stringify({
             messages: history,
-            page: { path: currentPath() },
+            page: { path },
           }),
           headers: { "content-type": "application/json" },
           method: "POST",
           signal: controller.signal,
         });
+        ({ status } = response);
         if (!response.ok) {
           // An error body (JSON, HTML error page) must not stream in as the
           // assistant's answer.
           if (live()) {
+            outcome("ask_error", { status });
             assistant.content = errorMessage;
             setMessages([...history, { ...assistant }]);
           }
@@ -243,11 +282,21 @@ export const useAskAI = (options: UseAskAIOptions = {}): UseAskAI => {
             }
           }
         }
+        if (live()) {
+          // A 200 with nothing in it (no body, an empty stream) leaves the
+          // reader a blank bubble — that is not an answer.
+          if (assistant.content) {
+            outcome("ask_answer", { chars: assistant.content.length });
+          } else {
+            outcome("ask_error", { status });
+          }
+        }
       } catch {
         // A thrown fetch (offline, DNS failure, CORS) must not strand the
         // pre-appended empty assistant message as a stuck placeholder. A
         // reset's abort lands here too — the guard keeps it silent.
         if (live()) {
+          outcome("ask_error", { status });
           assistant.content = errorMessage;
           setMessages([...history, { ...assistant }]);
         }

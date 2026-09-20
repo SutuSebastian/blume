@@ -1,8 +1,9 @@
-import { afterAll, describe, expect, it, mock } from "bun:test";
+import { afterAll, beforeEach, describe, expect, it, mock } from "bun:test";
 
 // Type-only: erased at runtime, so the module mocks below still apply when
 // hooks.ts is actually imported.
 import type { BlumeClientData } from "../src/components/islands/hooks.ts";
+import type { TrackProps } from "../src/components/layout/analytics-client.ts";
 
 /**
  * Tests for the `blume/hooks` island hooks (`src/components/islands/hooks.ts`).
@@ -87,12 +88,42 @@ const freshRender = <T>(hook: () => T): T => {
   return render(hook);
 };
 
-// `currentPath()` reads window.location; give the hooks a page to ground on.
-// SAFETY: installs a test-only window stub on the global; the hooks read only
-// `location.pathname` from it.
-(globalThis as { window?: unknown }).window = {
+/** An analytics event as one provider (or the `blume:track` detail) saw it. */
+interface Tracked {
+  event: string;
+  props: TrackProps;
+}
+
+/**
+ * Analytics events the hooks report, captured through the PostHog global the
+ * real `track()` helper fans out to (module-mocking the helper would leak into
+ * its own test file, since Bun shares module mocks across a run).
+ */
+const tracked: Tracked[] = [];
+
+/** The same events as the `blume:track` CustomEvent carries them. */
+const dispatched: Tracked[] = [];
+
+// `currentPath()` reads window.location; give the hooks a page to ground on,
+// and `track()` a PostHog stub plus the `dispatchEvent` its universal hook
+// needs.
+const windowStub = {
+  dispatchEvent: (event: CustomEvent): boolean => {
+    // SAFETY: `track()` is the only dispatcher here, and its detail is always
+    // `{ event, props }`.
+    dispatched.push(event.detail as Tracked);
+    return true;
+  },
   location: { pathname: "/guide" },
+  posthog: {
+    capture: (event: string, props: TrackProps): void => {
+      tracked.push({ event, props });
+    },
+  },
 };
+// SAFETY: installs a test-only window stub on the global; the hooks read only
+// `location.pathname` from it and the analytics helper only the stubs above.
+(globalThis as { window?: unknown }).window = windowStub;
 
 const originalFetch = globalThis.fetch;
 
@@ -272,6 +303,11 @@ describe("useAskAI", () => {
   const ERROR_MESSAGE =
     "Something went wrong answering that. Please try again.";
 
+  beforeEach(() => {
+    tracked.length = 0;
+    dispatched.length = 0;
+  });
+
   it("streams the answer into the assistant message", async () => {
     const requests: { init?: RequestInit; url: string }[] = [];
     setFetch((url, init) => {
@@ -280,6 +316,30 @@ describe("useAskAI", () => {
     });
     const { ask } = freshRender(useAskAI);
     await ask("What is Blume?");
+    // The question and its outcome reach analytics, like page feedback.
+    // Providers get the question's length; only the `blume:track` event
+    // carries its text.
+    expect(tracked).toStrictEqual([
+      { event: "ask", props: { path: "/guide", questionChars: 14 } },
+      {
+        event: "ask_answer",
+        props: {
+          chars: 11,
+          ms: expect.any(Number),
+          path: "/guide",
+          questionChars: 14,
+        },
+      },
+    ]);
+    expect(dispatched[0]).toStrictEqual({
+      event: "ask",
+      props: { path: "/guide", question: "What is Blume?", questionChars: 14 },
+    });
+    expect(dispatched[1]?.props.question).toBe("What is Blume?");
+    // Latency comes from a monotonic clock, rounded to whole milliseconds.
+    const { ms } = tracked[1]?.props ?? {};
+    expect(ms).toBe(Math.round(Number(ms)));
+    expect(Number(ms)).toBeGreaterThanOrEqual(0);
     expect(requests[0]?.url).toBe("/api/ask");
     const body = JSON.parse(String(requests[0]?.init?.body));
     expect(body.page).toStrictEqual({ path: "/guide" });
@@ -304,6 +364,93 @@ describe("useAskAI", () => {
       { content: "broken?", role: "user" },
       { content: ERROR_MESSAGE, role: "assistant" },
     ]);
+    expect(tracked.map((entry) => entry.event)).toStrictEqual([
+      "ask",
+      "ask_error",
+    ]);
+    expect(tracked[1]?.props).toMatchObject({
+      questionChars: 7,
+      status: 500,
+    });
+  });
+
+  it("reports the HTTP status when the stream breaks after a 200", async () => {
+    // `streamText` defers provider errors to the stream, so the backend's
+    // most common failure is a 200 whose body aborts mid-flight — that must
+    // read as a 200 error in analytics, not as "no response".
+    const encoder = new TextEncoder();
+    setFetch(() =>
+      Promise.resolve(
+        new Response(
+          new ReadableStream<Uint8Array>({
+            start(controller) {
+              controller.enqueue(encoder.encode("Part"));
+              controller.error(new Error("provider rejected the key"));
+            },
+          }),
+          { status: 200 }
+        )
+      )
+    );
+    const { ask } = freshRender(useAskAI);
+    await ask("mid-flight?");
+    expect(render(useAskAI).messages).toStrictEqual([
+      { content: "mid-flight?", role: "user" },
+      { content: ERROR_MESSAGE, role: "assistant" },
+    ]);
+    expect(tracked[1]).toMatchObject({
+      event: "ask_error",
+      props: { status: 200 },
+    });
+  });
+
+  it("reports an empty 200 as an error, not an answer", async () => {
+    // No body at all, and a stream that closes without a byte: either way
+    // the reader sees a blank bubble, so neither counts as an answer.
+    setFetch(() => Promise.resolve(new Response(null, { status: 200 })));
+    const first = freshRender(useAskAI);
+    await first.ask("nothing?");
+    expect(tracked.map((entry) => entry.event)).toStrictEqual([
+      "ask",
+      "ask_error",
+    ]);
+    expect(tracked[1]?.props).toMatchObject({ status: 200 });
+
+    tracked.length = 0;
+    setFetch(() => Promise.resolve(streamResponse([])));
+    const second = freshRender(useAskAI);
+    await second.ask("still nothing?");
+    expect(tracked.map((entry) => entry.event)).toStrictEqual([
+      "ask",
+      "ask_error",
+    ]);
+    expect(tracked[1]?.props).toMatchObject({ status: 200 });
+  });
+
+  it("keys analytics on the raw pathname under a deployment base", async () => {
+    // The endpoint gets the base-stripped route for grounding, but analytics
+    // must match the feedback widget and the providers' pageviews, which
+    // record the served pathname.
+    const { BASE_URL } = process.env;
+    const { pathname } = windowStub.location;
+    process.env.BASE_URL = "/docs";
+    windowStub.location.pathname = "/docs/guide";
+    try {
+      const requests: { init?: RequestInit }[] = [];
+      setFetch((_url, init) => {
+        requests.push({ init });
+        return Promise.resolve(streamResponse(["ok"]));
+      });
+      const { ask } = freshRender(useAskAI);
+      await ask("based?");
+      const body = JSON.parse(String(requests[0]?.init?.body));
+      expect(body.page).toStrictEqual({ path: "/guide" });
+      expect(tracked[0]?.props.path).toBe("/docs/guide");
+      expect(tracked[1]?.props.path).toBe("/docs/guide");
+    } finally {
+      process.env.BASE_URL = BASE_URL;
+      windowStub.location.pathname = pathname;
+    }
   });
 
   it("recovers when fetch itself throws (offline)", async () => {
@@ -318,6 +465,11 @@ describe("useAskAI", () => {
       { content: "offline?", role: "user" },
       { content: ERROR_MESSAGE, role: "assistant" },
     ]);
+    // No response at all reports status 0.
+    expect(tracked[1]).toMatchObject({
+      event: "ask_error",
+      props: { questionChars: 8, status: 0 },
+    });
   });
 
   it("ignores empty questions", async () => {
@@ -330,6 +482,7 @@ describe("useAskAI", () => {
     await ask("   ");
     expect(called).toBe(false);
     expect(render(useAskAI).messages).toStrictEqual([]);
+    expect(tracked).toStrictEqual([]);
   });
 
   it("resets the conversation", async () => {
@@ -382,6 +535,9 @@ describe("useAskAI", () => {
     const after = render(useAskAI);
     expect(after.messages).toStrictEqual([]);
     expect(after.loading).toBe(false);
+    // A reset revokes the outcome along with the UI update: the question was
+    // asked, but it was neither answered nor failed.
+    expect(tracked.map((entry) => entry.event)).toStrictEqual(["ask"]);
   });
 
   it("does not resurrect pre-reset history through the error path", async () => {
