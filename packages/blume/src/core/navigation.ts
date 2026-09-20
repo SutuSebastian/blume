@@ -112,6 +112,8 @@ interface MutableGroup {
   path: string;
   /** The group's URL path (folder route prefix); set as pages are inserted. */
   routePath?: string;
+  /** The folder's index page route, when it has one; the group row's link. */
+  route?: string;
   label: string;
   icon?: string;
   collapsed?: boolean;
@@ -214,8 +216,14 @@ const applyFolderMeta = (
   sharedMeta: Map<string, FolderMeta>,
   metaPrefix: string,
   sharedMetaPrefix: string,
-  indexDisplay: Map<string, SidebarDisplay>
+  indexDisplay: Map<string, SidebarDisplay>,
+  indexRoute: Map<string, string>
 ): void => {
+  // A folder with an index page links its group row to it — the same shape
+  // as an explicit-config group's `root`, and the only sidebar link to the
+  // section's own page once the index row is hidden. Index-less folders keep
+  // no link: their row would 404.
+  group.route = indexRoute.get(group.path);
   // Locale-specific meta wins; a shared `meta.$.*` (keyed by the locale-stripped
   // group path — version-prefixed inside a snapshot) applies to every locale
   // otherwise.
@@ -254,7 +262,8 @@ const applyFolderMeta = (
         sharedMeta,
         metaPrefix,
         sharedMetaPrefix,
-        indexDisplay
+        indexDisplay,
+        indexRoute
       );
     }
   }
@@ -510,6 +519,7 @@ const toNavNode = (node: MutableNode, display: SidebarDisplay): NavNode => {
     kind: "group",
     label: node.label,
     path: node.routePath,
+    route: node.route,
   };
 };
 
@@ -529,6 +539,11 @@ const buildFileSystemSidebar = (
   // Collected before the hidden filter (like the title check): hiding the index
   // row from the panel shouldn't stop it configuring its group.
   const indexDisplay = new Map<string, SidebarDisplay>();
+  // Folder path -> that folder's index page route, for the group row's link.
+  // Also collected before the hidden filter: hiding the index row is how a
+  // site drops the duplicate label under a linked header, so the link must
+  // survive it. The content root is not a group, so its index is skipped.
+  const indexRoute = new Map<string, string>();
 
   for (const page of pages) {
     // Group by the locale-stripped path so the locale dir is not a nav group.
@@ -557,6 +572,9 @@ const buildFileSystemSidebar = (
       // silently flip again the day the index gets translated.
       if (page.meta.sidebar.display && !page.fallback) {
         indexDisplay.set(dirs.join("/"), page.meta.sidebar.display);
+      }
+      if (dirs.length > 0) {
+        indexRoute.set(dirs.join("/"), page.route);
       }
     }
 
@@ -611,7 +629,8 @@ const buildFileSystemSidebar = (
     sharedMeta,
     metaPrefix,
     sharedMetaPrefix,
-    indexDisplay
+    indexDisplay,
+    indexRoute
   );
   sortNodes(root.children, diagnostics);
   hoistPages(root.children, display, true);

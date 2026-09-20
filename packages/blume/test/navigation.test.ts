@@ -1080,3 +1080,84 @@ describe("buildNavigation — basePath", () => {
     expect(asGroup(nav.sidebar[2]).route).toBe("/docs/nope");
   });
 });
+
+describe("buildNavigation — generated group links", () => {
+  it("links a group row to its folder's index page", () => {
+    const nav = buildNavigation(
+      [
+        page("guides/index.mdx", "/guides", "Guides"),
+        page("guides/setup.mdx", "/guides/setup", "Setup"),
+      ],
+      { folderMeta: empty }
+    );
+    const group = asGroup(nav.sidebar[0]);
+    expect(group.route).toBe("/guides");
+    // The index page keeps its own row: existing sidebars and pagination
+    // order stay as they were, and only the header gains the link.
+    expect(labels(group.children)).toStrictEqual(["Guides", "Setup"]);
+  });
+
+  it("leaves an index-less group unlinked so the row never 404s", () => {
+    const nav = buildNavigation(
+      [page("guides/setup.mdx", "/guides/setup", "Setup")],
+      { folderMeta: empty }
+    );
+    const group = asGroup(nav.sidebar[0]);
+    expect(group.path).toBe("/guides");
+    expect(group.route).toBeUndefined();
+  });
+
+  it("keeps the header link when the index row is hidden", () => {
+    // Hiding the index page is how a site drops the duplicate label under a
+    // linked header, so the link has to survive the hidden filter.
+    const nav = buildNavigation(
+      [
+        page("guides/index.mdx", "/guides", "Guides", { hidden: true }),
+        page("guides/setup.mdx", "/guides/setup", "Setup"),
+      ],
+      { folderMeta: empty }
+    );
+    const group = asGroup(nav.sidebar[0]);
+    expect(group.route).toBe("/guides");
+    expect(labels(group.children)).toStrictEqual(["Setup"]);
+  });
+
+  it("links nested groups and never the content root", () => {
+    const nav = buildNavigation(
+      [
+        page("index.mdx", "/", "Home"),
+        page("a/index.mdx", "/a", "A"),
+        page("a/b/index.mdx", "/a/b", "B"),
+      ],
+      { folderMeta: empty }
+    );
+    // The root is not a group; its index stays a plain page row.
+    expect(asPage(nav.sidebar[0]).route).toBe("/");
+    const a = asGroup(nav.sidebar[1]);
+    expect(a.route).toBe("/a");
+    expect(asGroup(a.children[1]).route).toBe("/a/b");
+  });
+
+  it("lets a tab land on a hidden index page through the group link", () => {
+    // Before the group carried the index route, hiding the index row made the
+    // tab fall back to the section's first page.
+    const nav = buildNavigation(
+      [
+        page("docs/index.mdx", "/docs", "Docs", { hidden: true }),
+        page("docs/setup.mdx", "/docs/setup", "Setup"),
+      ],
+      { folderMeta: empty, tabs: [{ label: "Docs", path: "/docs" }] }
+    );
+    expect(nav.tabs[0]?.href).toBeUndefined();
+  });
+
+  it("still resolves a tab to a page nested inside an unlinked group", () => {
+    // The parent folder has no index, so the match comes from walking its
+    // children rather than from the group row itself.
+    const nav = buildNavigation(
+      [page("docs/setup.mdx", "/docs/setup", "Setup")],
+      { folderMeta: empty, tabs: [{ label: "Setup", path: "/docs/setup" }] }
+    );
+    expect(nav.tabs[0]?.href).toBeUndefined();
+  });
+});

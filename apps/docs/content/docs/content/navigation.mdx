@@ -12,6 +12,7 @@ By default the sidebar mirrors your content tree:
 - folders become **groups**, files become **pages**
 - a page's label is its frontmatter `title`; a group's label is the humanized folder name
 - items sort by [numeric prefix](/docs/content), then alphabetically, and a folder's `index` page comes first
+- a folder with an `index` page links its group row to that page, so clicking the section name opens the section's landing page
 
 That's enough for many sites — everything below is opt-in.
 
@@ -132,6 +133,8 @@ Hide a page from the sidebar — and from previous/next pagination — while kee
 sidebar:
   hidden: true
 ```
+
+A folder's `index` page appears both as the group row's link and as the first row inside the group. Hide the index page to keep only the linked header: the group row still opens the landing page, and previous/next links still pass through it.
 
 ## Tabs
 

@@ -220,6 +220,11 @@ export type NavNode =
        */
       display: SidebarDisplay;
       icon?: string;
+      /**
+       * The group row's link: an explicit-config group's `root`, or the
+       * generated folder's index page route. Absent when there is no page at
+       * the group's own path, so the row never links to a 404.
+       */
       route?: string;
       /**
        * The group's URL path (its folder route prefix), even when the folder
