@@ -5,6 +5,7 @@ import { build } from "astro";
 import { defineCommand } from "citty";
 import { join } from "pathe";
 
+import { crossOriginDiscoveryPaths } from "../../ai/ai-catalog.ts";
 import {
   API_CATALOG_PATH,
   API_CATALOG_TYPE,
@@ -128,7 +129,8 @@ const emitVercelNegotiation = async (
     {
       json: existsSync(join(staticDir, "404.json")),
       markdown: existsSync(join(staticDir, "404.md")),
-    }
+    },
+    crossOriginDiscoveryPaths(config)
   );
   if (injected === null) {
     logger.warn(

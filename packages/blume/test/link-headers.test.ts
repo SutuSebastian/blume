@@ -13,6 +13,8 @@ const configWith = (
     agentReadability: boolean;
     api: boolean;
     base: string;
+    /** Sets a `deployment.site`, which the AI Catalog needs to anchor its URNs. */
+    catalog: boolean;
     llmsTxt: boolean;
     mcp: boolean;
   }> = {}
@@ -22,12 +24,17 @@ const configWith = (
   asResolvedConfig({
     ai: {
       api: overrides.api ?? false,
+      catalog: { enabled: true, queries: {} },
       llmsTxt: { enabled: overrides.llmsTxt ?? true },
       mcp: { enabled: overrides.mcp ?? false, route: "/mcp" },
+      skills: undefined,
     },
     asyncapi: { enabled: false, sources: [] },
     basePath: "",
-    deployment: { base: overrides.base },
+    deployment: {
+      base: overrides.base,
+      site: overrides.catalog ? "https://example.com" : undefined,
+    },
     graphql: { enabled: false, sources: [] },
     openapi: { enabled: false, sources: [] },
     seo: { agentReadability: overrides.agentReadability ?? true },
@@ -89,6 +96,19 @@ describe("buildHomeLinkHeader", () => {
       '</.well-known/api-catalog>; rel="api-catalog"; type="application/linkset+json"'
     );
     expect(buildHomeLinkHeader(configWith(), [])).not.toContain("api-catalog");
+  });
+
+  it("advertises the AI Catalog with its registered media type when a site anchors it", () => {
+    expect(
+      buildHomeLinkHeader(configWith({ base: "/base", catalog: true }), [])
+    ).toBe(
+      [
+        '</base/.well-known/ai-catalog.json>; rel="ai-catalog"; type="application/ai-catalog+json"',
+        '</base/agent-readability.json>; rel="describedby"; type="application/json"',
+        '</base/llms.txt>; rel="describedby"; type="text/plain"',
+      ].join(", ")
+    );
+    expect(buildHomeLinkHeader(configWith(), [])).not.toContain("ai-catalog");
   });
 
   it("advertises the OpenAPI description as service-desc (RFC 8631) with the JSON docs API", () => {

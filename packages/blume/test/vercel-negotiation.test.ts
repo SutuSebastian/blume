@@ -6,6 +6,7 @@ import {
   buildNegotiationRoutes,
   injectNegotiationRoutes,
 } from "../src/deploy/vercel-negotiation.ts";
+import type { VercelRoute } from "../src/deploy/vercel-negotiation.ts";
 
 // The router's matching semantics aren't contractual — exercise the pattern
 // both as a substring match and wrapped as a full-string match, since it must
@@ -335,6 +336,45 @@ describe("injectNegotiationRoutes", () => {
       overrides
     );
     expect(JSON.parse(alone ?? "").overrides).toBeDefined();
+  });
+
+  it("stamps Access-Control-Allow-Origin on the discovery documents before handle:filesystem", () => {
+    const cors = ["/.well-known/ai-catalog.json", "/.well-known/api-catalog"];
+    const once = injectNegotiationRoutes(
+      JSON.stringify(baseConfig),
+      [],
+      null,
+      {},
+      undefined,
+      {},
+      cors
+    );
+    const routes: VercelRoute[] = JSON.parse(once ?? "").routes;
+    const filesystemIndex = routes.findIndex(
+      (route) => route.handle === "filesystem"
+    );
+    const corsRoutes = routes.filter(
+      (route) => route.headers?.["access-control-allow-origin"] === "*"
+    );
+    expect(corsRoutes).toStrictEqual([
+      {
+        continue: true,
+        headers: { "access-control-allow-origin": "*" },
+        src: "^/\\.well-known/ai-catalog\\.json$",
+      },
+      {
+        continue: true,
+        headers: { "access-control-allow-origin": "*" },
+        src: "^/\\.well-known/api-catalog$",
+      },
+    ]);
+    for (const route of corsRoutes) {
+      expect(routes.indexOf(route)).toBeLessThan(filesystemIndex);
+    }
+    // Re-injection replaces the CORS routes instead of duplicating them.
+    expect(
+      injectNegotiationRoutes(once ?? "", [], null, {}, undefined, {}, cors)
+    ).toBe(once ?? "");
   });
 
   it("returns the config untouched-in-shape when there is nothing to add", () => {

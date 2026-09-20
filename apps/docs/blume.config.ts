@@ -2,6 +2,29 @@ import { defineConfig } from "blume";
 
 export default defineConfig({
   ai: {
+    catalog: {
+      queries: {
+        "mcp:blume": [
+          "how do I configure a Blume docs site",
+          "search the Blume documentation",
+          "what does blume build generate",
+        ],
+        "skill:blume": [
+          "set up a Blume documentation site",
+          "write MDX content for Blume",
+          "configure blume.config.ts",
+        ],
+        "skill:blume-migrate": [
+          "migrate my Mintlify docs to Blume",
+          "convert a Docusaurus site to Blume",
+          "port Starlight docs to Blume",
+        ],
+        "skill:blume-update-docs": [
+          "check the Blume docs for drift after a release",
+          "update stale documentation pages",
+        ],
+      },
+    },
     llmsTxt: {
       details: [
         "## When to use Blume",

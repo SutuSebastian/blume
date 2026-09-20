@@ -1676,6 +1676,7 @@ describe("agent-readability.json", () => {
       })
     );
     expect(manifest?.artifacts).toMatchObject({
+      aiCatalog: "https://example.com/.well-known/ai-catalog.json",
       // The MCP server is an API, so it also surfaces the RFC 9727 catalog.
       apiCatalog: "https://example.com/.well-known/api-catalog",
       askApi: "https://example.com/api/ask",

@@ -12,6 +12,7 @@ const configWith = (
     base?: string;
     basePath: string;
     mcp: boolean;
+    site: string;
     skills: string;
     webBotAuthKeys: { kty: string }[];
   }>
@@ -27,7 +28,11 @@ const configWith = (
       webBotAuth: { keys: overrides.webBotAuthKeys ?? [] },
     },
     basePath: overrides.basePath ?? "",
-    deployment: { ...base.deployment, base: overrides.base },
+    deployment: {
+      ...base.deployment,
+      base: overrides.base,
+      site: overrides.site,
+    },
   };
 };
 
@@ -99,6 +104,26 @@ describe("buildNetlifyHeaders", () => {
     expect(buildNetlifyHeaders(configWith({}))).toContain("api-catalog");
     expect(buildNetlifyHeaders(configWith({ api: false }))).not.toContain(
       "api-catalog"
+    );
+  });
+
+  it("opens the discovery documents to cross-origin readers", () => {
+    const out = buildNetlifyHeaders(
+      configWith({ base: "/base", mcp: true, site: "https://example.com" })
+    );
+    for (const path of [
+      "/base/.well-known/ai-catalog.json",
+      "/base/.well-known/ard.json",
+      "/base/.well-known/api-catalog",
+      "/base/.well-known/mcp.json",
+      "/base/.well-known/mcp/server-card.json",
+    ]) {
+      expect(out).toContain(`${path}\n  Access-Control-Allow-Origin: *`);
+    }
+    // No site, no catalog; no APIs, no CORS rule at all.
+    expect(buildNetlifyHeaders(configWith({}))).not.toContain("ai-catalog");
+    expect(buildNetlifyHeaders(configWith({ api: false }))).not.toContain(
+      "Access-Control-Allow-Origin"
     );
   });
 

@@ -1,5 +1,10 @@
 import { normalizeBasePath } from "../core/base-path.ts";
 import type { ResolvedConfig } from "../core/schema.ts";
+import {
+  AI_CATALOG_PATH,
+  AI_CATALOG_TYPE,
+  hasAiCatalog,
+} from "./ai-catalog.ts";
 import { API_CATALOG_PATH, hasApiCatalog } from "./api-catalog.ts";
 import { OPENAPI_PATH } from "./api/paths.ts";
 
@@ -35,6 +40,13 @@ export const buildHomeLinkHeader = (
   if (hasApiCatalog(config)) {
     links.push(
       `<${deployBase}${API_CATALOG_PATH}>; rel="api-catalog"; type="application/linkset+json"`
+    );
+  }
+  // The ai-catalog spec's own relation for its well-known document, the
+  // header form of the `<link rel="ai-catalog">` every page carries.
+  if (hasAiCatalog(config)) {
+    links.push(
+      `<${deployBase}${AI_CATALOG_PATH}>; rel="ai-catalog"; type="${AI_CATALOG_TYPE}"`
     );
   }
   // RFC 8631: `service-desc` is the relation for a machine-readable

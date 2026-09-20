@@ -869,6 +869,23 @@ const llmsTxtObjectSchema = z.strictObject({
 
 type LlmsTxtResolved = z.output<typeof llmsTxtObjectSchema>;
 
+/** The object form of `ai.catalog`; a bare boolean normalizes onto it. */
+const aiCatalogObjectSchema = z.strictObject({
+  enabled: z.boolean().default(true),
+  /**
+   * Representative queries per catalog entry, keyed by the entry's
+   * `<namespace>:<name>` (the identifier minus its `urn:air:<host>:` prefix,
+   * e.g. `mcp:docs`, `skill:blume`, `api:docs`). Replaces the generated
+   * defaults for that entry; 2–5 short natural-language questions the
+   * resource can answer, which registries embed for semantic search.
+   */
+  queries: z
+    .record(z.string().min(1), z.array(z.string().trim().min(1)).min(1))
+    .default({}),
+});
+
+type AiCatalogResolved = z.output<typeof aiCatalogObjectSchema>;
+
 const aiConfigSchema = z.strictObject({
   /**
    * The JSON docs API: the page index, per-page JSON, and navigation under
@@ -983,6 +1000,21 @@ const aiConfigSchema = z.strictObject({
       }
     })
     .optional(),
+  /**
+   * The AI Catalog / ARD manifest at `/.well-known/ai-catalog.json` (mirrored
+   * at `/.well-known/ard.json`): one entry per agent-facing resource the site
+   * publishes — the MCP server card, each agent skill, the JSON docs API's
+   * OpenAPI document, each rendered API reference, and llms.txt — so agent
+   * registries can index the site from its domain alone. Needs a
+   * `deployment.site` (identifiers are domain-anchored URNs). On by default;
+   * the object form overrides the generated representative queries.
+   */
+  catalog: z
+    .union([z.boolean(), aiCatalogObjectSchema])
+    .default(true)
+    .transform((value): AiCatalogResolved =>
+      isBoolean(value) ? { enabled: value, queries: {} } : value
+    ),
   /**
    * `llms.txt`/`llms-full.txt` emission. A bare boolean toggles it; the object
    * form adds `openapi: false` to keep generated API reference pages out of

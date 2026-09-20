@@ -4,6 +4,7 @@ import type { BlumeProject } from "../core/project-graph.ts";
 import type { ContentSignalPolicy, ContentSignals } from "../core/schema.ts";
 import { absoluteUrl } from "../core/site-url.ts";
 import { buildRssFeeds } from "../deploy/rss.ts";
+import { AI_CATALOG_PATH, hasAiCatalog } from "./ai-catalog.ts";
 import { hasApiCatalog } from "./api-catalog.ts";
 import { API_PAGES_PATH, API_SEARCH_PATH, OPENAPI_PATH } from "./api/paths.ts";
 
@@ -52,6 +53,7 @@ const askApiUrl = (
 /** The `.well-known` discovery URLs a site can publish. */
 interface WellKnownArtifacts {
   httpMessageSignaturesDirectory?: string;
+  aiCatalog?: string;
   apiCatalog?: string;
   agentSkills?: string;
 }
@@ -137,6 +139,9 @@ const wellKnownArtifacts = (
     artifacts.httpMessageSignaturesDirectory = abs(
       "/.well-known/http-message-signatures-directory"
     );
+  }
+  if (hasAiCatalog(config)) {
+    artifacts.aiCatalog = abs(AI_CATALOG_PATH);
   }
   if (hasApiCatalog(config)) {
     artifacts.apiCatalog = abs("/.well-known/api-catalog");

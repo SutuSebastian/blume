@@ -6,6 +6,7 @@ import { absoluteUrl } from "../core/site-url.ts";
 import { readExpandedEntryText } from "../core/sources/read.ts";
 import type { NavNode, Navigation, PageRecord } from "../core/types.ts";
 import { buildRssFeeds } from "../deploy/rss.ts";
+import { AI_CATALOG_PATH, hasAiCatalog } from "./ai-catalog.ts";
 import { API_CATALOG_PATH, hasApiCatalog } from "./api-catalog.ts";
 import { API_PAGES_PATH, OPENAPI_PATH } from "./api/paths.ts";
 import { downlevelComponents } from "./component-markdown.ts";
@@ -73,6 +74,11 @@ const agentResourceLines = (project: BlumeProject): string[] => {
   if (hasApiCatalog(config)) {
     lines.push(
       `- [API catalog](${url(API_CATALOG_PATH)}): RFC 9727 linkset of the APIs documented here.`
+    );
+  }
+  if (hasAiCatalog(config)) {
+    lines.push(
+      `- [AI catalog](${url(AI_CATALOG_PATH)}): ARD manifest of the agent-facing resources on this site (MCP server, skills, APIs).`
     );
   }
   if (config.seo.agentReadability) {

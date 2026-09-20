@@ -411,6 +411,8 @@ describe("buildRuntimeData", () => {
     const data = JSON.parse(buildRuntimeData(project));
     expect(data.config.discovery).toStrictEqual({
       agentReadability: true,
+      // No deployment.site, so no urn:air host to anchor the catalog.
+      aiCatalog: false,
       api: true,
       llmsTxt: true,
       sitemap: false,
@@ -483,6 +485,7 @@ describe("buildRuntimeData", () => {
     const data = JSON.parse(buildRuntimeData(project));
     expect(data.config.discovery).toStrictEqual({
       agentReadability: false,
+      aiCatalog: false,
       api: false,
       llmsTxt: false,
       sitemap: false,

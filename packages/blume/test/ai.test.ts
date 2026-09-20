@@ -231,6 +231,7 @@ describe("buildLlmsFiles — agent resources", () => {
       "- [Page Markdown](https://example.com/index.md): Append `.md` to any page URL to fetch that page as raw Markdown.",
       "- [JSON API](https://example.com/api/docs/pages.json): Page index of the JSON docs API; each entry links the page's JSON and Markdown forms. Described by the OpenAPI document at https://example.com/openapi.json.",
       "- [API catalog](https://example.com/.well-known/api-catalog): RFC 9727 linkset of the APIs documented here.",
+      "- [AI catalog](https://example.com/.well-known/ai-catalog.json): ARD manifest of the agent-facing resources on this site (MCP server, skills, APIs).",
       "- [agent-readability.json](https://example.com/agent-readability.json): Manifest of every agent-facing artifact on this site.",
       "- [Sitemap](https://example.com/sitemap.xml): Every indexable page URL with its last-modified date.",
     ]);
@@ -254,6 +255,7 @@ describe("buildLlmsFiles — agent resources", () => {
       "- [MCP server](https://example.com/docs-mcp): Streamable HTTP Model Context Protocol server with search_docs, get_page, list_pages, and get_navigation tools, plus every page as a resource. Discovery document: https://example.com/.well-known/mcp.json",
       "- [Agent skills](https://example.com/.well-known/agent-skills/index.json): Agent Skills discovery index of the skills this site publishes.",
       "- [API catalog](https://example.com/.well-known/api-catalog): RFC 9727 linkset of the APIs documented here.",
+      "- [AI catalog](https://example.com/.well-known/ai-catalog.json): ARD manifest of the agent-facing resources on this site (MCP server, skills, APIs).",
     ]);
   });
 

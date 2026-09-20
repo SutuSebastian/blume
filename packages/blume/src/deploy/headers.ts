@@ -1,3 +1,4 @@
+import { crossOriginDiscoveryPaths } from "../ai/ai-catalog.ts";
 import {
   API_CATALOG_PATH,
   API_CATALOG_TYPE,
@@ -94,6 +95,11 @@ export const buildNetlifyHeaders = (
     rules.push(
       `${deployBase}${SIGNATURES_DIRECTORY_PATH}\n  Content-Type: ${SIGNATURES_DIRECTORY_TYPE}`
     );
+  }
+  // Agent registries fetch the discovery documents cross-origin; a static
+  // host sends no CORS header unless told to.
+  for (const path of crossOriginDiscoveryPaths(config)) {
+    rules.push(`${deployBase}${path}\n  Access-Control-Allow-Origin: *`);
   }
   // Published skills live at the deployment base, outside `basePath` — the
   // `.md` charset rule above misses them whenever a basePath is set, and the

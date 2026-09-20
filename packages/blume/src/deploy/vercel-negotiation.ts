@@ -235,6 +235,26 @@ export const buildNegotiationRoutes = (
 /** The `src` of the injected homepage `Link` header route. */
 const HOME_SRC = "^/$";
 
+const ALLOW_ANY_ORIGIN = "*";
+
+/**
+ * A main-phase `continue` route stamping `Access-Control-Allow-Origin: *` on
+ * one static discovery document (see `crossOriginDiscoveryPaths`), so a
+ * registry reading it from another origin isn't refused by the browser.
+ */
+const corsRoute = (path: string): VercelRoute => ({
+  continue: true,
+  headers: { "access-control-allow-origin": ALLOW_ANY_ORIGIN },
+  src: `^${routePattern(path)}$`,
+});
+
+/** Whether a route is a `corsRoute` — the same three-field shape test as the others. */
+const isCorsRoute = (route: VercelRoute): boolean =>
+  route.continue === true &&
+  route.headers?.["access-control-allow-origin"] === ALLOW_ANY_ORIGIN &&
+  isString(route.src) &&
+  Object.keys(route).length === 3;
+
 /**
  * Whether a route is one this module previously injected, so re-injection
  * replaces rather than duplicates. Rewrites are identified by their `accept`
@@ -258,7 +278,8 @@ const isNegotiationRoute = (route: VercelRoute): boolean =>
   (route.continue === true &&
     isString(route.headers?.link) &&
     route.src === HOME_SRC &&
-    Object.keys(route).length === 3);
+    Object.keys(route).length === 3) ||
+  isCorsRoute(route);
 
 /**
  * Splice the negotiation routes into a Build Output `config.json`, plus — when
@@ -287,7 +308,8 @@ export const injectNegotiationRoutes = (
   homeLinkHeader?: string | null,
   contentTypeOverrides?: Record<string, string>,
   homeTokens?: number,
-  notFound: NotFoundVariants = {}
+  notFound: NotFoundVariants = {},
+  corsPaths: readonly string[] = []
 ): string | null => {
   const overrideEntries = Object.entries(contentTypeOverrides ?? {});
   let config: {
@@ -325,6 +347,7 @@ export const injectNegotiationRoutes = (
       src: HOME_SRC,
     });
   }
+  headerRoutes.push(...corsPaths.map(corsRoute));
   // Headers first: `continue` routes accumulate, so a request the rewrite
   // route then terminates (Markdown negotiation on the homepage) still carries
   // the Link header.

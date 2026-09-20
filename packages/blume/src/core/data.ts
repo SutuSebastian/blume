@@ -140,6 +140,8 @@ export interface BlumeDataConfig {
    */
   discovery: {
     agentReadability: boolean;
+    /** Whether the AI Catalog / ARD manifest is published (`ai.catalog`). */
+    aiCatalog: boolean;
     /** Whether the JSON docs API and its `/openapi.json` are published. */
     api: boolean;
     llmsTxt: boolean;

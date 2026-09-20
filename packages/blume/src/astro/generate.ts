@@ -24,6 +24,7 @@ import {
 } from "pathe";
 import { glob } from "tinyglobby";
 
+import { hasAiCatalog } from "../ai/ai-catalog.ts";
 import { OPENAPI_PATH } from "../ai/api/paths.ts";
 import { buildApiSpec } from "../ai/api/spec.ts";
 import { buildAskData } from "../ai/ask-data.ts";
@@ -1357,6 +1358,7 @@ export const buildRuntimeData = (project: BlumeProject): string => {
       description: config.description,
       discovery: {
         agentReadability: config.seo.agentReadability,
+        aiCatalog: hasAiCatalog(config),
         api: config.ai.api,
         llmsTxt: config.ai.llmsTxt.enabled,
         // Mirrors `buildSitemapFiles`: no site, no sitemap.

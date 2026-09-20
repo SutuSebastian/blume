@@ -776,6 +776,31 @@ export interface AskConfig {
   suggestions?: AskSuggestion[];
 }
 
+/** What the AI Catalog (ARD) manifest carries. */
+export interface AiCatalogConfig {
+  /** Emit `/.well-known/ai-catalog.json` and `/.well-known/ard.json`. Defaults to `true`. */
+  enabled?: boolean;
+  /**
+   * Representative queries per entry, keyed by the entry's `<namespace>:<name>`
+   * — its identifier minus the `urn:air:<host>:` prefix (`mcp:docs`,
+   * `skill:blume`, `api:docs`, `reference:<slug>`, `docs:llms-txt`). Each
+   * list replaces the generated defaults for that entry: 2–5 short
+   * natural-language questions the resource can answer, which agent
+   * registries embed for semantic search.
+   *
+   * ```ts
+   * ai: {
+   *   catalog: {
+   *     queries: {
+   *       "mcp:acme": ["how do I install Acme", "search the Acme docs"],
+   *     },
+   *   },
+   * }
+   * ```
+   */
+  queries?: Record<string, string[]>;
+}
+
 /** What the `llms.txt`/`llms-full.txt` files include. */
 export interface LlmsTxtConfig {
   /**
@@ -832,6 +857,15 @@ export interface AiConfig {
   api?: boolean;
   /** The Ask AI chat assistant. */
   ask?: AskConfig;
+  /**
+   * The AI Catalog / ARD manifest (`/.well-known/ai-catalog.json`, mirrored
+   * at `/.well-known/ard.json`): a domain-level index of the agent-facing
+   * resources the site publishes — MCP server, agent skills, the JSON docs
+   * API, API references, llms.txt — for agent registries. Needs a
+   * `deployment.site`. Defaults to `true`; the object form overrides the
+   * generated representative queries per entry.
+   */
+  catalog?: boolean | AiCatalogConfig;
   /**
    * Emit `llms.txt` (an index of the docs for LLMs). Defaults to `true`.
    * The object form adds knobs for what the files include.

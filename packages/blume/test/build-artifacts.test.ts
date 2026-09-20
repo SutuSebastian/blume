@@ -144,6 +144,43 @@ describe("publishBuildArtifacts", () => {
     expect(existsSync(join(other.dist, "pagefind"))).toBe(false);
   });
 
+  describe("AI catalog", () => {
+    it("writes the catalog to both well-known paths, listing the published skills", async () => {
+      const { dist, root } = await fixture({
+        "blume.config.ts":
+          'export default { ai: { skills: "skills" }, deployment: { site: "https://docs.example.com" } };\n',
+        "docs/index.md": HOME,
+        "skills/simple/SKILL.md": skillMd("simple"),
+      });
+      const log = await publish(root, dist);
+      const catalog = await readFile(
+        join(dist, ".well-known", "ai-catalog.json"),
+        "utf-8"
+      );
+      expect(
+        await readFile(join(dist, ".well-known", "ard.json"), "utf-8")
+      ).toBe(catalog);
+      const identifiers = JSON.parse(catalog).entries.map(
+        (entry: { identifier: string }) => entry.identifier
+      );
+      expect(identifiers).toContain("urn:air:docs.example.com:skill:simple");
+      expect(log.info).toContain(
+        "Generated .well-known/ai-catalog.json (AI Catalog)"
+      );
+      expect(log.info).toContain(
+        "Generated .well-known/ard.json (ARD manifest)"
+      );
+    });
+
+    it("emits nothing without a deployment.site", async () => {
+      const { dist, root } = await fixture({ "docs/index.md": HOME });
+      await publish(root, dist);
+      expect(existsSync(join(dist, ".well-known", "ai-catalog.json"))).toBe(
+        false
+      );
+    });
+  });
+
   describe("agent skills", () => {
     it("publishes the configured skills and lists them in the index", async () => {
       const { dist, root } = await fixture({

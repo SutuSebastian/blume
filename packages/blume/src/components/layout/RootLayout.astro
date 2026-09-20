@@ -146,7 +146,11 @@ interface Props {
    * the site root. The HTML counterpart of the homepage-only HTTP `Link`
    * header (see `ai/link-headers.ts`).
    */
-  discovery?: { agentReadability: boolean; llmsTxt: boolean } | null;
+  discovery?: {
+    agentReadability: boolean;
+    aiCatalog: boolean;
+    llmsTxt: boolean;
+  } | null;
   siteUrl?: string | null;
   pageType?: string;
   published?: string | Date | null;
@@ -546,6 +550,25 @@ createIconSprite(Astro.locals);
     {
       discovery?.llmsTxt && (
         <link href={withBase("/llms.txt")} rel="describedby" type="text/plain" />
+      )
+    }
+    {/* The AI Catalog / ARD manifest under both relations its two specs
+        define: `ai-catalog` (ai-catalog spec) and `ard` (ARD v0.91), each
+        pointing at that spec's own well-known path. */}
+    {
+      discovery?.aiCatalog && (
+        <>
+          <link
+            href={withBase("/.well-known/ai-catalog.json")}
+            rel="ai-catalog"
+            type="application/ai-catalog+json"
+          />
+          <link
+            href={withBase("/.well-known/ard.json")}
+            rel="ard"
+            type="application/json"
+          />
+        </>
       )
     }
     {

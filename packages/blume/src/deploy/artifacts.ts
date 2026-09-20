@@ -4,6 +4,11 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "pathe";
 
 import { buildAgentReadability } from "../ai/agent-readability.ts";
+import {
+  AI_CATALOG_PATH,
+  ARD_MANIFEST_PATH,
+  buildAiCatalog,
+} from "../ai/ai-catalog.ts";
 import { API_CATALOG_PATH, buildApiCatalog } from "../ai/api-catalog.ts";
 import { buildHomeLinkHeader } from "../ai/link-headers.ts";
 import { buildLlmsFiles } from "../ai/llms.ts";
@@ -234,8 +239,12 @@ const emitAgentSkills = async (
 const emitWellKnownFiles = async (
   config: ResolvedConfig,
   distDir: string,
+  skills: readonly SkillArtifact[],
   logger: ArtifactLogger
 ): Promise<void> => {
+  // One document, two paths: the ai-catalog spec's well-known URI and the
+  // ARD v0.91 one (see `ai/ai-catalog.ts`).
+  const aiCatalog = buildAiCatalog(config, skills);
   const files = [
     {
       content: buildSignaturesDirectory(config),
@@ -247,6 +256,8 @@ const emitWellKnownFiles = async (
       label: "RFC 9727",
       path: API_CATALOG_PATH,
     },
+    { content: aiCatalog, label: "AI Catalog", path: AI_CATALOG_PATH },
+    { content: aiCatalog, label: "ARD manifest", path: ARD_MANIFEST_PATH },
   ];
   for (const file of files) {
     const target = join(distDir, file.path.slice(1));
@@ -362,7 +373,7 @@ export const publishBuildArtifacts = async (
     logger.info("Generated agent-readability.json");
   }
 
-  await emitWellKnownFiles(project.config, distDir, logger);
+  await emitWellKnownFiles(project.config, distDir, skills, logger);
   await emitAgentSkills(project, distDir, skills, logger);
 
   await emitRedirectFiles(project.config, distDir, logger);

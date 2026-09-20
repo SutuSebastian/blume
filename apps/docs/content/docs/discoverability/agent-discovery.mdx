@@ -55,13 +55,14 @@ Agents that probe a site don't know to look for the manifest — so Blume also a
 
 ```http
 Link: </.well-known/api-catalog>; rel="api-catalog"; type="application/linkset+json",
+  </.well-known/ai-catalog.json>; rel="ai-catalog"; type="application/ai-catalog+json",
   </openapi.json>; rel="service-desc"; type="application/json",
   </agent-readability.json>; rel="describedby"; type="application/json",
   </llms.txt>; rel="describedby"; type="text/plain",
   </index.md>; rel="alternate"; type="text/markdown"
 ```
 
-Each entry appears only when its feature is on. The `alternate` link points at the homepage's Markdown mirror — the page's own [raw Markdown](/docs/discoverability/markdown) when the home route is a content page, or the synthesized `llms.txt` fallback when it's a landing page. The `service-desc` link ([RFC 8631](https://www.rfc-editor.org/rfc/rfc8631)) points at the [JSON API](/docs/discoverability/json-api)'s OpenAPI description, and `api-catalog` at the [generated API catalog](#api-catalog). The header rides on every surface Blume controls: the dev server (check it with `curl -I localhost:4321`), static builds via the emitted `_headers` file (Netlify and Cloudflare), and Vercel server builds via the deploy's routing rules.
+Each entry appears only when its feature is on. The `alternate` link points at the homepage's Markdown mirror — the page's own [raw Markdown](/docs/discoverability/markdown) when the home route is a content page, or the synthesized `llms.txt` fallback when it's a landing page. The `service-desc` link ([RFC 8631](https://www.rfc-editor.org/rfc/rfc8631)) points at the [JSON API](/docs/discoverability/json-api)'s OpenAPI description, `api-catalog` at the [generated API catalog](#api-catalog), and `ai-catalog` at the [AI catalog](#ai-catalog). The header rides on every surface Blume controls: the dev server (check it with `curl -I localhost:4321`), static builds via the emitted `_headers` file (Netlify and Cloudflare), and Vercel server builds via the deploy's routing rules.
 
 Not every agent enters through the root, though — one following a search result or a shared link lands on a deep page and never sees the homepage header. So every rendered page also carries the same discovery links in its HTML `<head>`, using the same IANA-registered relations:
 
@@ -72,6 +73,12 @@ Not every agent enters through the root, though — one following a search resul
   type="application/json"
 />
 <link rel="describedby" href="/llms.txt" type="text/plain" />
+<link
+  rel="ai-catalog"
+  href="/.well-known/ai-catalog.json"
+  type="application/ai-catalog+json"
+/>
+<link rel="ard" href="/.well-known/ard.json" type="application/json" />
 <link rel="alternate" href="/docs/example.md" type="text/markdown" />
 ```
 
@@ -120,6 +127,80 @@ When the site publishes APIs, Blume generates an [RFC 9727](https://www.rfc-edit
 ```
 
 A site with no API references, no MCP server, and the [JSON API](/docs/discoverability/json-api) turned off emits no catalog — there'd be nothing in it. As everywhere, a `public/.well-known/api-catalog` file you ship yourself wins over the generated one.
+
+## AI catalog
+
+The API catalog lists APIs. The **AI catalog** lists everything an agent could pick up from the site — the MCP server, each published skill, the JSON API, each rendered API reference, and `llms.txt` — in the format agent registries index: an [AI Catalog](https://github.com/Agent-Card/ai-catalog) document at `/.well-known/ai-catalog.json`, which is also the manifest [Agentic Resource Discovery (ARD)](https://agenticresourcediscovery.org/) consumers resolve. Each entry carries a domain-anchored `urn:air:<host>:<namespace>:<name>` identifier, a display name, the artifact's media type, its URL, and a handful of `representativeQueries` — sample questions the resource can answer, which registries embed for semantic search:
+
+```json .well-known/ai-catalog.json
+{
+  "specVersion": "1.0",
+  "host": {
+    "displayName": "Acme",
+    "identifier": "did:web:docs.example.com",
+    "documentationUrl": "https://docs.example.com/"
+  },
+  "entries": [
+    {
+      "identifier": "urn:air:docs.example.com:mcp:acme",
+      "displayName": "Acme",
+      "type": "application/mcp-server-card+json",
+      "url": "https://docs.example.com/.well-known/mcp/server-card.json",
+      "capabilities": [
+        "search_docs",
+        "get_page",
+        "list_pages",
+        "get_navigation"
+      ],
+      "representativeQueries": [
+        "search the Acme documentation",
+        "get a Acme docs page as Markdown",
+        "list every page in the Acme docs"
+      ]
+    },
+    {
+      "identifier": "urn:air:docs.example.com:skill:acme",
+      "displayName": "acme",
+      "type": "application/agent-skills+md",
+      "url": "https://docs.example.com/.well-known/agent-skills/acme/SKILL.md",
+      "representativeQueries": [
+        "load the acme agent skill",
+        "how do I use acme"
+      ]
+    },
+    {
+      "identifier": "urn:air:docs.example.com:api:docs",
+      "displayName": "Acme docs API",
+      "type": "application/vnd.oai.openapi+json",
+      "url": "https://docs.example.com/openapi.json",
+      "representativeQueries": [
+        "fetch a Acme docs page as JSON",
+        "list the pages in the Acme docs",
+        "get the Acme docs navigation tree"
+      ]
+    }
+  ]
+}
+```
+
+ARD's current revision reads the manifest from `/.well-known/ard.json` and calls `ai-catalog.json` the predecessor path, so Blume writes the same document to both, advertises it under both link relations (`ai-catalog` and `ard`) in every page's head, and lists it in `llms.txt` and `agent-readability.json`. The catalog and its `.well-known` neighbors (the API catalog, the MCP discovery files) are served with `Access-Control-Allow-Origin: *` on every build surface, so a registry reading them from another origin isn't blocked.
+
+Entry identifiers are anchored on your domain, so the catalog needs a [`deployment.site`](/docs/deployment) — without one nothing is emitted. It's on by default; `ai.catalog: false` turns it off. The generated queries are derived from the site title and each entry's own description. To write your own for an entry, key them by the identifier's tail (`<namespace>:<name>`):
+
+```ts blume.config.ts
+export default defineConfig({
+  ai: {
+    catalog: {
+      queries: {
+        "mcp:acme": ["how do I install Acme", "search the Acme docs"],
+        "skill:acme": ["set up an Acme project", "write an Acme plugin"],
+      },
+    },
+  },
+});
+```
+
+A list replaces the generated queries for that entry; entries you don't name keep theirs. As everywhere, a `public/.well-known/ai-catalog.json` (or `ard.json`) you ship yourself wins over the generated one.
 
 ## WebMCP
 

@@ -56,7 +56,7 @@ const truncate = (text: string): string =>
 const NON_ASCII_SLUG = /[^a-z0-9]+/gu;
 const COMBINING_MARKS = /\p{M}+/gu;
 
-const asciiSlugify = (text: string): string =>
+export const asciiSlugify = (text: string): string =>
   trimChar(
     text
       .normalize("NFKD")
