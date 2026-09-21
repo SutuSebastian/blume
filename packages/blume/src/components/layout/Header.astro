@@ -71,6 +71,12 @@ interface Props {
    * the whole header.
    */
   layout?: Record<string, ComponentOverride>;
+  /**
+   * Start the header see-through, with its chrome in white, so it can sit over
+   * a dark hero at the top of the page; it returns to the frosted bar as soon
+   * as the page scrolls (`PageLayout`'s `transparentHeader`).
+   */
+  transparent?: boolean;
 }
 
 const {
@@ -94,6 +100,7 @@ const {
   searchLocale,
   searchVersion = null,
   layout = {},
+  transparent = false,
 } = Astro.props;
 
 // Merge over the English defaults so a label missing from a translation (or
@@ -150,12 +157,19 @@ const ctaClass = [
 // so the offset can't drift while open, and re-measure when a banner dismiss or
 // a resize/rotation moves the header. Crossing into the desktop breakpoint
 // (64rem, Tailwind `lg`) closes the drawer so the scroll lock can't outlive it.
+// Transparent header: flag the bar as scrolled once the page moves off the
+// top so the stylesheet below can swap it back to the frosted look. `sync`
+// re-queries the header each time, so the one listener a real load installs
+// keeps working across client-router swaps (and no-ops on pages without it).
+const transparentScript = `(()=>{const sync=()=>{const h=document.querySelector("[data-blume-header-transparent]");if(h){h.toggleAttribute("data-blume-header-scrolled",scrollY>8);}};sync();addEventListener("scroll",sync,{passive:true});document.addEventListener("astro:after-swap",sync);})();`;
+
 const clickScript = `(()=>{const dr=()=>{const h=document.querySelector("[data-blume-header]");if(h){document.documentElement.style.setProperty("--blume-drawer-top",h.getBoundingClientRect().bottom+"px");}};document.addEventListener("click",(e)=>{const t=e.target.closest("[data-blume-theme-toggle]");if(t){const d=document.documentElement;const next=d.dataset.theme==="dark"?"light":"dark";const s=document.createElement("style");s.appendChild(document.createTextNode("*,*::before,*::after{transition:none!important}"));document.head.appendChild(s);d.dataset.theme=next;localStorage.setItem("blume-theme",next);window.getComputedStyle(d).opacity;setTimeout(()=>document.head.removeChild(s),1);}const n=e.target.closest("[data-blume-nav-toggle]");if(n){const d=document.documentElement;const open=d.toggleAttribute("data-blume-nav-open");if(open){dr();}}const b=e.target.closest("[data-blume-banner-dismiss]");if(b){const bar=b.closest("[data-blume-banner]");const k=bar&&bar.getAttribute("data-banner-key");if(k){localStorage.setItem("blume-banner:"+k,"1");}document.documentElement.setAttribute("data-blume-banner-hidden","");requestAnimationFrame(dr);}});addEventListener("resize",()=>{const d=document.documentElement;if(!d.hasAttribute("data-blume-nav-open")){return;}if(matchMedia("(min-width:64rem)").matches){d.removeAttribute("data-blume-nav-open");}else{dr();}});})();`;
 ---
 
 <header
   class="sticky top-0 z-40 flex h-16 items-center gap-3 bg-background/90 px-4 backdrop-blur md:px-6"
   data-blume-header
+  data-blume-header-transparent={transparent ? "" : undefined}
 >
   {
     showNavToggle && (
@@ -290,3 +304,38 @@ const clickScript = `(()=>{const dr=()=>{const h=document.querySelector("[data-b
   </div>
 </header>
 <script is:inline set:html={clickScript} />
+{transparent && <script is:inline set:html={transparentScript} />}
+
+<style is:global>
+  /* Transparent header (PageLayout `transparentHeader`): at the top of the
+     page the bar has no background and its chrome renders in white so it can
+     sit over a dark hero; once scrolled it is the frosted bar again. The color
+     tokens are re-declared on the header so every utility inside follows, and
+     the search dialog gets the page's own values back so it isn't inverted. */
+  :root {
+    --blume-header-background: var(--blume-background);
+    --blume-header-foreground: var(--blume-foreground);
+    --blume-header-muted: var(--blume-muted);
+    --blume-header-muted-foreground: var(--blume-muted-foreground);
+    --blume-header-border: var(--blume-border);
+  }
+  [data-blume-header-transparent] {
+    transition: background-color 200ms;
+  }
+  [data-blume-header-transparent]:not([data-blume-header-scrolled]) {
+    --blume-background: transparent;
+    --blume-foreground: #fff;
+    --blume-muted: rgb(255 255 255 / 0.12);
+    --blume-muted-foreground: rgb(255 255 255 / 0.75);
+    --blume-border: rgb(255 255 255 / 0.25);
+    background-color: transparent;
+    backdrop-filter: none;
+  }
+  [data-blume-header-transparent]:not([data-blume-header-scrolled]) dialog {
+    --blume-background: var(--blume-header-background);
+    --blume-foreground: var(--blume-header-foreground);
+    --blume-muted: var(--blume-header-muted);
+    --blume-muted-foreground: var(--blume-header-muted-foreground);
+    --blume-border: var(--blume-header-border);
+  }
+</style>

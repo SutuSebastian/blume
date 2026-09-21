@@ -78,6 +78,13 @@ interface Props {
    */
   askEnabled?: boolean;
   /**
+   * Start the header see-through, with its chrome in white, so it can sit over
+   * a dark hero at the top of the page; it returns to the frosted bar as soon
+   * as the page scrolls. The hero has to run under the header for this to
+   * show: pull it up by the header's height (`-mt-16`) and pad its top.
+   */
+  transparentHeader?: boolean;
+  /**
    * Absolute site URL (`data.config.site`). When set, `canonical` and the
    * generated `og:image` for this route are derived from it automatically;
    * `canonical`/`ogImage` below still override.
@@ -143,6 +150,7 @@ const {
   fontCssVars,
   searchEnabled,
   askEnabled,
+  transparentHeader,
   siteUrl,
   ogEnabled,
   ogImage,
@@ -358,6 +366,7 @@ createIconSprite(Astro.locals);
       searchStrings={strings.search}
       site={site}
       switcherStrings={strings.languageSwitcher}
+      transparent={transparentHeader}
     />
     <main id="blume-content"><slot /></main>
     <slot name="footer" />
