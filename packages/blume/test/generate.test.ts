@@ -122,9 +122,10 @@ const writeProject = async (files: Record<string, string>): Promise<string> => {
 const stagedConfig = (body: string): string => `export default {
   content: {
     sources: [
-      { root: "docs", type: "filesystem" },
+      { kind: "filesystem", options: { root: "docs" }, requiredSecrets: [], runtimeDeps: [] },
       {
-        source: {
+        kind: "custom",
+        options: {
           load: () =>
             Promise.resolve({
               diagnostics: [],
@@ -140,7 +141,8 @@ const stagedConfig = (body: string): string => `export default {
           name: "remote",
           staged: true,
         },
-        type: "custom",
+        requiredSecrets: [],
+        runtimeDeps: [],
       },
     ],
   },
@@ -216,7 +218,7 @@ describe("collectStaged", () => {
   it("rewrites a staged note's colocated image to its served URL", async () => {
     const root = await writeProject({
       "blume.config.ts": `export default {
-  content: { sources: [{ type: "obsidian", vault: "vault" }] },
+  content: { sources: [{ kind: "obsidian", options: { vault: "vault" }, requiredSecrets: [], runtimeDeps: [] }] },
 };
 `,
       "vault/Guide.md": "# Guide\n\n![chart](./chart.png)\n",
@@ -576,8 +578,8 @@ describe("buildRuntimeData", () => {
   github: { owner: "acme", repo: "docs" },
   content: {
     sources: [
-      { type: "filesystem", root: "docs" },
-      { type: "obsidian", vault: "../vault" },
+      { kind: "filesystem", options: { root: "docs" }, requiredSecrets: [], runtimeDeps: [] },
+      { kind: "obsidian", options: { vault: "../vault" }, requiredSecrets: [], runtimeDeps: [] },
     ],
   },
 };
@@ -659,9 +661,9 @@ describe("buildRuntimeData", () => {
   github: { owner: "acme", repo: "docs", dir: "apps/site" },
   content: {
     sources: [
-      { type: "filesystem", root: "docs" },
-      { type: "obsidian", vault: "../../notes" },
-      { type: "obsidian", vault: "../../../outside", prefix: "out" },
+      { kind: "filesystem", options: { root: "docs" }, requiredSecrets: [], runtimeDeps: [] },
+      { kind: "obsidian", options: { vault: "../../notes" }, requiredSecrets: [], runtimeDeps: [] },
+      { kind: "obsidian", options: { vault: "../../../outside", prefix: "out" }, requiredSecrets: [], runtimeDeps: [] },
     ],
   },
 };

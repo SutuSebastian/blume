@@ -54,6 +54,10 @@ import { buildIncludeGraph } from "../core/includes.ts";
 import { packageRoot } from "../core/package-root.ts";
 import { scanProject } from "../core/project-graph.ts";
 import type { BlumeProject } from "../core/project-graph.ts";
+import {
+  resolveDocsCollection,
+  sourcesOfKind,
+} from "../core/sources/collection.ts";
 import type { ProjectContext } from "../core/types.ts";
 import { buildRssFeeds, renderRssFeed } from "../deploy/rss.ts";
 import type { OpenApiData } from "../openapi/model.ts";
@@ -242,9 +246,8 @@ const changelogFiles = (
       page.contentType === "changelog" &&
       !(page.meta.draft || page.meta.sidebar.hidden)
   );
-  const hasChangelogSource = (project.config.content.sources ?? []).some(
-    (source) => source.type === "github-releases"
-  );
+  const hasChangelogSource =
+    sourcesOfKind(project.config, "github-releases").length > 0;
   if (
     !(hasChangelog || hasChangelogSource) ||
     routeIsTaken(userPages, project.graph.pages, "/changelog")
@@ -380,6 +383,14 @@ export const eject = async (
     outDir: ".",
     root: ".",
   };
+  // The `docs` collection resolves its base against the real project root and
+  // is then relativized like everything else, so the ejected content config
+  // never bakes in the absolute path `eject` happened to run from.
+  const docsCollection = resolveDocsCollection(config, root);
+  const relCollection = {
+    ...docsCollection,
+    base: toPosix(relative(root, docsCollection.base)),
+  };
 
   const relPages = [
     ...pages.map((page) => ({
@@ -440,6 +451,7 @@ export const eject = async (
     },
     {
       content: contentConfigTemplate({
+        collection: relCollection,
         config,
         context: relContext,
         staged: hasStaged,
