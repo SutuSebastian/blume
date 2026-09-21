@@ -8,6 +8,7 @@ import { withBase } from "../islands/base-path.ts";
 import Self from "./NavTree.astro";
 import NavTreeCache from "./NavTreeCache.astro";
 import NavTreeScript from "./NavTreeScript.astro";
+import { isGroupRowCurrent } from "./nav-utils.ts";
 
 interface PagePanel {
   id: string;
@@ -180,7 +181,11 @@ const initialId =
                   <Icon class="rtl:-scale-x-100" name="arrow-left" size={16} />
                 </button>
                 <a
-                  aria-current={panel.route === currentRoute ? "page" : undefined}
+                  aria-current={
+                    isGroupRowCurrent(panel.node, currentRoute)
+                      ? "page"
+                      : undefined
+                  }
                   class="flex-1 truncate rounded-[0.65rem] px-1 py-1 font-semibold text-foreground text-sm transition-colors hover:bg-muted"
                   href={withBase(panel.route)}
                 >
@@ -329,7 +334,9 @@ const initialId =
                   {item.route ? (
                     <a
                       aria-current={
-                        item.route === currentRoute ? "page" : undefined
+                        isGroupRowCurrent(item, currentRoute)
+                          ? "page"
+                          : undefined
                       }
                       class="blume-nav-summary-link"
                       href={withBase(item.route)}
@@ -412,7 +419,9 @@ const initialId =
             <p class="blume-nav-heading">
               {item.route ? (
                 <a
-                  aria-current={item.route === currentRoute ? "page" : undefined}
+                  aria-current={
+                    isGroupRowCurrent(item, currentRoute) ? "page" : undefined
+                  }
                   class="blume-nav-heading-link"
                   href={withBase(item.route)}
                 >

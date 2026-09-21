@@ -15,6 +15,23 @@ export interface Crumb {
 }
 
 /** Flatten the sidebar tree into ordered internal page links. */
+/**
+ * Whether a group's header row reads as the current page. A routed group links
+ * to its folder's index page; when that index is also listed as one of the
+ * group's own rows (kept under a different label), the row is the more
+ * specific indicator, so the header stays quiet rather than lighting up beside
+ * it. With the index row hidden the header is the only link and takes the
+ * highlight.
+ */
+export const isGroupRowCurrent = (
+  group: Extract<NavNode, { kind: "group" }>,
+  currentRoute: string
+): boolean =>
+  group.route === currentRoute &&
+  !group.children.some(
+    (child) => child.kind === "page" && child.route === currentRoute
+  );
+
 export const flattenPages = (nodes: NavNode[]): FlatPage[] => {
   const out: FlatPage[] = [];
   const seen = new Set<string>();

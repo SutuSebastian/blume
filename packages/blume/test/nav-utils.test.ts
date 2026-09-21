@@ -3,6 +3,7 @@ import { describe, expect, it } from "bun:test";
 import {
   activeTabForRoute,
   currentTabForRoute,
+  isGroupRowCurrent,
   navGroupIds,
   sidebarForRoute,
 } from "../src/components/layout/nav-utils.ts";
@@ -394,5 +395,58 @@ describe("sidebarForRoute", () => {
     const scoped = sidebarForRoute(TREE, TABS, "/adapters/s3");
     expect(scoped).toBe(childrenOf(TREE[0]));
     expect(ids.size).toBe(2);
+  });
+});
+
+// A generated group whose folder index page is its row's link.
+const routedGroup = (
+  children: NavNode[]
+): Extract<NavNode, { kind: "group" }> => ({
+  children,
+  display: "flat",
+  kind: "group",
+  label: "Configuration",
+  path: "/docs/configuration",
+  route: "/docs/configuration",
+});
+
+describe("isGroupRowCurrent", () => {
+  it("marks a routed header current when its index row is hidden", () => {
+    const node = routedGroup([page("Theming", "/docs/configuration/theming")]);
+    expect(isGroupRowCurrent(node, "/docs/configuration")).toBe(true);
+  });
+
+  it("leaves the header quiet when a child row shares its route", () => {
+    const node = routedGroup([
+      page("blume.config.ts", "/docs/configuration"),
+      page("Theming", "/docs/configuration/theming"),
+    ]);
+    expect(isGroupRowCurrent(node, "/docs/configuration")).toBe(false);
+  });
+
+  it("only looks at direct child pages, not nested groups", () => {
+    const node = routedGroup([
+      group("Nested", "/docs/configuration/nested", [
+        page("blume.config.ts", "/docs/configuration"),
+      ]),
+    ]);
+    expect(isGroupRowCurrent(node, "/docs/configuration")).toBe(true);
+  });
+
+  it("is never current on another route or without a route", () => {
+    const node = routedGroup([page("Theming", "/docs/configuration/theming")]);
+    expect(isGroupRowCurrent(node, "/docs/configuration/theming")).toBe(false);
+    expect(
+      isGroupRowCurrent(
+        {
+          children: [],
+          display: "flat",
+          kind: "group",
+          label: "Content",
+          path: "/docs/content",
+        },
+        "/docs/content"
+      )
+    ).toBe(false);
   });
 });
