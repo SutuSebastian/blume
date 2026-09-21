@@ -1,5 +1,0 @@
----
-"blume": patch
----
-
-Follow-ups from review of the adapter releases: Fathom tags default to `data-spa="auto"` so client-router navigations are tracked; Plausible gets the custom-event queue stub so a `track()` fired before the deferred script lands isn't lost; Pirsch receives a copy of the event props instead of mutating the ones `blume:track` listeners see; a removed-config-key hint no longer hides an unrelated unknown key in the same diagnostic; Contentful `--preview` now fails with a clear message when no Preview API token is set instead of sending the delivery token to the Preview API, and uses an asset's description as image alt text before its title; CMS rich text lowering escapes paragraph-leading `#`, `>`, `-`, `+` and `1.` so they stay prose, picks a code-span delimiter longer than any backtick run inside, and wraps link and image destinations containing spaces or parentheses in angle brackets; CMS requests time out after 30 seconds instead of stalling a build; and a `params` entry that shares a name with an adapter's own paging query no longer overrides it.

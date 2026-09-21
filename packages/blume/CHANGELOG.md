@@ -1,5 +1,157 @@
 # blume
 
+## 2.0.0
+
+### Major Changes
+
+- c984250: Replace the `analytics` object with a list of adapters imported from `blume/analytics`. Where the config used to name providers as sibling keys (`analytics.posthog`, `analytics.vercel`, `analytics.cloudflare`, `analytics.scripts`), it now lists what to emit, in order:
+  
+  ```ts
+  import { cloudflare, posthog, script, vercel } from "blume/analytics";
+  
+  export default defineConfig({
+    analytics: [
+      posthog({ key: "phc_…" }),
+      vercel(),
+      cloudflare({ token: "…" }),
+      script({ src: "https://plausible.io/js/script.js", strategy: "defer" }),
+    ],
+  });
+  ```
+  
+  Each adapter returns a plain, serializable descriptor (`kind`, `options`, `runtimeDeps`, `requiredSecrets`) that the config schema validates and the generated site inlines as a literal; `blume doctor`, the secrets check, and the generated `package.json` read the descriptor instead of switching on a provider name. Every adapter forwards the options Blume doesn't name verbatim — extra `posthog()` keys land in `posthog.init`, extra `cloudflare()` keys in the beacon's `data-cf-beacon` JSON, and extra `vercel()` keys become props of the official component — and `script()`'s `attributes` stays the passthrough for a raw tag. The object form is gone: a config that still uses it fails validation with a hint pointing at the list form. To migrate, move each key to its adapter — `posthog: { key, host }` → `posthog({ key, host })`, `vercel: true` → `vercel()`, `cloudflare: { token }` → `cloudflare({ token })`, and each `scripts[]` entry → `script({ … })`.
+- 7e270dd: Configure the Ask AI backend with an adapter. `ai.ask.provider` now takes the descriptor one of the new `blume/ai` exports returns — `gateway({ model })`, `openrouter({ model, reasoning })`, `llmgateway({ model })`, `inkeep({ model })`, or `openaiCompatible({ baseUrl, name, model, apiKeyEnv })` — and each adapter owns its model, its API key env var, its `headers`, how it maps `reasoning` to the backend's own control, whether Blume grounds answers, and a verbatim `providerOptions` passthrough to `streamText` for anything else. The flat `provider` name and the `model`, `apiKeyEnv`, `baseUrl`, `headers`, and `reasoning` fields on `ai.ask` are gone; `enabled`, `instructions`, `retrieval`, `suggestions`, `cors`, and `endpoint` are unchanged, and leaving `provider` unset still means the AI Gateway with `openai/gpt-5.5`. Move the old fields into the matching adapter call:
+  
+  ```ts
+  import { defineConfig } from "blume";
+  import { openrouter } from "blume/ai";
+  
+  export default defineConfig({
+    ai: {
+      ask: {
+        enabled: true,
+        // was: provider: "openrouter", model: "anthropic/claude-sonnet-4-5", reasoning: "none"
+        provider: openrouter({
+          model: "anthropic/claude-sonnet-4-5",
+          reasoning: "none",
+        }),
+      },
+    },
+  });
+  ```
+  
+  The descriptor is plain data, so the generated and ejected routes inline it as literals and never import `blume.config.ts` at request time.
+- d6b4eaf: Component overrides in `components.ts` are planned statically, with no runtime fallback. Every `mdx` and `layout` entry must be an imported identifier, a path string, or a `{ component, client, media }` object literal whose `component` is an imported identifier or a path string. Anything else — an inline function or expression, a component declared in the file itself, a spread, a computed key, a `client` that isn't one of the mode strings — is a `BLUME_COMPONENTS_INVALID` error naming the entry and the accepted forms: `blume dev` reports it in the terminal and the browser overlay, and `blume build` fails. Such overrides used to render without hydration and without any warning.
+  
+  The `islands` group is gone: an `mdx` entry with a `client` mode is an island, and `defineComponents` no longer accepts an `islands` key. Replace `islands: { Counter }` with `mdx: { Counter: { component: Counter, client: "visible" } }`. The `islands/` folder convention is unchanged and now plans through the same wrappers as `components.ts`, so a `components.ts` `mdx` entry replaces a folder island of the same name. The generated runtime no longer writes `src/generated/islands.ts` or `src/generated/islands/*.astro`; convention islands and hydrated overrides both live under `src/generated/component-slots/`, in `blume eject` output too.
+- 1199f92: Simplify four corners of `blume.config.ts`. Each removed or renamed field now fails validation with a hint that names its replacement.
+  
+  - `theme.layout` is removed. It only ever accepted `"sidebar"`, and nothing read it; delete the field.
+  - `markdown.codeBlocks` is merged into `markdown.code`. The Shiki theme pair moves from `markdown.codeBlocks.theme` to `markdown.code.theme`, beside `icons` and `wrap`.
+  - `lastModified` is a flat value: `false` (default), `"git"`, or `"frontmatter"`. `lastModified: true` becomes `"git"`, and `{ type: "git" }` / `{ type: "frontmatter" }` become the bare string.
+  - The `ai` namespace now holds only the model-facing features, `ai.ask` and `ai.openInChat`. The machine-readable surface moves to a new top-level `agents` key: `ai.api`, `ai.catalog`, `ai.llmsTxt`, `ai.markdownComponents`, `ai.mcp`, `ai.skills`, `ai.webBotAuth`, and `ai.webmcp` become `agents.api`, `agents.catalog`, `agents.llmsTxt`, `agents.markdownComponents`, `agents.mcp`, `agents.skills`, `agents.webBotAuth`, and `agents.webmcp`, and `seo.agentReadability` and `seo.contentSignals` become `agents.agentReadability` and `agents.contentSignals`.
+- d1eaced: Replace `deployment.adapter` and `deployment.output` with deployment adapters imported from `blume/deploy`. `deployment` now takes the descriptor one of `vercel()`, `netlify()`, `cloudflare()`, or `node()` returns — each accepting `site`, `base`, and `output`, plus any option of the underlying `@astrojs/*` adapter, forwarded verbatim — or the plain `{ site, base }` form for a static build on any host. Naming a host adapter switches the build to server output there; pass `output: "static"` to keep a static build on that host with its site detection and platform files. Leaving `deployment` unset still means a static build, so zero-config sites are unchanged.
+  
+  ```ts
+  import { defineConfig } from "blume";
+  import { vercel } from "blume/deploy";
+  
+  export default defineConfig({
+    // was: deployment: { output: "server", adapter: "vercel" }
+    deployment: vercel({ isr: { expiration: 60 } }),
+  });
+  ```
+  
+  Each adapter is a plain, JSON-serializable descriptor that declares its `@astrojs/*` package as a runtime dependency, so the generated `package.json`, the missing-dependency preflight, `blume doctor`, and the secrets check read the descriptor instead of switching on an adapter name. Everything a target does differently — the generated `astro.config.mjs` adapter entry, where its bundle and static assets land, which `_redirects`/`vercel.json`/`_headers` files a static build writes, `Accept: text/markdown` negotiation, Vercel's function-bundle audit, and platform env detection for `site` — lives with that adapter.
+  
+  Migration: `deployment: { output: "server", adapter: "vercel" }` becomes `deployment: vercel()`, and the same for `netlify()`, `cloudflare()`, and `node()`; `site` and `base` move into the adapter's options (`vercel({ site, base })`). A static config that only set `site` or `base` needs no change. The `--adapter`, `--output`, and `--base` flags on `blume build` are gone: set the adapter in `blume.config.ts`. Server output is no longer inferred from the platform env — name the host adapter — while `site` detection on Vercel, Netlify, and Cloudflare Pages works as before. The old object form fails validation with a hint pointing at the adapter form.
+- 274f7b4: Replace the top-level `openapi`, `asyncapi`, and `graphql` config blocks with a single `reference` list of adapters imported from `blume/reference`. Where the config used to enable each kind with its own keyed block, it now lists what to render, in order:
+  
+  ```ts
+  import { defineConfig } from "blume";
+  import { asyncapi, graphql, openapi, scalar } from "blume/reference";
+  
+  export default defineConfig({
+    reference: [
+      openapi({ spec: "./openapi.yaml" }),
+      asyncapi({ spec: "./asyncapi.yaml" }),
+      graphql({
+        spec: "./schema.graphql",
+        endpoint: "https://api.example.com/graphql",
+      }),
+      scalar({ spec: "./legacy.yaml", route: "/legacy", theme: "purple" }),
+    ],
+  });
+  ```
+  
+  Each adapter returns a plain, serializable descriptor (`kind`, `options`, `runtimeDeps`, `requiredSecrets`) that the config schema validates and the generated site reads as a literal; the reference resolver, the generated `package.json`, `blume doctor`, and the secrets check iterate the list instead of switching on a kind. The same kind can appear more than once, each entry with its own route and display options. `spec` stays the shorthand for a single source and resolves into `sources` at parse, so an adapter always has at least one source. The embedded Scalar reference is its own adapter rather than a `renderer` option: `scalar({ spec, sources, route, theme, …options })` takes an OpenAPI or AsyncAPI document, forwards every other key verbatim to the embed, and declares `@scalar/astro` as its runtime dependency — `openapi()` and `asyncapi()` always render Blume's own pages, and `graphql()` has no embed counterpart. The old keys are gone: a config that still uses them fails validation with a hint pointing at the list form, and a `renderer` left on `openapi()` or `asyncapi()` fails with a hint naming `scalar()`.
+  
+  To migrate, move each block onto its factory and drop `enabled`:
+  
+  - `openapi: { enabled: true, spec, sources, route, codeSamples, expandSchemas, playground }` → `openapi({ spec, sources, route, codeSamples, expandSchemas, playground })`.
+  - `asyncapi: { enabled: true, … }` → `asyncapi({ … })`, with the same options.
+  - `graphql: { enabled: true, spec, endpoint, sources, route, codeSamples, playground }` → `graphql({ spec, endpoint, sources, route, codeSamples, playground })`.
+  - `renderer: "scalar"` with `theme: "purple"` and `scalar: { localization }` → a separate `scalar({ spec, theme: "purple", localization })` entry in the list, keeping the block's `route`, `sources`, and `noindex`; the native display options don't apply to the embed.
+  - `enabled: false` → leave the adapter out of the list.
+- 61c390e: Replace the `search.provider` string and its sibling credential blocks with search adapters. `search` now takes an adapter imported from `blume/search` — `orama()` (still the default, so zero-config sites are unchanged), `flexsearch()`, `pagefind()`, `algolia({ appId, apiKey, indexName })`, `oramaCloud({ endpoint, apiKey, indexId })`, `typesense({ host, collection, apiKey })`, `mixedbread({ storeId })` — or `false` to disable search. Pass the adapter directly, or as `search: { provider, popular, indexing }` to keep curated links and indexing options beside it.
+  
+  Each adapter is a plain, JSON-serializable descriptor that owns its options, runtime dependency, integration mode, and required secrets, so the generated project, `blume doctor`, the secrets check, and an ejected site all read the descriptor instead of switching on a provider name. The hosted adapters' options are kept verbatim and inlined as a literal into the generated client, so an option Blume doesn't name still reaches the SDK; they must be JSON values, and a function, `undefined`, or a bigint fails config validation with a path. The keyless adapters (`orama()`, `flexsearch()`, `pagefind()`) take no options and reject unknown keys, since their clients never read them.
+  
+  Migration: `search: { provider: "algolia", algolia: { appId, indexName, searchApiKey } }` becomes `search: algolia({ appId, indexName, apiKey: searchApiKey })`; the Orama Cloud, Typesense, and Mixedbread blocks map the same way (the search-only key is `apiKey` everywhere), `provider: "pagefind"` becomes `pagefind()`, and `provider: "none"` becomes `search: false`. Admin keys stay in `ALGOLIA_ADMIN_API_KEY`, `ORAMA_PRIVATE_API_KEY`, `TYPESENSE_ADMIN_API_KEY`, and `MIXEDBREAD_API_KEY`.
+- d56c124: Replace the `content.sources` `{ type: "…" }` objects with content source adapters. Each entry is now a descriptor returned by a factory imported from `blume/sources` — `filesystem({ root, include, exclude })`, `mdxRemote({ github, url, files, include })`, `githubReleases({ owner, repo, limit, prereleases, drafts })`, `sanity({ projectId, dataset, query, fields, apiVersion })`, `notion({ database, properties, publishedValue, concurrency })`, `obsidian({ vault, exclude })`, or `custom(source)` for any `ContentSource` implementation. `prefix` and `pollInterval` are shared options every factory with an options object accepts, so each declares only what is specific to it; `custom(source)` takes the instance itself, which carries its own `prefix` and `watch`.
+  
+  Each adapter is a plain descriptor that owns its options, the SDK it needs, and the env vars it reads, so the generated project's `package.json`, the secrets check at `blume dev`/`build`, `blume doctor`, and the ejected site all read the descriptor instead of switching on a source name: `notion()` declares `@notionhq/client` and `NOTION_TOKEN`, `sanity()` declares `@sanity/client` and `SANITY_TOKEN`, and `githubReleases()`/`mdxRemote()` declare `GITHUB_TOKEN`.
+  
+  The top-level `content.root`, `content.include`, and `content.exclude` remain the zero-config shorthand and desugar to exactly one `filesystem()` source when `sources` is absent. They are rejected beside `sources` — move them into the `filesystem()` entry — so the resolved config has one source of truth and the `docs` collection always roots at the first `filesystem()` source.
+  
+  Migration:
+  
+  ```ts
+  import { defineConfig } from "blume";
+  import { filesystem, githubReleases } from "blume/sources";
+  
+  export default defineConfig({
+    content: {
+      // was: root: "content", sources: [{ type: "filesystem", root: "content" }, { type: "github-releases", owner, repo, prefix }]
+      sources: [
+        filesystem({ root: "content" }),
+        githubReleases({ owner: "acme", repo: "sdk", prefix: "changelog" }),
+      ],
+    },
+  });
+  ```
+  
+  `{ type: "mdx-remote", … }` becomes `mdxRemote({ … })`, `{ type: "sanity", … }` becomes `sanity({ … })`, `{ type: "notion", … }` becomes `notion({ … })`, `{ type: "obsidian", … }` becomes `obsidian({ … })`, and `{ type: "custom", source }` becomes `custom(source)`; every other field moves into the call unchanged. A leftover `type` object fails validation with the factory that replaces it.
+
+### Minor Changes
+
+- 733405a: Add first-class analytics adapters for Adobe Analytics, Amplitude, Microsoft Clarity, Clearbit, Fathom, Google Analytics 4, Google Tag Manager, Heap, Hightouch, Hotjar, LogRocket, Mixpanel, Pirsch, Plausible, and Segment, alongside PostHog, Vercel, and Cloudflare:
+  
+  ```ts
+  import { googleAnalytics, mixpanel, plausible } from "blume/analytics";
+  
+  export default defineConfig({
+    analytics: [
+      googleAnalytics({ id: "G-…" }),
+      plausible({ domain: "docs.example.com" }),
+      mixpanel({ token: "…", region: "eu" }),
+    ],
+  });
+  ```
+  
+  Each adapter renders the provider's own install snippet from its public identifier, maps the options it names (`region` to Mixpanel's ingestion host, `host` to Plausible's script origin, `cdn` to Segment's custom domain, …), and forwards everything else verbatim — into the SDK's `init` options for the script-based providers and as `data-` attributes for the tag-based ones. Client-router navigations count as pageviews on every adapter: Segment and Hightouch get the same `astro:page-load` hook PostHog has, Mixpanel is initialized with URL-change tracking on, and the rest follow history changes on their own. Page feedback's custom event now reaches each of these providers through its client API as well.
+- 5e7c238: Add `contentful()`, `payload()`, and `strapi()` content source adapters to `blume/sources`. Each reads one content type or collection through the CMS's REST API — no SDK to install — maps its fields to frontmatter through the same `fields` option Sanity uses, and lowers its rich text body to Markdown: Contentful rich text (headings, marks, links, lists, quotes, tables, embedded assets), Payload's Lexical editor state (including check lists, uploads, and `block` nodes through serializers), and Strapi's Blocks field (including code blocks and images). A body held in a Markdown text field passes through as written.
+  
+  `contentful()` declares `CONTENTFUL_ACCESS_TOKEN` and reads through the Preview API with `CONTENTFUL_PREVIEW_TOKEN` under `--preview`; `payload()` declares `PAYLOAD_API_KEY` and `strapi()` declares `STRAPI_API_TOKEN`, and both request drafts under `--preview` and stage them with `draft: true`. Relative upload paths resolve against the CMS origin, `params` appends extra query parameters (`where[...]`, `filters[...]`, `fields.section`), and `blume init` offers all three when asking where your content lives.
+
+### Patch Changes
+
+- ecd01a0: Diagnostics from `blume validate`, `blume audit`, and `blume eval` link to the commands' new pages in the CLI section of the docs, and frontmatter validation errors link to the page's new home under Content.
+- 3a15854: Follow-ups from review of the adapter releases: Fathom tags default to `data-spa="auto"` so client-router navigations are tracked; Plausible gets the custom-event queue stub so a `track()` fired before the deferred script lands isn't lost; Pirsch receives a copy of the event props instead of mutating the ones `blume:track` listeners see; a removed-config-key hint no longer hides an unrelated unknown key in the same diagnostic; Contentful `--preview` now fails with a clear message when no Preview API token is set instead of sending the delivery token to the Preview API, and uses an asset's description as image alt text before its title; CMS rich text lowering escapes paragraph-leading `#`, `>`, `-`, `+` and `1.` so they stay prose, picks a code-span delimiter longer than any backtick run inside, and wraps link and image destinations containing spaces or parentheses in angle brackets; CMS requests time out after 30 seconds instead of stalling a build; and a `params` entry that shares a name with an adapter's own paging query no longer overrides it.
+- 8c26c89: A sidebar group whose folder index is also listed as one of its rows no longer highlights both the header and the row on that page. The header reads as current only when the index row is hidden and it is the section's sole link.
+- 3517912: A sidebar group heading that links to its folder's index page now takes the same hover and active pill as the page rows beneath it, instead of a narrower, offset one.
+- 4b9ce3e: Add a `transparentHeader` prop to `PageLayout`. The header starts with no background and its chrome in white, so it can sit over a dark hero at the top of a landing page, and returns to the frosted bar as soon as the page scrolls; the search dialog keeps the page's own colors throughout.
+
 ## 1.7.3
 
 ### Patch Changes
