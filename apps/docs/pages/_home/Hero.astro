@@ -11,38 +11,23 @@ const repoUrl = config.repoUrl;
 const docsHref = "/docs";
 const chevronRight = glyph("chevron-right");
 
-// Latest GitHub release for the hero badge, resolved at build time from the
-// configured repo (`data.config.github` carries the owner, repo, and API base).
-// Falls back to 0.0.0 when there's no release — or the API is unreachable or
-// rate-limited — so the build never fails on a network hiccup.
-const github = config.github;
-let latestVersion = "0.0.0";
-if (github) {
-  try {
-    const response = await fetch(
-      `${github.api}/repos/${github.owner}/${github.repo}/releases/latest`,
-      {
-        headers: {
-          Accept: "application/vnd.github+json",
-          "User-Agent": "blume-docs",
-        },
-        signal: AbortSignal.timeout(3000),
-      }
-    );
-    if (response.ok) {
-      const release = await response.json();
-      if (typeof release?.tag_name === "string") {
-        // Tags are changesets-style (`blume@1.0.0`), but tolerate a plain
-        // `v1.0.0` too — drop any package prefix and the leading `v`.
-        latestVersion = release.tag_name
-          .replace(/^.*@/u, "")
-          .replace(/^v/u, "");
-      }
-    }
-  } catch {
-    // Keep the 0.0.0 fallback on any network or rate-limit failure.
-  }
-}
+// Latest release for the hero badge, read from the changelog the
+// `githubReleases` content source materializes (`/changelog/<tag>` routes,
+// titled by release name, e.g. `blume@1.7.3`). The source already fetches
+// with `GITHUB_TOKEN` and keeps a snapshot cache, so the badge can never
+// disagree with /changelog — an unauthenticated fetch from a CI runner used to
+// hit GitHub's rate limit and silently leave the badge on its fallback.
+const toTime = (value: string | null): number =>
+  value ? new Date(value).getTime() : 0;
+const latestRelease = data.routes
+  .filter((route) => route.path.startsWith("/changelog/") && !route.draft)
+  .toSorted((a, b) => toTime(b.lastModified) - toTime(a.lastModified))
+  .at(0);
+// Release names are changesets-style (`blume@1.0.0`), but tolerate a plain
+// `v1.0.0` too — drop any package prefix and the leading `v`.
+const latestVersion = latestRelease
+  ? latestRelease.title.replace(/^.*@/u, "").replace(/^v/u, "")
+  : "0.0.0";
 ---
 
 <section class="text-center">
