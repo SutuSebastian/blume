@@ -42,9 +42,9 @@ const linksetEntries = (config: ResolvedConfig): LinksetEntry[] => {
     // Blume-rendered pages mount under `basePath`; Scalar pages stay at the
     // raw route (see `referenceRoutes`).
     const docRoute =
-      reference.renderer === "blume"
-        ? withBasePath(reference.basePath, reference.route)
-        : reference.route;
+      reference.kind === "scalar"
+        ? reference.route
+        : withBasePath(reference.basePath, reference.route);
     const entry: LinksetEntry = {
       anchor: abs(docRoute),
       "service-doc": [{ href: abs(docRoute), type: "text/html" }],

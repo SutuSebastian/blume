@@ -7,11 +7,10 @@ import {
   referenceSourceSchema,
   hasSources,
   missingSourcesIssue,
+  rendererRemovedHint,
   sharedOptions,
 } from "./options.ts";
 import type { PlaygroundOptions, ReferenceSourceOptions } from "./options.ts";
-import { rendererRuntimeDeps, scalarRendererSchema } from "./scalar.ts";
-import type { ScalarRenderer } from "./scalar.ts";
 
 /** Options for {@link asyncapi}. */
 export interface AsyncApiOptions {
@@ -28,8 +27,6 @@ export interface AsyncApiOptions {
    * operations — a WebSocket connect goes straight from the browser.
    */
   playground?: PlaygroundOptions;
-  /** Who renders the reference: unset for Blume's own UI, or `scalar()` for the embedded Scalar SPA. */
-  renderer?: ScalarRenderer;
   /** Where the reference mounts. Defaults to `/events`. */
   route?: string;
   /** One or more specs; each renders on its own route by default. */
@@ -39,17 +36,18 @@ export interface AsyncApiOptions {
 }
 
 export const asyncapiOptionsSchema = z
-  .strictObject({
-    // Empty `codeSamples` means every tool the operation's protocol binding
-    // suggests.
-    ...sharedOptions({ codeSamples: [], route: "/events" }),
-    /** Start nested schema rows expanded rather than collapsed (Blume renderer). */
-    expandSchemas: z.boolean().default(false),
-    /** The embedded Scalar SPA, when opted into; unset means Blume's own UI. */
-    renderer: scalarRendererSchema.optional(),
-    /** One or more specs; each renders on its own route by default. */
-    sources: z.array(referenceSourceSchema).default([]),
-  })
+  .strictObject(
+    {
+      // Empty `codeSamples` means every tool the operation's protocol binding
+      // suggests.
+      ...sharedOptions({ codeSamples: [], route: "/events" }),
+      /** Start nested schema rows expanded rather than collapsed (Blume renderer). */
+      expandSchemas: z.boolean().default(false),
+      /** One or more specs; each renders on its own route by default. */
+      sources: z.array(referenceSourceSchema).default([]),
+    },
+    rendererRemovedHint
+  )
   .transform(liftSpec(referenceSourceSchema))
   .refine(hasSources, missingSourcesIssue("asyncapi"));
 
@@ -70,16 +68,16 @@ export const asyncapiAdapterSchema = adapterDescriptorSchema(
 );
 
 /**
- * An AsyncAPI reference. By default Blume normalizes the spec to AsyncAPI 3.x
- * and renders its own UI — one real page per operation, in the sidebar,
- * search, llms.txt, and OG — with `renderer: scalar()` as the embedded-SPA
- * opt-out. Only the defaults differ from `openapi()`: the reference mounts at
- * `/events`, and empty `codeSamples` means every tool the operation's protocol
- * binding suggests.
+ * An AsyncAPI reference. Blume normalizes the spec to AsyncAPI 3.x and renders
+ * its own UI — one real page per operation, in the sidebar, search, llms.txt,
+ * and OG; a `scalar()` adapter is the embedded-SPA alternative. Only the
+ * defaults differ from `openapi()`: the reference mounts at `/events`, and
+ * empty `codeSamples` means every tool the operation's protocol binding
+ * suggests.
  */
 export const asyncapi = (options: AsyncApiOptions): AsyncApiAdapter => ({
   kind: "asyncapi",
   options,
   requiredSecrets: [],
-  runtimeDeps: rendererRuntimeDeps(options.renderer),
+  runtimeDeps: [],
 });

@@ -37,9 +37,10 @@ export interface GraphqlOptions {
 }
 
 /**
- * No `renderer` (the Scalar SPA reads OpenAPI documents only) and no
- * `expandSchemas` (GraphQL field tables have no nesting) — everything else,
- * the playground normalization included, is the shared reference shape.
+ * No `expandSchemas` (GraphQL field tables have no nesting) — everything
+ * else, the playground normalization included, is the shared reference
+ * shape. There is no Scalar counterpart: the Scalar embed reads OpenAPI and
+ * AsyncAPI documents only.
  */
 export const graphqlOptionsSchema = z
   .strictObject({
@@ -76,8 +77,8 @@ export const graphqlAdapterSchema = adapterDescriptorSchema(
  * one real page per root field — grouped as Queries/Mutations/Subscriptions —
  * plus one page per named type (Objects, Input Objects, Enums, Interfaces,
  * Unions, Scalars), all included in the sidebar, search, llms.txt, and OG.
- * Always Blume-rendered: the Scalar SPA reads OpenAPI documents only, so
- * there is no `renderer` to pass.
+ * Always Blume-rendered: the Scalar embed reads OpenAPI and AsyncAPI
+ * documents only, so there is no `scalar()` counterpart.
  */
 export const graphql = (options: GraphqlOptions): GraphqlAdapter => ({
   kind: "graphql",

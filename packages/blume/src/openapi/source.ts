@@ -27,7 +27,7 @@ import {
   parseGraphqlSpec,
   parseSpec,
 } from "./parse.ts";
-import type { ReferenceSource } from "./references.ts";
+import type { BlumeReferenceSource } from "./references.ts";
 import { operationMdx, overviewMdx } from "./render-mdx.ts";
 import type { RenderedPage } from "./render-mdx.ts";
 
@@ -63,14 +63,14 @@ const KIND_LABELS = {
   asyncapi: "AsyncAPI",
   graphql: "GraphQL",
   openapi: "OpenAPI",
-} satisfies Record<ReferenceSource["kind"], string>;
+} satisfies Record<BlumeReferenceSource["kind"], string>;
 
 /** Diagnostic-code prefix per spec kind. */
 const CODE_PREFIXES = {
   asyncapi: "BLUME_ASYNCAPI",
   graphql: "BLUME_GRAPHQL",
   openapi: "BLUME_OPENAPI",
-} satisfies Record<ReferenceSource["kind"], string>;
+} satisfies Record<BlumeReferenceSource["kind"], string>;
 
 /**
  * Parse-level warning code per kind: an offline cache fallback for any kind,
@@ -81,7 +81,7 @@ const SPEC_WARNING_CODES = {
   asyncapi: "BLUME_ASYNCAPI_SPEC_WARNING",
   graphql: "BLUME_GRAPHQL_SPEC_WARNING",
   openapi: "BLUME_OPENAPI_STALE",
-} satisfies Record<ReferenceSource["kind"], string>;
+} satisfies Record<BlumeReferenceSource["kind"], string>;
 
 /**
  * Extract-level skip code per kind. OpenAPI keeps its historical code (the
@@ -92,7 +92,7 @@ const SKIPPED_CODES = {
   asyncapi: "BLUME_ASYNCAPI_SKIPPED_OPERATION",
   graphql: "BLUME_GRAPHQL_SKIPPED",
   openapi: "BLUME_OPENAPI_REF_PATH_ITEM",
-} satisfies Record<ReferenceSource["kind"], string>;
+} satisfies Record<BlumeReferenceSource["kind"], string>;
 
 /** `_EMPTY` diagnostic suggestion per kind. */
 const EMPTY_SUGGESTIONS = {
@@ -102,7 +102,7 @@ const EMPTY_SUGGESTIONS = {
     "Check the spec points at a GraphQL schema (SDL or introspection JSON) whose root types declare fields.",
   openapi:
     "Check the spec points at an OpenAPI document with operations under `paths`.",
-} satisfies Record<ReferenceSource["kind"], string>;
+} satisfies Record<BlumeReferenceSource["kind"], string>;
 
 /** `_UNAVAILABLE` suggestion for a readable-but-invalid spec, per kind. */
 const INVALID_SUGGESTIONS = {
@@ -112,7 +112,7 @@ const INVALID_SUGGESTIONS = {
     "Point the spec at a GraphQL schema — SDL text or an introspection JSON result.",
   openapi:
     "Point the spec at an OpenAPI document (a YAML or JSON file with an object at the top level).",
-} satisfies Record<ReferenceSource["kind"], string>;
+} satisfies Record<BlumeReferenceSource["kind"], string>;
 
 const toEntry = (rendered: RenderedPage, ref: string): SourceEntry => {
   const raw = matter.stringify(`${rendered.body}\n`, rendered.data);
@@ -131,7 +131,7 @@ const toEntry = (rendered: RenderedPage, ref: string): SourceEntry => {
 const specEntries = (
   spec: ApiSpecData,
   operations: ApiOperationRef[],
-  reference: ReferenceSource
+  reference: BlumeReferenceSource
 ): SourceEntry[] => {
   const entries = operations.map((operation) =>
     toEntry(
@@ -193,7 +193,7 @@ interface ParsedReference {
 }
 
 const parseReference = async (
-  reference: ReferenceSource,
+  reference: BlumeReferenceSource,
   ctx: SourceContext
 ): Promise<ParsedReference> => {
   const options = { cacheDir: ctx.cacheDir, refresh: ctx.refresh };
@@ -243,13 +243,13 @@ const parseReference = async (
 };
 
 export const openApiSource = (
-  references: ReferenceSource[],
+  references: BlumeReferenceSource[],
   ctx: SourceContext
 ): OpenApiContentSource => {
   let parsed: OpenApiData = {};
 
   const loadReference = async (
-    reference: ReferenceSource
+    reference: BlumeReferenceSource
   ): Promise<LoadedSpec | Diagnostic> => {
     // Human label and diagnostic-code prefix for the spec's kind, so an
     // AsyncAPI failure never reads as an OpenAPI one.

@@ -6,19 +6,22 @@ import { graphqlAdapterSchema } from "./graphql.ts";
 import type { GraphqlAdapter, ResolvedGraphqlAdapter } from "./graphql.ts";
 import { openapiAdapterSchema } from "./openapi.ts";
 import type { OpenApiAdapter, ResolvedOpenApiAdapter } from "./openapi.ts";
-import { rendererRuntimeDeps } from "./scalar.ts";
+import { SCALAR_RUNTIME_DEPS, scalarAdapterSchema } from "./scalar.ts";
+import type { ResolvedScalarAdapter, ScalarAdapter } from "./scalar.ts";
 
 /** Every descriptor a `blume/reference` factory can return. */
 export type ReferenceAdapter =
   | AsyncApiAdapter
   | GraphqlAdapter
-  | OpenApiAdapter;
+  | OpenApiAdapter
+  | ScalarAdapter;
 
 /** What `config.reference` holds: each descriptor with its options resolved. */
 export type ResolvedReferenceAdapter =
   | ResolvedAsyncApiAdapter
   | ResolvedGraphqlAdapter
-  | ResolvedOpenApiAdapter;
+  | ResolvedOpenApiAdapter
+  | ResolvedScalarAdapter;
 
 /**
  * One configured reference adapter, as its factory returned it. Only `kind`
@@ -31,19 +34,18 @@ export const referenceAdapterSchema = z
     asyncapiAdapterSchema,
     graphqlAdapterSchema,
     openapiAdapterSchema,
+    scalarAdapterSchema,
   ])
   .transform((value): ResolvedReferenceAdapter => ({
     ...value,
     requiredSecrets: [],
-    // GraphQL is always Blume-rendered, so it has no renderer to declare
-    // a dependency; the other kinds carry their renderer's.
-    runtimeDeps: rendererRuntimeDeps(
-      value.kind === "graphql" ? undefined : value.options.renderer
-    ),
+    // Blume's own renderer parses at generate time and needs nothing; the
+    // Scalar embed is imported by its generated page.
+    runtimeDeps: value.kind === "scalar" ? [...SCALAR_RUNTIME_DEPS] : [],
   }));
 
 const LIST_HINT =
-  'reference is a list of adapters — e.g. `reference: [openapi({ spec }), asyncapi({ spec }), graphql({ spec, endpoint })]`, imported from "blume/reference".';
+  'reference is a list of adapters — e.g. `reference: [openapi({ spec }), asyncapi({ spec }), graphql({ spec, endpoint }), scalar({ spec })]`, imported from "blume/reference".';
 
 /**
  * `blume.config.reference`: the API references to render, in order. Unset
@@ -75,5 +77,5 @@ export const removedReferenceKeysHint = (
   }
   const list = removed.map((key) => `\`${key}\``).join(", ");
   const factories = removed.map((key) => `${key}({ … })`).join(", ");
-  return `The top-level ${list} config was replaced by \`reference\`, a list of adapters imported from "blume/reference": \`reference: [${factories}]\`. Each block's options move onto its factory unchanged (\`enabled\` is gone — an adapter in the list is enabled), and \`renderer: "scalar"\` with \`theme\`/\`scalar\` becomes \`renderer: scalar({ theme, …scalar })\`.`;
+  return `The top-level ${list} config was replaced by \`reference\`, a list of adapters imported from "blume/reference": \`reference: [${factories}]\`. Each block's options move onto its factory unchanged (\`enabled\` is gone — an adapter in the list is enabled), and a block with \`renderer: "scalar"\` becomes its own \`scalar({ spec, theme, …scalar })\` adapter in the list.`;
 };

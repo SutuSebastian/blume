@@ -10,11 +10,10 @@ import { resolveReferences } from "./references.ts";
 import type { ReferenceSource } from "./references.ts";
 
 /**
- * The Scalar renderer: the `renderer: scalar()` escape hatch on `openapi()`
- * and `asyncapi()`. Each Scalar-rendered spec becomes one self-contained
+ * The `scalar()` adapter's pages. Each source becomes one self-contained
  * `@scalar/astro` page loaded client-side from Scalar's CDN. Blume's own
- * renderer (the default) lives in `source.ts` / the `components/openapi` set
- * and does not pass through here.
+ * renderer (`openapi()`, `asyncapi()`, `graphql()`) lives in `source.ts` /
+ * the `components/openapi` set and does not pass through here.
  */
 
 /** A generated Scalar reference page, ready to write under `src/pages`. */
@@ -88,7 +87,7 @@ const acceptScalarReference = (
   contentRoutes: ReadonlySet<string>,
   warnings: string[]
 ): ReferenceSource | null => {
-  if (ref.renderer !== "scalar") {
+  if (ref.kind !== "scalar") {
     return null;
   }
   if (seen.has(ref.route)) {
@@ -108,8 +107,8 @@ const acceptScalarReference = (
 };
 
 /**
- * Build the Scalar reference page(s) for the project. Only Scalar-rendered
- * references are emitted here (Blume-rendered OpenAPI is staged content). Reads
+ * Build the Scalar reference page(s) for the project. Only `scalar()`
+ * references are emitted here (Blume-rendered kinds are staged content). Reads
  * local specs, maps the theme, and skips routes that collide with a content page
  * or another source. Returns the files to write under `src/pages` plus warnings.
  */

@@ -8,7 +8,7 @@ import { discoverFolderMeta } from "../src/core/meta.ts";
 import { blumeConfigSchema } from "../src/core/schema.ts";
 import { serverFeatures } from "../src/core/server-features.ts";
 import { buildReferenceFiles } from "../src/openapi/scalar.ts";
-import { openapi, scalar } from "../src/reference/index.ts";
+import { scalar } from "../src/reference/index.ts";
 import { algolia, mixedbread } from "../src/search/adapters/index.ts";
 
 const dirs: string[] = [];
@@ -32,9 +32,7 @@ describe("scalar reference builder", () => {
     // would only ever restate the configured default.
     const config = blumeConfigSchema.parse({
       reference: [
-        openapi({
-          renderer: scalar(),
-
+        scalar({
           spec: "https://x.dev/openapi.json",
         }),
       ],
@@ -52,12 +50,9 @@ describe("scalar reference builder", () => {
   it("passes an explicit Scalar theme name straight through", async () => {
     const config = blumeConfigSchema.parse({
       reference: [
-        openapi({
-          renderer: scalar({
-            theme: "purple",
-          }),
-
+        scalar({
           spec: "https://x.dev/openapi.json",
+          theme: "purple",
         }),
       ],
     });
@@ -79,9 +74,7 @@ describe("scalar reference builder", () => {
     );
     const config = blumeConfigSchema.parse({
       reference: [
-        openapi({
-          renderer: scalar(),
-
+        scalar({
           sources: [
             { route: "/ref", spec: "openapi.json" },
             { route: "/missing", spec: "nope.json" },
@@ -107,9 +100,7 @@ describe("scalar reference builder", () => {
   it("derives slugged routes for multiple labeled sources", async () => {
     const config = blumeConfigSchema.parse({
       reference: [
-        openapi({
-          renderer: scalar(),
-
+        scalar({
           sources: [
             { label: "Public API", spec: "https://x.dev/a.json" },
             { label: "Admin API", spec: "https://x.dev/b.json" },
@@ -131,9 +122,7 @@ describe("scalar reference builder", () => {
   it("skips a reference whose route collides with a content page", async () => {
     const config = blumeConfigSchema.parse({
       reference: [
-        openapi({
-          renderer: scalar(),
-
+        scalar({
           spec: "https://x.dev/a.json",
         }),
       ],
@@ -152,9 +141,7 @@ describe("scalar reference builder", () => {
   it("keeps the first of two sources that resolve to the same route", async () => {
     const config = blumeConfigSchema.parse({
       reference: [
-        openapi({
-          renderer: scalar(),
-
+        scalar({
           sources: [
             { route: "/dup", spec: "https://x.dev/a.json" },
             { route: "/dup", spec: "https://x.dev/b.json" },

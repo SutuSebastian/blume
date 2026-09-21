@@ -169,10 +169,10 @@ export const runtimeDependencies = (options: {
   if (needsSvelte) {
     deps.push("@astrojs/svelte");
   }
-  // Each reference adapter declares what its renderer needs: Blume's own
-  // renderer parses at generate time and needs nothing, while `scalar()`
-  // declares `@scalar/astro` so the framework crawl bundles the embed (two
-  // Scalar references declare it twice, hence the set). Only the configured
+  // Each reference adapter declares what it needs: Blume's own renderer
+  // parses at generate time and needs nothing, while `scalar()` declares
+  // `@scalar/astro` so the framework crawl bundles the embed (two Scalar
+  // adapters declare it twice, hence the set). Only the configured
   // search adapter's SDK is declared, so a project pulls in (and the user
   // installs) exactly the backend it uses — nothing more. Each analytics
   // adapter declares what it needs the same way; the built-ins need nothing

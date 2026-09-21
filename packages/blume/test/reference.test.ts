@@ -26,14 +26,12 @@ describe("reference adapter factories", () => {
   it("return serializable descriptors that survive a JSON round trip", () => {
     const adapters = [
       openapi({ spec: "./openapi.yaml" }),
-      asyncapi({
-        renderer: scalar({ theme: "moon" }),
-        spec: "./asyncapi.yaml",
-      }),
+      asyncapi({ spec: "./asyncapi.yaml" }),
       graphql({
         endpoint: "https://api.test/graphql",
         spec: "./schema.graphql",
       }),
+      scalar({ spec: "./legacy.yaml", theme: "moon" }),
     ];
     // JSON on purpose, not structuredClone: the descriptor is written to the
     // generated data snapshot and read back, so JSON's semantics are the contract.
@@ -43,6 +41,7 @@ describe("reference adapter factories", () => {
       "openapi",
       "asyncapi",
       "graphql",
+      "scalar",
     ]);
   });
 
@@ -65,31 +64,28 @@ describe("reference adapter factories", () => {
     expect(graphql({ spec: "s.graphql" }).requiredSecrets).toEqual([]);
   });
 
-  it("hoist the renderer's runtime dependency onto the adapter", () => {
+  it("declare the runtime dependency only on the Scalar embed", () => {
     // Blume's own renderer parses at generate time and needs nothing; the
     // Scalar embed imports `@scalar/astro` from the generated page.
     expect(openapi({ spec: "o.json" }).runtimeDeps).toEqual([]);
-    expect(scalar().runtimeDeps).toEqual(["@scalar/astro"]);
-    expect(openapi({ renderer: scalar(), spec: "o.json" }).runtimeDeps).toEqual(
-      ["@scalar/astro"]
-    );
-    expect(
-      asyncapi({ renderer: scalar(), spec: "a.yaml" }).runtimeDeps
-    ).toEqual(["@scalar/astro"]);
+    expect(asyncapi({ spec: "a.yaml" }).runtimeDeps).toEqual([]);
     expect(graphql({ spec: "s.graphql" }).runtimeDeps).toEqual([]);
+    expect(scalar({ spec: "o.json" }).runtimeDeps).toEqual(["@scalar/astro"]);
   });
 
   it("forward every scalar() option, theme included, onto the resolved reference", () => {
     const config = blumeConfigSchema.parse({
       reference: [
-        openapi({
-          renderer: scalar({ hideTestRequestButton: true, theme: "purple" }),
+        scalar({
+          hideTestRequestButton: true,
           spec: "https://x.dev/openapi.json",
+          theme: "purple",
         }),
       ],
     });
     const [ref] = resolveReferences(config);
-    expect(ref?.renderer).toBe("scalar");
+    expect(ref?.kind).toBe("scalar");
+    // `route` and `sources` are Blume's, so they never reach the embed.
     expect(ref?.scalar).toEqual({
       hideTestRequestButton: true,
       theme: "purple",
@@ -129,11 +125,11 @@ describe("referenceAdapterSchema", () => {
     });
   });
 
-  it("re-derives the Scalar dependency from the resolved renderer", () => {
+  it("re-derives the Scalar dependency from the resolved kind", () => {
     const [adapter] = blumeConfigSchema.parse({
       reference: [
         {
-          ...openapi({ renderer: scalar(), spec: "o.json" }),
+          ...scalar({ spec: "o.json" }),
           runtimeDeps: [],
         },
       ],
@@ -142,10 +138,7 @@ describe("referenceAdapterSchema", () => {
     expect(
       runtimeDependencies({
         config: blumeConfigSchema.parse({
-          reference: [
-            openapi({ renderer: scalar(), spec: "o.json" }),
-            asyncapi({ renderer: scalar(), spec: "a.yaml" }),
-          ],
+          reference: [scalar({ spec: "o.json" }), scalar({ spec: "a.yaml" })],
         }),
         needsReact: false,
       }).filter((dep) => dep === "@scalar/astro")
@@ -192,56 +185,78 @@ describe("referenceAdapterSchema", () => {
     }
   });
 
-  it("accepts a renderer only on the kinds Scalar can render", () => {
-    expect(
-      referenceConfigSchema.safeParse([
-        openapi({ renderer: scalar(), spec: "o.json" }),
-        asyncapi({ renderer: scalar(), spec: "a.yaml" }),
-      ]).success
-    ).toBe(true);
-    // GraphQL is always Blume-rendered: the option isn't in the factory's
-    // type, and the schema refuses it at runtime too.
-    const result = referenceConfigSchema.safeParse([
+  it("names the scalar() adapter when a config still passes renderer", () => {
+    // `renderer` left the factories' types with the standalone adapter; the
+    // schema refuses it at runtime with the replacement spelled out.
+    for (const factory of [openapi, asyncapi]) {
+      const result = referenceConfigSchema.safeParse([
+        {
+          ...factory({ spec: "o.json" }),
+          options: { renderer: { kind: "scalar" }, spec: "o.json" },
+        },
+      ]);
+      expect(result.success).toBe(false);
+      expect(result.error?.issues[0]?.path).toEqual([0, "options"]);
+      expect(result.error?.issues[0]?.message).toContain(
+        "scalar({ spec, theme })"
+      );
+    }
+    // Any other unknown key keeps Zod's own wording; GraphQL never had the
+    // option, so it gets the plain message too.
+    for (const bad of [
+      { ...openapi({ spec: "o.json" }), options: { bogus: 1, spec: "o.json" } },
       {
         ...graphql({ spec: "s.graphql" }),
-        options: { renderer: scalar(), spec: "s.graphql" },
+        options: { expandSchemas: true, spec: "s.graphql" },
       },
+      {
+        ...graphql({ spec: "s.graphql" }),
+        options: { renderer: { kind: "scalar" }, spec: "s.graphql" },
+      },
+    ]) {
+      const result = referenceConfigSchema.safeParse([bad]);
+      expect(result.success).toBe(false);
+      expect(result.error?.issues[0]?.message).not.toContain("scalar({");
+    }
+  });
+
+  it("folds a scalar() spec into sources and keeps the passthrough beside them", () => {
+    const [adapter] = referenceConfigSchema.parse([
+      scalar({
+        hideTestRequestButton: true,
+        sources: [{ label: "Two", spec: "./two.json" }],
+        spec: "./one.json",
+      }),
+    ]);
+    const options = adapter?.kind === "scalar" ? adapter.options : null;
+    expect(options).toEqual({
+      hideTestRequestButton: true,
+      route: "/reference",
+      sources: [
+        { noindex: false, spec: "./one.json" },
+        { label: "Two", noindex: false, spec: "./two.json" },
+      ],
+    });
+    const result = referenceConfigSchema.safeParse([
+      { ...scalar({ spec: "o.json" }), options: { theme: "purple" } },
     ]);
     expect(result.success).toBe(false);
-    expect(result.error?.issues[0]?.path).toEqual([0, "options"]);
-    expect(
-      referenceConfigSchema.safeParse([
-        {
-          ...graphql({ spec: "s.graphql" }),
-          options: { expandSchemas: true, spec: "s.graphql" },
-        },
-      ]).success
-    ).toBe(false);
+    expect(result.error?.issues[0]?.message).toContain("scalar()");
   });
 
   it("rejects a scalar() option JSON can't carry", () => {
     // A function is exactly what the option type forbids, so the descriptor
     // is hand-built to reach the runtime check.
-    const result = referenceConfigSchema.safeParse([
-      {
-        ...openapi({ spec: "o.json" }),
-        options: {
-          renderer: { ...scalar(), options: { onLoaded: () => 1 } },
-          spec: "o.json",
-        },
-      },
-    ]);
+    const descriptor = {
+      ...scalar({ spec: "o.json" }),
+      options: { onLoaded: () => 1, spec: "o.json" },
+    };
+    const result = referenceConfigSchema.safeParse([descriptor]);
     expect(result.success).toBe(false);
-    expect(result.error?.issues[0]?.path).toEqual([
-      0,
-      "options",
-      "renderer",
-      "options",
-      "onLoaded",
-    ]);
+    expect(result.error?.issues[0]?.path).toEqual([0, "options", "onLoaded"]);
   });
 
-  it("rejects an unknown kind and an unknown renderer kind", () => {
+  it("rejects an unknown kind", () => {
     expect(
       referenceAdapterSchema.safeParse({
         kind: "grpc",
@@ -252,8 +267,8 @@ describe("referenceAdapterSchema", () => {
     ).toBe(false);
     expect(
       referenceAdapterSchema.safeParse({
-        ...openapi({ spec: "o.json" }),
-        options: { renderer: { ...scalar(), kind: "redoc" }, spec: "o.json" },
+        ...scalar({ spec: "o.json" }),
+        kind: "redoc",
       }).success
     ).toBe(false);
   });
@@ -304,16 +319,14 @@ describe("route dedupe across adapters", () => {
     ]);
   });
 
-  it("keeps the first Scalar-rendered source on a shared route and warns", async () => {
+  it("keeps the first scalar() source on a shared route and warns", async () => {
     const config = blumeConfigSchema.parse({
       reference: [
-        openapi({
-          renderer: scalar(),
+        scalar({
           route: "/api",
           spec: "https://x.dev/o.json",
         }),
-        asyncapi({
-          renderer: scalar(),
+        scalar({
           route: "/api",
           spec: "https://x.dev/a.yaml",
         }),
@@ -460,12 +473,12 @@ describe("generated pages per kind", () => {
     expect(routes).toContain("/graphql/objects/pet");
   }, 30_000);
 
-  it("writes a Scalar page and declares @scalar/astro for a scalar() renderer", async () => {
+  it("writes a Scalar page and declares @scalar/astro for a scalar() adapter", async () => {
     const project = await projectWith(
       JSON.stringify(
-        openapi({
-          renderer: scalar({ theme: "purple" }),
+        scalar({
           spec: "https://x.dev/openapi.json",
+          theme: "purple",
         })
       ),
       {}

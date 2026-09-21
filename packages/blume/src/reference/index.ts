@@ -8,9 +8,9 @@
  * export default defineConfig({
  *   reference: [
  *     openapi({ spec: "./openapi.yaml" }),
- *     openapi({ spec: "./legacy.yaml", route: "/legacy", renderer: scalar({ theme: "purple" }) }),
  *     asyncapi({ spec: "./asyncapi.yaml" }),
  *     graphql({ spec: "./schema.graphql", endpoint: "https://api.example.com/graphql" }),
+ *     scalar({ spec: "./legacy.yaml", route: "/legacy", theme: "purple" }),
  *   ],
  * });
  * ```
@@ -32,5 +32,9 @@ export type {
   ReferenceSourceOptions,
 } from "./options.ts";
 export { scalar } from "./scalar.ts";
-export type { ScalarOptions, ScalarRenderer } from "./scalar.ts";
+export type {
+  ScalarAdapter,
+  ScalarOptions,
+  ScalarSourceOptions,
+} from "./scalar.ts";
 export type { ReferenceAdapter, ResolvedReferenceAdapter } from "./schema.ts";

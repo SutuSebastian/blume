@@ -2,67 +2,135 @@ import { z } from "zod";
 
 import type { AdapterDescriptor, JsonValue } from "../core/adapter.ts";
 import { adapterDescriptorSchema } from "../core/adapter.ts";
+import { hasSources, missingSourcesIssue } from "./options.ts";
 
-/** The option {@link scalar} maps itself. */
+/**
+ * What the generated Scalar page imports. Declared on every `scalar()`
+ * descriptor so the generated project lists it, which is what lets Astro's
+ * framework-package crawl bundle the embed.
+ */
+export const SCALAR_RUNTIME_DEPS: readonly string[] = ["@scalar/astro"];
+
+/**
+ * A single document rendered by a `scalar()` reference. Scalar reads OpenAPI
+ * and AsyncAPI documents and detects which it was given, so there is one
+ * source shape for both. The embed sits outside Blume's search and llms.txt,
+ * so of the native per-source controls only `noindex` applies here.
+ */
+export const scalarSourceSchema = z.strictObject({
+  /** Nav/section label for this source. */
+  label: z.string().optional(),
+  /** Emit noindex metadata and omit the page from the sitemap. */
+  noindex: z.boolean().default(false),
+  /** Per-source route; defaults to the adapter's `route` (or a derived path). */
+  route: z.string().optional(),
+  /** Local path or `http(s)` URL to the OpenAPI or AsyncAPI document. */
+  spec: z.string(),
+});
+
+/** One document source, as `scalar()` accepts it. */
+export interface ScalarSourceOptions {
+  /** Nav/section label for this source. */
+  label?: string;
+  /** Emit noindex metadata and omit the page from the sitemap. Defaults to `false`. */
+  noindex?: boolean;
+  /** Per-source route; defaults to the adapter's `route` (or a derived path). */
+  route?: string;
+  /** Local path or `http(s)` URL to the OpenAPI or AsyncAPI document. */
+  spec: string;
+}
+
+/** A source with every default applied. */
+export type ResolvedScalarSource = z.output<typeof scalarSourceSchema>;
+
+/**
+ * `scalar()` options with every default applied and `spec` folded into
+ * `sources`; every key beyond the named ones is forwarded Scalar config.
+ */
+export type ResolvedScalarOptions = {
+  route: string;
+  sources: ResolvedScalarSource[];
+  theme?: string;
+} & { [option: string]: JsonValue };
+
+/** The options {@link scalar} maps itself. */
 export interface ScalarNamedOptions {
+  /** Where the reference mounts. Defaults to `/reference`. */
+  route?: string;
+  /** One or more documents; each renders on its own route by default. */
+  sources?: ScalarSourceOptions[];
+  /** Shorthand for a single source: `sources: [{ spec }]`. */
+  spec?: string;
   /** A Scalar theme name (`purple`, `moon`, …). Unset keeps Scalar's default theme with Blume's accent and radius layered on top. */
   theme?: string;
 }
 
 /**
- * Options for {@link scalar}: `theme` plus any other
- * [Scalar configuration](https://github.com/scalar/scalar/blob/main/documentation/configuration.md)
+ * Options for {@link scalar}: the source, route, and `theme` Blume maps, plus
+ * any other [Scalar configuration](https://github.com/scalar/scalar/blob/main/documentation/configuration.md)
  * key, forwarded verbatim to the embedded `<ScalarComponent>` (`localization`,
  * `agent`, `hideTestRequestButton`, `orderSchemaPropertiesBy`, …). Blume
  * doesn't mirror Scalar's config surface, so this is a full escape hatch: a
  * forwarded key wins over Blume's own derived spec/theme config. JSON values
- * only — the configuration is inlined into the generated page.
+ * only — the configuration is inlined into the generated page. `sources` is
+ * Blume's (one page per document); Scalar's own multi-document `sources`
+ * can't be forwarded.
  */
 export type ScalarOptions = ScalarNamedOptions & {
   [option: string]: JsonValue;
 };
 
+/**
+ * `spec` is the single-source shorthand and folds into `sources` at parse
+ * (through the source schema, so the two can never drift); every key beyond
+ * the named ones is Scalar configuration and passes through untouched.
+ */
 export const scalarOptionsSchema = z
   .object({
+    /** Where the reference mounts. */
+    route: z.string().default("/reference"),
+    /** One or more documents; each renders on its own route by default. */
+    sources: z.array(scalarSourceSchema).default([]),
+    /** Shorthand for a single source: `sources: [{ spec }]`. */
+    spec: z.string().optional(),
+    /** A Scalar theme name; unset layers Blume's accent and radius on Scalar's default theme. */
     theme: z.string().optional(),
   })
-  .catchall(z.json());
+  .catchall(z.json())
+  .transform(({ spec, sources, ...options }): ResolvedScalarOptions => ({
+    ...options,
+    sources:
+      spec === undefined
+        ? sources
+        : [scalarSourceSchema.parse({ spec }), ...sources],
+  }))
+  .refine(hasSources, missingSourcesIssue("scalar"));
 
-/** The renderer descriptor {@link scalar} returns. */
-export type ScalarRenderer = AdapterDescriptor<"scalar", ScalarOptions>;
+export type ScalarAdapter = AdapterDescriptor<"scalar", ScalarOptions>;
+
+/** A `scalar()` descriptor as the config schema resolves it. */
+export type ResolvedScalarAdapter = AdapterDescriptor<
+  "scalar",
+  ResolvedScalarOptions
+>;
+
+export const scalarAdapterSchema = adapterDescriptorSchema(
+  "scalar",
+  scalarOptionsSchema
+);
 
 /**
- * Render a reference with [Scalar](https://scalar.com)'s self-contained API
- * reference UI — its own sidebar, search, theme, and request client on a
- * single route — instead of Blume's native operation pages. Pass it as the
- * `renderer` of `openapi()` or `asyncapi()`; `graphql()` takes no renderer,
- * because the Scalar SPA reads OpenAPI documents only.
- *
- * The generated page imports `@scalar/astro`, so the renderer declares it as
- * a runtime dependency: the generated project lists it, which is what lets
- * Astro's framework-package crawl bundle the embed.
+ * An API reference rendered by [Scalar](https://scalar.com)'s self-contained
+ * UI — its own sidebar, search, theme, and request client on a single route —
+ * instead of Blume's native operation pages. Takes an OpenAPI or AsyncAPI
+ * document (Scalar detects which); a GraphQL schema has no Scalar embed.
+ * Blume's per-page controls don't apply: the embed doesn't weave into the
+ * sidebar, search, or llms.txt, and it brings its own request client in place
+ * of the Try it playground.
  */
-export const scalar = (options: ScalarOptions = {}): ScalarRenderer => ({
+export const scalar = (options: ScalarOptions): ScalarAdapter => ({
   kind: "scalar",
   options,
   requiredSecrets: [],
-  runtimeDeps: ["@scalar/astro"],
+  runtimeDeps: [...SCALAR_RUNTIME_DEPS],
 });
-
-/**
- * Validates a `scalar()` descriptor and resolves it through the factory, so a
- * descriptor that went through JSON (the generated data snapshot, a hand-typed
- * literal) carries the canonical runtime dependency.
- */
-export const scalarRendererSchema = adapterDescriptorSchema(
-  "scalar",
-  scalarOptionsSchema
-).transform((value): ScalarRenderer => scalar(value.options));
-
-/**
- * The runtime dependencies a reference adapter declares: its renderer's, since
- * the Blume renderer parses at generate time and needs nothing of its own.
- * Hoisted onto the adapter so consumers read one `runtimeDeps` list.
- */
-export const rendererRuntimeDeps = (renderer?: ScalarRenderer): string[] =>
-  renderer ? [...renderer.runtimeDeps] : [];

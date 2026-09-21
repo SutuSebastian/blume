@@ -2429,9 +2429,8 @@ export const generateRuntime = async (
     );
   }
 
-  // Scalar-rendered API/AsyncAPI reference pages (`renderer: "scalar"`). One
-  // self-contained page per source, mounted on its configured route and
-  // regenerated each run.
+  // `scalar()` reference pages. One self-contained page per source, mounted
+  // on its configured route and regenerated each run.
   const warnings: string[] = [
     ...(depsLinkWarning ? [depsLinkWarning] : []),
     ...proxyAllowlistWarnings(config, openApiData),

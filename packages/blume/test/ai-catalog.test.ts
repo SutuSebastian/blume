@@ -198,8 +198,7 @@ describe("buildAiCatalog", () => {
       agents: { api: false, llmsTxt: false },
       basePath: "/docs",
       reference: [
-        openapi({
-          renderer: scalar(),
+        scalar({
           route: "/reference",
           spec: "./openapi.json",
         }),

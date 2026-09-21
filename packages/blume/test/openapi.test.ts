@@ -236,7 +236,7 @@ describe("references", () => {
     });
     const refs = resolveReferences(config);
     expect(refs).toHaveLength(1);
-    expect(refs[0]?.renderer).toBe("blume");
+    expect(refs[0]?.kind).toBe("openapi");
     expect(refs[0]?.slug).toBe("reference");
     expect(refs[0]?.display).toStrictEqual({
       codeSamples: ["curl", "js", "python"],
@@ -253,7 +253,6 @@ describe("references", () => {
     });
     const refs = resolveReferences(config);
     expect(refs).toHaveLength(1);
-    expect(refs[0]?.renderer).toBe("blume");
     expect(refs[0]?.kind).toBe("asyncapi");
     expect(refs[0]?.slug).toBe("events");
     expect(refs[0]?.display).toStrictEqual({
@@ -265,26 +264,51 @@ describe("references", () => {
     expect(blumeReferences(config)).toHaveLength(1);
   });
 
-  it("keeps the Scalar opt-out for AsyncAPI", () => {
+  it("resolves a scalar() adapter as an embed outside the native set", () => {
     const config = blumeConfigSchema.parse({
-      reference: [asyncapi({ renderer: scalar(), spec: "async.yaml" })],
+      reference: [
+        scalar({
+          sources: [
+            { label: "Public", spec: "async.yaml" },
+            { noindex: true, route: "/legacy", spec: "legacy.json" },
+          ],
+        }),
+      ],
     });
     expect(hasScalarReferences(config)).toBe(true);
+    // The embed never becomes staged pages, so nothing is Blume-rendered.
     expect(blumeReferences(config)).toStrictEqual([]);
-    expect(resolveReferences(config)[0]?.renderer).toBe("scalar");
+    const [first, second] = resolveReferences(config);
+    expect(first).toMatchObject({
+      display: {
+        codeSamples: [],
+        expandSchemas: false,
+        playground: { enabled: false, proxy: false },
+      },
+      includeInLlms: false,
+      includeInSearch: false,
+      kind: "scalar",
+      label: "Public",
+      noindex: false,
+      route: "/reference/public",
+      scalar: {},
+    });
+    expect(second).toMatchObject({
+      kind: "scalar",
+      label: "API Reference 2",
+      noindex: true,
+      route: "/legacy",
+    });
   });
 
   it("carries a scalar passthrough block onto its references", () => {
     const config = blumeConfigSchema.parse({
       reference: [
-        openapi({
-          renderer: scalar({
-            agent: { disabled: true },
-            hideTestRequestButton: true,
-            localization: { locale: "es" },
-            orderSchemaPropertiesBy: "preserve",
-          }),
-
+        scalar({
+          agent: { disabled: true },
+          hideTestRequestButton: true,
+          localization: { locale: "es" },
+          orderSchemaPropertiesBy: "preserve",
           spec: "https://example.com/spec.json",
         }),
       ],
@@ -324,11 +348,9 @@ describe("references", () => {
   it("forwards scalar options into the generated page, winning over Blume's derived config", async () => {
     const config = blumeConfigSchema.parse({
       reference: [
-        openapi({
-          renderer: scalar({
-            customCss: "body{}",
-            localization: { locale: "es" },
-          }),
+        scalar({
+          customCss: "body{}",
+          localization: { locale: "es" },
           // A remote spec avoids file IO; the config is inlined verbatim.
           spec: "https://example.com/spec.json",
         }),
@@ -1623,7 +1645,6 @@ describe("source.openApiSource", () => {
       },
       kind: "openapi" as const,
       label: "API",
-      renderer: "blume" as const,
       route: "/api",
       slug: "api",
       spec: "spec.json",
@@ -1663,7 +1684,6 @@ describe("source.openApiSource", () => {
       },
       kind: "openapi" as const,
       label: "API",
-      renderer: "blume" as const,
       route: "/api",
       slug: "api",
       spec: "spec.json",
@@ -1696,7 +1716,6 @@ describe("source.openApiSource", () => {
       },
       kind: "openapi" as const,
       label: "API",
-      renderer: "blume" as const,
       route: "/api",
       slug: "api",
       spec: "spec.json",
@@ -1727,7 +1746,6 @@ describe("source.openApiSource", () => {
       },
       kind: "openapi" as const,
       label: "API",
-      renderer: "blume" as const,
       route: "/api",
       slug: "api",
       spec: "spec.json",
@@ -1758,7 +1776,6 @@ describe("source.openApiSource", () => {
       },
       kind: "openapi" as const,
       label: "API",
-      renderer: "blume" as const,
       route: "/api",
       slug: "api",
       spec: "README.md",
@@ -1788,7 +1805,6 @@ describe("source.openApiSource", () => {
       },
       kind: "openapi" as const,
       label: "API",
-      renderer: "blume" as const,
       route: "/api",
       slug: "api",
       spec: "spec.json",
@@ -1812,7 +1828,6 @@ describe("source.openApiSource", () => {
     },
     kind: "openapi" as const,
     label: "API",
-    renderer: "blume" as const,
     route: "/api",
     slug: "api",
     spec: "missing.json",
@@ -1851,7 +1866,6 @@ describe("source.openApiSource", () => {
       },
       kind: "openapi" as const,
       label: "API",
-      renderer: "blume" as const,
       route: "/api",
       slug: "api",
       spec: "https://api.test/openapi.json",

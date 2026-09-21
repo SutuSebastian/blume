@@ -59,7 +59,7 @@ import { TOC_HIDDEN_KEY } from "../src/core/heading-markers.ts";
 import { blumeConfigSchema } from "../src/core/schema.ts";
 import type { ProjectContext } from "../src/core/types.ts";
 import { cloudflare, node, vercel } from "../src/deploy/adapters/index.ts";
-import { openapi, scalar } from "../src/reference/index.ts";
+import { scalar } from "../src/reference/index.ts";
 import {
   algolia,
   flexsearch,
@@ -828,8 +828,7 @@ describe("runtimeDependencies", () => {
     const full = blumeConfigSchema.parse({
       ai: { ask: { enabled: true, provider: openrouter({ model: "x/y" }) } },
       reference: [
-        openapi({
-          renderer: scalar(),
+        scalar({
           spec: "https://x.dev/openapi.json",
         }),
       ],

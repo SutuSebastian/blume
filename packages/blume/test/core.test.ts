@@ -1912,7 +1912,6 @@ describe("api reference (scalar)", () => {
         kind: "openapi",
         label: "API Reference",
         noindex: false,
-        renderer: "blume",
         route: "/reference",
         seoDescriptionSuffix: true,
         slug: "reference",
@@ -1953,9 +1952,7 @@ describe("api reference (scalar)", () => {
       reference: [openapi({ spec: "https://x.dev/openapi.json" })],
     });
     const embedded = blumeConfigSchema.parse({
-      reference: [
-        openapi({ renderer: scalar(), spec: "https://x.dev/openapi.json" }),
-      ],
+      reference: [scalar({ spec: "https://x.dev/openapi.json" })],
     });
     expect(
       runtimeDependencies({ config: off, needsReact: false })
@@ -1983,9 +1980,7 @@ describe("api reference (scalar)", () => {
   it("builds a prerendered page passing a remote spec straight through", async () => {
     const config = blumeConfigSchema.parse({
       reference: [
-        openapi({
-          renderer: scalar(),
-
+        scalar({
           spec: "https://x.dev/openapi.json",
         }),
       ],
@@ -2005,9 +2000,7 @@ describe("api reference (scalar)", () => {
   it("emits a prerendered Scalar page with the spec url and theme accent", async () => {
     const config = blumeConfigSchema.parse({
       reference: [
-        openapi({
-          renderer: scalar(),
-
+        scalar({
           spec: "https://x.dev/openapi.json",
         }),
       ],
@@ -2027,9 +2020,7 @@ describe("api reference (scalar)", () => {
   it("skips a reference whose route collides with a content page", async () => {
     const config = blumeConfigSchema.parse({
       reference: [
-        openapi({
-          renderer: scalar(),
-
+        scalar({
           spec: "https://x.dev/openapi.json",
         }),
       ],

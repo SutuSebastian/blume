@@ -15,10 +15,12 @@ import { asyncapi, openapi, scalar } from "../src/reference/index.ts";
 import type { OpenApiOptions } from "../src/reference/index.ts";
 
 /** Shorthand: the resolved `playground` of an `openapi()` adapter for a given input. */
-const playgroundOf = (playground?: OpenApiOptions["playground"]) =>
-  blumeConfigSchema.parse({
+const playgroundOf = (playground?: OpenApiOptions["playground"]) => {
+  const [adapter] = blumeConfigSchema.parse({
     reference: [openapi({ playground, spec: "spec.json" })],
-  }).reference[0]?.options.playground;
+  }).reference;
+  return adapter?.kind === "openapi" ? adapter.options.playground : undefined;
+};
 
 describe("openapi.playground config schema", () => {
   it("defaults to an enabled, proxy-less playground", () => {
@@ -83,7 +85,7 @@ describe("resolveReferences playground display", () => {
     const config = blumeConfigSchema.parse({
       reference: [asyncapi({ spec: "async.yaml" })],
     });
-    expect(resolveReferences(config)[0]?.renderer).toBe("blume");
+    expect(resolveReferences(config)[0]?.kind).toBe("asyncapi");
     expect(resolveReferences(config)[0]?.display.playground).toStrictEqual({
       enabled: true,
       proxy: false,
@@ -114,7 +116,6 @@ const referenceWith = (
   kind: "openapi" as const,
   label: "API",
   noindex: false,
-  renderer: "blume" as const,
   route: `/${slug}`,
   seoDescriptionSuffix: true,
   slug,
@@ -216,14 +217,10 @@ describe("serverFeatures playground proxy", () => {
     expect(serverFeatures(blumeConfigSchema.parse({}))).toStrictEqual([]);
   });
 
-  it("stays static for the Scalar renderer (no native playground)", () => {
+  it("stays static for a scalar() adapter (no native playground)", () => {
     expect(
       serverFeatures(
-        parse({
-          playground: { proxy: true },
-          renderer: scalar(),
-          spec: "s.json",
-        })
+        blumeConfigSchema.parse({ reference: [scalar({ spec: "s.json" })] })
       )
     ).toStrictEqual([]);
   });

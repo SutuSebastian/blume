@@ -7,11 +7,10 @@ import {
   referenceSourceSchema,
   hasSources,
   missingSourcesIssue,
+  rendererRemovedHint,
   sharedOptions,
 } from "./options.ts";
 import type { PlaygroundOptions, ReferenceSourceOptions } from "./options.ts";
-import { rendererRuntimeDeps, scalarRendererSchema } from "./scalar.ts";
-import type { ScalarRenderer } from "./scalar.ts";
 
 /** Options for {@link openapi}. */
 export interface OpenApiOptions {
@@ -26,8 +25,6 @@ export interface OpenApiOptions {
    * `/_api-proxy` endpoint (which requires `deployment.output: "server"`).
    */
   playground?: PlaygroundOptions;
-  /** Who renders the reference: unset for Blume's own UI, or `scalar()` for the embedded Scalar SPA. */
-  renderer?: ScalarRenderer;
   /** Where the reference mounts. Defaults to `/reference`. */
   route?: string;
   /** One or more specs; each renders on its own route by default. */
@@ -37,18 +34,19 @@ export interface OpenApiOptions {
 }
 
 export const openapiOptionsSchema = z
-  .strictObject({
-    ...sharedOptions({
-      codeSamples: ["curl", "js", "python"],
-      route: "/reference",
-    }),
-    /** Start nested schema rows expanded rather than collapsed (Blume renderer). */
-    expandSchemas: z.boolean().default(false),
-    /** The embedded Scalar SPA, when opted into; unset means Blume's own UI. */
-    renderer: scalarRendererSchema.optional(),
-    /** One or more specs; each renders on its own route by default. */
-    sources: z.array(referenceSourceSchema).default([]),
-  })
+  .strictObject(
+    {
+      ...sharedOptions({
+        codeSamples: ["curl", "js", "python"],
+        route: "/reference",
+      }),
+      /** Start nested schema rows expanded rather than collapsed (Blume renderer). */
+      expandSchemas: z.boolean().default(false),
+      /** One or more specs; each renders on its own route by default. */
+      sources: z.array(referenceSourceSchema).default([]),
+    },
+    rendererRemovedHint
+  )
   .transform(liftSpec(referenceSourceSchema))
   .refine(hasSources, missingSourcesIssue("openapi"));
 
@@ -69,15 +67,16 @@ export const openapiAdapterSchema = adapterDescriptorSchema(
 );
 
 /**
- * An OpenAPI reference. By default Blume parses the spec with Scalar's parser
- * and renders its own UI: one real page per operation, grouped by tag in the
- * sidebar and included in site search, llms.txt, and OG. Pass
- * `renderer: scalar()` to embed the Scalar SPA instead (a single
- * self-contained route that doesn't weave into the sidebar or search).
+ * An OpenAPI reference. Blume parses the spec with Scalar's parser and renders
+ * its own UI: one real page per operation, grouped by tag in the sidebar and
+ * included in site search, llms.txt, and OG. To embed the Scalar SPA instead
+ * (a single self-contained route that doesn't weave into the sidebar or
+ * search), list a `scalar()` adapter. Blume's renderer parses at generate
+ * time and needs no runtime dependency.
  */
 export const openapi = (options: OpenApiOptions): OpenApiAdapter => ({
   kind: "openapi",
   options,
   requiredSecrets: [],
-  runtimeDeps: rendererRuntimeDeps(options.renderer),
+  runtimeDeps: [],
 });

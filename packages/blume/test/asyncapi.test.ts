@@ -67,7 +67,6 @@ const asyncReference = {
   },
   kind: "asyncapi" as const,
   label: "Events",
-  renderer: "blume" as const,
   route: "/events",
   slug: "events",
   spec: "spec.json",

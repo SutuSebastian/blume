@@ -63,6 +63,7 @@ const REFERENCE_KIND_LABEL = {
   asyncapi: "AsyncAPI",
   graphql: "GraphQL",
   openapi: "OpenAPI",
+  scalar: "API",
 } as const;
 
 /** The `urn:air` publisher: the configured site's hostname. */
@@ -168,9 +169,9 @@ const entrySeeds = (
     // resource this publisher owns — the spec itself is catalogued by URL in
     // the RFC 9727 linkset.
     const docRoute =
-      reference.renderer === "blume"
-        ? withBasePath(reference.basePath, reference.route)
-        : reference.route;
+      reference.kind === "scalar"
+        ? reference.route
+        : withBasePath(reference.basePath, reference.route);
     seeds.push({
       description: `${reference.label}: rendered ${REFERENCE_KIND_LABEL[reference.kind]} reference in the ${title} documentation.`,
       displayName: reference.label,

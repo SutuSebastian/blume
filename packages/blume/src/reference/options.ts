@@ -120,6 +120,30 @@ export type PlaygroundOptions =
 export type ResolvedPlayground = z.output<typeof playgroundSchema>;
 
 /**
+ * The message a config still passing `renderer` to `openapi()`/`asyncapi()`
+ * gets: Scalar is its own adapter now, so the option has no home.
+ */
+export const RENDERER_REMOVED_HINT =
+  '`renderer` was removed: the Scalar embed is its own adapter. Replace `openapi({ spec, renderer: scalar({ theme }) })` with `scalar({ spec, theme })` from "blume/reference" — `route`, `sources`, `label`, and `noindex` carry over, and the native display options (`codeSamples`, `expandSchemas`, `playground`) don\'t apply to the embed.';
+
+/**
+ * Error params for the `openapi()`/`asyncapi()` option objects: a leftover
+ * `renderer` key names its replacement instead of Zod's bare "Unrecognized
+ * key"; any other unknown key keeps the default message.
+ */
+export const rendererRemovedHint = {
+  error: (issue: z.core.$ZodRawIssue): string | undefined => {
+    if (
+      issue.code !== "unrecognized_keys" ||
+      !issue.keys.includes("renderer")
+    ) {
+      return;
+    }
+    return RENDERER_REMOVED_HINT;
+  },
+};
+
+/**
  * The options every kind shares, with that kind's defaults for the mount
  * route and code-sample set. `spec` is the single-source shorthand; the kind
  * schema folds it into `sources` with {@link liftSpec}.

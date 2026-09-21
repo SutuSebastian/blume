@@ -366,13 +366,10 @@ describe("graphql config and references", () => {
       reference: [graphql({ spec: "schema.graphql" })],
     }).reference;
     expect(adapter?.kind).toBe("graphql");
-    expect(adapter?.options.route).toBe("/graphql");
-    expect(adapter?.options.codeSamples).toStrictEqual([
-      "curl",
-      "js",
-      "python",
-    ]);
-    expect(adapter?.options.playground).toStrictEqual({
+    const options = adapter?.kind === "graphql" ? adapter.options : null;
+    expect(options?.route).toBe("/graphql");
+    expect(options?.codeSamples).toStrictEqual(["curl", "js", "python"]);
+    expect(options?.playground).toStrictEqual({
       enabled: true,
       proxy: false,
     });
@@ -391,7 +388,6 @@ describe("graphql config and references", () => {
     const refs = resolveReferences(config);
     expect(refs).toHaveLength(1);
     expect(refs[0]?.kind).toBe("graphql");
-    expect(refs[0]?.renderer).toBe("blume");
     expect(refs[0]?.slug).toBe("graphql");
     expect(refs[0]?.endpoint).toBe("https://api.test/graphql");
     expect(refs[0]?.display).toStrictEqual({
@@ -437,9 +433,7 @@ describe("graphql config and references", () => {
       needsPlaygroundProxy(
         parse({
           reference: [
-            openapi({
-              playground: { proxy: true },
-              renderer: scalar(),
+            scalar({
               spec: "s.json",
             }),
           ],
@@ -548,7 +542,6 @@ const reference = (spec: string, overrides: { endpoint?: string } = {}) => ({
   kind: "graphql" as const,
   label: "GraphQL",
   noindex: false,
-  renderer: "blume" as const,
   route: "/graphql",
   seoDescriptionSuffix: true,
   slug: "graphql",

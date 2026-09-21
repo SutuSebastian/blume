@@ -1236,7 +1236,7 @@ const KITCHEN_SINK = {
   export: true,
   github: { dir: "site", owner: "acme", repo: "docs" },
   logo: "/logo.svg",
-  reference: [{ kind: "openapi", options: { renderer: { kind: "scalar", options: {}, requiredSecrets: [], runtimeDeps: ["@scalar/astro"] }, spec: "./openapi.json" }, requiredSecrets: [], runtimeDeps: [] }],
+  reference: [{ kind: "scalar", options: { spec: "./openapi.json" }, requiredSecrets: [], runtimeDeps: [] }],
   redirects: [{ from: "/old", to: "/new" }],
 };
 `,

@@ -1,7 +1,7 @@
 import { normalizeRoute, withBasePath } from "../core/base-path.ts";
 import type { ResolvedConfig } from "../core/schema.ts";
 import { trimChar } from "../core/trim.ts";
-import type { ScalarOptions, ScalarRenderer } from "../reference/scalar.ts";
+import type { ScalarOptions } from "../reference/scalar.ts";
 import type { ResolvedReferenceAdapter } from "../reference/schema.ts";
 
 // Re-exported from its home next to the other path helpers; `core/schema.ts`
@@ -9,17 +9,22 @@ import type { ResolvedReferenceAdapter } from "../reference/schema.ts";
 export { normalizeRoute } from "../core/base-path.ts";
 
 /**
- * Pure resolution of the configured `reference` adapters into concrete routes,
- * labels, and a renderer choice — no file IO, so the content source, the
+ * Pure resolution of the configured `reference` adapters into concrete routes
+ * and labels — no file IO, so the content source, the
  * nav-target validation, the Scalar page generator, and the `blume:openapi`
  * data module all share one source of truth. Kept free of any Astro/template
  * imports so `core` can depend on it without a cycle.
  */
 
+/**
+ * Which adapter a reference came from. `openapi`, `asyncapi`, and `graphql`
+ * are rendered by Blume into real pages; `scalar` is the embedded Scalar SPA
+ * on a single route.
+ */
 export type ReferenceKind = ResolvedReferenceAdapter["kind"];
 
-/** Who renders a reference: Blume's own UI, or the embedded Scalar SPA. */
-export type ReferenceRenderer = "blume" | "scalar";
+/** The kinds Blume renders into pages itself — everything but the Scalar embed. */
+export type BlumeReferenceKind = Exclude<ReferenceKind, "scalar">;
 
 /** Per-adapter display options for the Blume renderer. */
 export interface ReferenceDisplay {
@@ -35,10 +40,9 @@ export interface ReferenceDisplay {
   playground: { enabled: boolean; proxy: string | boolean };
 }
 
-/** A spec source resolved to a concrete route, label, and renderer. */
+/** A spec source resolved to a concrete route and label. */
 export interface ReferenceSource {
   kind: ReferenceKind;
-  renderer: ReferenceRenderer;
   /** Unique token derived from the route; the `<Operation source>` / data key. */
   slug: string;
   /** Normalized route the reference mounts at, e.g. `/reference`. */
@@ -69,7 +73,7 @@ export interface ReferenceSource {
    */
   endpoint?: string;
   /**
-   * The `scalar()` renderer's options (Scalar renderer only): `theme` plus
+   * The `scalar()` adapter's own options (`scalar` kind only): `theme` plus
    * any Scalar config forwarded verbatim to `<ScalarComponent>`, which takes
    * precedence over Blume's derived spec/theme config.
    */
@@ -82,6 +86,14 @@ export interface ReferenceSource {
    */
   collisions?: string[];
 }
+
+/** A reference Blume renders itself: one the content pipeline stages pages for. */
+export type BlumeReferenceSource = ReferenceSource & {
+  kind: BlumeReferenceKind;
+};
+
+const isBlumeReference = (ref: ReferenceSource): ref is BlumeReferenceSource =>
+  ref.kind !== "scalar";
 
 // Keep Unicode letters/marks/numbers so diacritics stay in the slug (ASCII-only
 // stripping turned `Größe` into `gr-e`, which the nav humanizer rendered as
@@ -124,44 +136,81 @@ const DEFAULT_LABELS: Record<ReferenceKind, string> = {
   asyncapi: "Events",
   graphql: "GraphQL",
   openapi: "API Reference",
+  scalar: "API Reference",
+};
+
+/** The Blume renderer has nothing to show for a Scalar embed. */
+const NO_DISPLAY: ReferenceDisplay = {
+  codeSamples: [],
+  expandSchemas: false,
+  playground: { enabled: false, proxy: false },
+};
+
+const displayOf = (adapter: ResolvedReferenceAdapter): ReferenceDisplay => {
+  if (adapter.kind === "scalar") {
+    return NO_DISPLAY;
+  }
+  return {
+    codeSamples: adapter.options.codeSamples,
+    // GraphQL field tables have no nesting, so `graphql()` takes no
+    // `expandSchemas` toggle.
+    expandSchemas:
+      adapter.kind === "graphql" ? false : adapter.options.expandSchemas,
+    playground: adapter.options.playground,
+  };
 };
 
 /**
- * The Scalar renderer an adapter opted into, or null for Blume's own UI.
- * GraphQL is always Blume-rendered — the Scalar SPA reads OpenAPI documents
- * only — so `graphql()` accepts no renderer to read.
+ * A `scalar()` adapter's options minus the ones Blume resolves itself
+ * (`route`, `sources`): `theme` and the verbatim Scalar passthrough, which
+ * the generated page inlines.
  */
-const scalarRendererOf = (
-  adapter: ResolvedReferenceAdapter
-): ScalarRenderer | null =>
-  adapter.kind === "graphql" ? null : (adapter.options.renderer ?? null);
+const scalarOptionsOf = (
+  options: Extract<ResolvedReferenceAdapter, { kind: "scalar" }>["options"]
+): ScalarOptions =>
+  Object.fromEntries(
+    Object.entries(options).filter(
+      ([key]) => key !== "route" && key !== "sources"
+    )
+  );
 
-const displayOf = (adapter: ResolvedReferenceAdapter): ReferenceDisplay => ({
-  codeSamples: adapter.options.codeSamples,
-  // GraphQL field tables have no nesting, so `graphql()` takes no
-  // `expandSchemas` toggle.
-  expandSchemas:
-    adapter.kind === "graphql" ? false : adapter.options.expandSchemas,
-  playground: adapter.options.playground,
-});
+/** A source row with every kind's fields reconciled onto one shape. */
+interface SourceRow {
+  endpoint?: string;
+  includeInLlms: boolean;
+  includeInSearch: boolean;
+  label?: string;
+  noindex: boolean;
+  route?: string;
+  seoDescriptionSuffix: boolean;
+  spec: string;
+}
 
 /**
  * One row per source, with the kind-specific fields already reconciled: a
  * GraphQL source's `endpoint` falls back to the adapter-wide default (the
  * common single-schema case pairs it with the `spec` shorthand); the other
- * kinds have no endpoint at all.
+ * kinds have no endpoint at all. A Scalar source carries only `noindex` of
+ * the per-source controls — the embed sits outside search and llms.txt, so
+ * the other two read as off.
  */
-const sourceRowsOf = (
-  adapter: ResolvedReferenceAdapter
-): (ResolvedReferenceAdapter["options"]["sources"][number] & {
-  endpoint?: string;
-})[] =>
-  adapter.kind === "graphql"
-    ? adapter.options.sources.map((source) => ({
-        ...source,
-        endpoint: source.endpoint ?? adapter.options.endpoint,
-      }))
-    : adapter.options.sources;
+const sourceRowsOf = (adapter: ResolvedReferenceAdapter): SourceRow[] => {
+  if (adapter.kind === "graphql") {
+    return adapter.options.sources.map((source) => ({
+      ...source,
+      endpoint: source.endpoint ?? adapter.options.endpoint,
+    }));
+  }
+  if (adapter.kind === "scalar") {
+    return adapter.options.sources.map((source) => ({
+      ...source,
+      includeInLlms: false,
+      includeInSearch: false,
+      seoDescriptionSuffix: false,
+    }));
+  }
+  return adapter.options.sources;
+};
 
 const referencesFor = (
   adapter: ResolvedReferenceAdapter,
@@ -170,7 +219,6 @@ const referencesFor = (
   const sources = sourceRowsOf(adapter);
   const base = normalizeRoute(adapter.options.route);
   const defaultLabel = DEFAULT_LABELS[adapter.kind];
-  const renderer = scalarRendererOf(adapter);
   const display = displayOf(adapter);
 
   return sources.map((source, index) => {
@@ -196,14 +244,13 @@ const referencesFor = (
       kind: adapter.kind,
       label,
       noindex: source.noindex,
-      renderer: renderer ? "scalar" : "blume",
       route,
       seoDescriptionSuffix: source.seoDescriptionSuffix,
       slug: routeSlug(route),
       spec: source.spec,
     };
-    if (renderer) {
-      reference.scalar = renderer.options;
+    if (adapter.kind === "scalar") {
+      reference.scalar = scalarOptionsOf(adapter.options);
     }
     if (source.endpoint !== undefined) {
       reference.endpoint = source.endpoint;
@@ -213,9 +260,9 @@ const referencesFor = (
 };
 
 /**
- * Resolve every configured reference, in `reference` order. Each adapter
- * honors its `renderer` — Blume's own UI by default, with the embedded Scalar
- * SPA as the opt-out on the kinds that support it.
+ * Resolve every configured reference, in `reference` order: Blume's own pages
+ * for `openapi()`, `asyncapi()`, and `graphql()`, and one embedded Scalar page
+ * per `scalar()` source.
  */
 export const resolveReferences = (config: ResolvedConfig): ReferenceSource[] =>
   config.reference.flatMap((adapter) =>
@@ -223,7 +270,7 @@ export const resolveReferences = (config: ResolvedConfig): ReferenceSource[] =>
   );
 
 /**
- * Mounted route for every reference, regardless of renderer. References no
+ * Mounted route for every reference, regardless of kind. References no
  * longer add a header tab automatically — authors point a `navigation.tabs`
  * entry at one of these routes to surface it (and, for Blume-rendered specs, to
  * scope its operations sidebar). These routes are whitelisted as valid nav
@@ -234,9 +281,7 @@ export const referenceRoutes = (config: ResolvedConfig): string[] =>
     // Blume-rendered operation pages flow through the content pipeline and are
     // mounted under `basePath`. Scalar references are a single embedded page
     // injected at the raw `route`, left root-anchored.
-    ref.renderer === "blume"
-      ? withBasePath(config.basePath, ref.route)
-      : ref.route
+    ref.kind === "scalar" ? ref.route : withBasePath(config.basePath, ref.route)
   );
 
 /**
@@ -247,10 +292,10 @@ export const referenceRoutes = (config: ResolvedConfig): string[] =>
  */
 const blumeReferenceOf = (
   ref: ReferenceSource,
-  seen: Map<string, ReferenceSource>,
+  seen: Map<string, BlumeReferenceSource>,
   usedSlugs: Set<string>
-): ReferenceSource | null => {
-  if (ref.renderer !== "blume") {
+): BlumeReferenceSource | null => {
+  if (!isBlumeReference(ref)) {
     return null;
   }
   const kept = seen.get(ref.route);
@@ -278,11 +323,13 @@ const blumeReferenceOf = (
   return accepted;
 };
 
-/** Blume-rendered references (every kind), deduped by route (first wins). */
-export const blumeReferences = (config: ResolvedConfig): ReferenceSource[] => {
-  const seen = new Map<string, ReferenceSource>();
+/** Blume-rendered references (every kind but Scalar), deduped by route (first wins). */
+export const blumeReferences = (
+  config: ResolvedConfig
+): BlumeReferenceSource[] => {
+  const seen = new Map<string, BlumeReferenceSource>();
   const usedSlugs = new Set<string>();
-  const result: ReferenceSource[] = [];
+  const result: BlumeReferenceSource[] = [];
   for (const ref of resolveReferences(config)) {
     const accepted = blumeReferenceOf(ref, seen, usedSlugs);
     if (accepted) {
@@ -294,7 +341,7 @@ export const blumeReferences = (config: ResolvedConfig): ReferenceSource[] => {
 
 /** Whether any reference is Scalar-rendered (gates the Scalar pages). */
 export const hasScalarReferences = (config: ResolvedConfig): boolean =>
-  resolveReferences(config).some((ref) => ref.renderer === "scalar");
+  resolveReferences(config).some((ref) => ref.kind === "scalar");
 
 /**
  * The Blume-rendered references whose enabled playground opted into the
@@ -308,7 +355,7 @@ export const hasScalarReferences = (config: ResolvedConfig): boolean =>
  */
 export const builtinProxyReferences = (
   config: ResolvedConfig
-): ReferenceSource[] =>
+): BlumeReferenceSource[] =>
   blumeReferences(config).filter(
     (ref) =>
       ref.kind !== "asyncapi" &&
