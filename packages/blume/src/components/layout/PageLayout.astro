@@ -113,6 +113,17 @@ interface Props {
    */
   structuredDataEnabled?: boolean;
   /**
+   * Which agent-discovery resources exist, advertised as `describedby` head
+   * links plus the AI Catalog/ARD pair, the same block RootLayout renders. A
+   * custom page gets this from the `blume:data` snapshot without wiring
+   * anything up; pass it to override, or `null` to drop the links.
+   */
+  discovery?: {
+    agentReadability: boolean;
+    aiCatalog: boolean;
+    llmsTxt: boolean;
+  } | null;
+  /**
    * X (Twitter) attribution (`data.config.x`): the site's account and an author
    * handle, emitted as `twitter:site`/`twitter:creator`.
    */
@@ -158,6 +169,7 @@ const {
   ogImageSize,
   canonical,
   structuredDataEnabled,
+  discovery = data.config.discovery,
   x,
   noindex,
   locale: localeProp,
@@ -329,6 +341,40 @@ createIconSprite(Astro.locals);
     {description && <meta content={description} name="twitter:description" />}
     {xSite && <meta content={xSite} name="twitter:site" />}
     {xCreator && <meta content={xCreator} name="twitter:creator" />}
+    {/* Agent discovery on every page, not just the root — and so a custom page
+        built on PageLayout is covered without passing a prop, the same way the
+        docs pages are. Mirrors RootLayout: the `describedby` resources plus
+        the AI Catalog / ARD pair under both relations their specs define. */}
+    {
+      discovery?.agentReadability && (
+        <link
+          href={withBase("/agent-readability.json")}
+          rel="describedby"
+          type="application/json"
+        />
+      )
+    }
+    {
+      discovery?.llmsTxt && (
+        <link href={withBase("/llms.txt")} rel="describedby" type="text/plain" />
+      )
+    }
+    {
+      discovery?.aiCatalog && (
+        <>
+          <link
+            href={withBase("/.well-known/ai-catalog.json")}
+            rel="ai-catalog"
+            type="application/ai-catalog+json"
+          />
+          <link
+            href={withBase("/.well-known/ard.json")}
+            rel="ard"
+            type="application/json"
+          />
+        </>
+      )
+    }
     {
       structuredDataJson && (
         <script

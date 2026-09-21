@@ -844,6 +844,22 @@ describe("layout chrome sources", () => {
     expect(source).toContain("{strings.page.skipToContent}");
   });
 
+  it("advertises agent discovery from the snapshot in the docs shells", async () => {
+    // A custom page on `PageLayout` (the generated 404 included) never passes a
+    // `discovery` prop, so the shell has to fall back to the resolved snapshot
+    // or that page silently loses the `describedby` / `ai-catalog` / `ard`
+    // links the docs pages carry. `RootLayout` defaults it too, so a custom
+    // page on either documented layout is covered without wiring anything up.
+    const shells = ["PageLayout.astro", "RootLayout.astro"];
+    const sources = await Promise.all(shells.map(layoutSource));
+    for (const source of sources) {
+      expect(source).toContain("discovery = data.config.discovery,");
+      expect(source).toContain('rel="describedby"');
+      expect(source).toContain('rel="ai-catalog"');
+      expect(source).toContain('rel="ard"');
+    }
+  });
+
   it("scopes search to the page locale from the i18n snapshot in every shell", async () => {
     // The switcher list only exists on catch-all content pages; deriving the
     // search locale from it left custom pages, the changelog index, the 404

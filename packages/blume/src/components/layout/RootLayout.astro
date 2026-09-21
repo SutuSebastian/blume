@@ -138,7 +138,8 @@ interface Props {
    * links on every page — so an agent entering on a deep page (a search
    * result, a shared link) finds the machine-readable surface without probing
    * the site root. The HTML counterpart of the homepage-only HTTP `Link`
-   * header (see `ai/link-headers.ts`).
+   * header (see `ai/link-headers.ts`). Defaults to the `blume:data` snapshot,
+   * so a custom page on this layout gets the links without passing a prop.
    */
   discovery?: {
     agentReadability: boolean;
@@ -246,7 +247,7 @@ const {
   exportEpub,
   openInChat,
   feeds,
-  discovery,
+  discovery = data.config.discovery,
   siteUrl,
   pageType,
   published,
