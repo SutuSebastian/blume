@@ -274,10 +274,13 @@ ${THEME_MAPPING}
   @apply -my-1 flex flex-1 items-center gap-1.5 rounded py-1 transition-colors aria-[current=page]:text-foreground aria-[current=page]:font-semibold;
 }
 @utility blume-nav-heading {
-  @apply mb-2 flex items-center gap-1.5 px-2.5 font-medium text-foreground text-sm;
+  @apply mb-1 flex items-center gap-1.5 px-2.5 py-1.5 font-medium text-foreground text-sm;
 }
+/* The linked heading fills the heading's own box with negative margins, so
+   its hover/active pill is the page row's exactly (same padding and radius)
+   and an unlinked heading beside it keeps the same text position. */
 @utility blume-nav-heading-link {
-  @apply -ml-1 flex flex-1 items-center gap-1.5 rounded-[0.65rem] px-1 py-0.5 text-foreground transition-colors hover:bg-muted aria-[current=page]:bg-muted;
+  @apply -mx-2.5 -my-1.5 flex flex-1 items-center gap-1.5 rounded-[0.65rem] px-2.5 py-1.5 text-foreground transition-colors hover:bg-muted aria-[current=page]:bg-muted;
 }
 
 /* Theme Tailwind Typography (prose) with Blume tokens. */
