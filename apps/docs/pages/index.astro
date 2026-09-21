@@ -1,6 +1,7 @@
 ---
 import PageLayout from "blume/components/layout/PageLayout.astro";
 import data from "blume:data";
+import AgentNative from "./_home/AgentNative.astro";
 import Batteries from "./_home/Batteries.astro";
 import BuiltForModels from "./_home/BuiltForModels.astro";
 import Cli from "./_home/Cli.astro";
@@ -12,7 +13,6 @@ import InstallCta from "./_home/InstallCta.astro";
 import LogoGrid from "./_home/LogoGrid.astro";
 import MarkdownShowcase from "./_home/MarkdownShowcase.astro";
 import Migrate from "./_home/Migrate.astro";
-import ProductPreview from "./_home/ProductPreview.astro";
 import { installCopyScript } from "./_home/shared.ts";
 import Sponsors from "./_home/Sponsors.astro";
 
@@ -46,18 +46,19 @@ const pageDescription =
   siteUrl={config.site}
   structuredDataEnabled={config.structuredData}
   themeMode={config.theme.mode}
+  transparentHeader
   x={config.x}
 >
+  <Hero />
+
   <div
     class="mx-auto grid max-w-[1400px] gap-16 px-6 py-20 sm:py-24 lg:gap-24 xl:gap-32"
   >
-    <Hero />
-
-    <ProductPreview />
-
     <LogoGrid />
 
     <Batteries />
+
+    <AgentNative />
 
     <MarkdownShowcase />
 

@@ -1,0 +1,135 @@
+---
+// Agent-native: how useblume.dev scores on the two independent agent-readiness
+// scanners, each as a half-circle gauge that sweeps left to right over the top.
+// The arc is an SVG path whose dash length is the score's share of the arc's
+// length; the track underneath is the same path in the border color. The
+// score sits inside the arc as HTML so it uses the page's type, and the
+// visible label doubles as the link to the scanner. Competitors' scores sit on
+// the same arc as dots at their angle, each with a hover/focus tooltip naming
+// them.
+const scores = [
+  {
+    by: "Vercel",
+    href: "https://is-agentic.com/",
+    name: "is-agentic.com",
+    others: [
+      { name: "Mintlify", score: 78 },
+      { name: "Fumadocs", score: 63 },
+    ],
+    score: 100,
+  },
+  {
+    by: "Cloudflare",
+    href: "https://isitagentready.com/",
+    name: "isitagentready.com",
+    others: [
+      { name: "Mintlify", score: 40 },
+      { name: "Fumadocs", score: 20 },
+    ],
+    score: 80,
+  },
+];
+
+// Arc geometry: a 120-by-68 box holds a half circle of 52-unit radius centered
+// at (60, 60), leaving room for the 10-unit stroke and its round caps.
+const radius = 52;
+const width = 120;
+const height = 68;
+const arcPath = `M ${60 - radius} 60 A ${radius} ${radius} 0 0 1 ${60 + radius} 60`;
+const arcLength = Math.PI * radius;
+const dash = (score: number): string =>
+  `${(score / 100) * arcLength} ${arcLength}`;
+
+// Where a score lands on the arc, as percentages of the box, so an HTML dot
+// can sit on the stroke: from the left end, over the top, to the right end.
+const dotPosition = (score: number): string => {
+  const angle = (score / 100) * Math.PI;
+  const x = ((60 - radius * Math.cos(angle)) / width) * 100;
+  const y = ((60 - radius * Math.sin(angle)) / height) * 100;
+  return `left: ${x}%; top: ${y}%;`;
+};
+---
+
+<!-- Agent-native: title, summary, and two scanner gauges side by side. -->
+<section class="mx-auto w-full max-w-5xl">
+  <div class="mx-auto max-w-2xl text-center">
+    <h2 class="text-balance font-medium text-3xl sm:text-4xl">
+      The agent-native documentation framework.
+    </h2>
+    <p class="mt-4 text-balance text-muted-foreground">
+      Every Blume site ships raw Markdown, llms.txt, a JSON API, an MCP server,
+      and agent skills out of the box. Here's how these docs score on the two
+      independent agent-readiness scanners.
+    </p>
+  </div>
+
+  <div class="mt-12 grid gap-4 md:grid-cols-2">
+    {
+      scores.map((item) => (
+        <div class="flex flex-col items-center rounded-blume border border-border px-8 py-10">
+          <div class="relative aspect-[120/68] w-60">
+            <svg
+              aria-hidden="true"
+              class="size-full"
+              fill="none"
+              viewBox={`0 0 ${width} ${height}`}
+            >
+              <path
+                class="stroke-border"
+                d={arcPath}
+                stroke-linecap="round"
+                stroke-width="10"
+              />
+              <path
+                class="stroke-accent"
+                d={arcPath}
+                stroke-dasharray={dash(item.score)}
+                stroke-linecap="round"
+                stroke-width="10"
+              />
+            </svg>
+            <p
+              aria-label={`${item.score} out of 100`}
+              class="pointer-events-none absolute inset-x-0 bottom-0 flex justify-center font-medium text-5xl leading-none tabular-nums"
+            >
+              {item.score}
+            </p>
+            {item.others.map((other) => (
+              <span
+                aria-label={`${other.name}: ${other.score} out of 100`}
+                class="group absolute size-3.5 -translate-x-1/2 -translate-y-1/2 cursor-default rounded-full bg-foreground ring-2 ring-background outline-none hover:z-10 focus-visible:z-10 focus-visible:ring-accent"
+                role="img"
+                style={dotPosition(other.score)}
+                tabindex="0"
+              >
+                <span
+                  aria-hidden="true"
+                  class="-translate-x-1/2 pointer-events-none absolute bottom-full left-1/2 mb-2 hidden whitespace-nowrap rounded-md bg-foreground px-2 py-1 text-background text-xs group-focus-visible:block group-hover:block"
+                >
+                  {other.name} {other.score}/100
+                </span>
+              </span>
+            ))}
+          </div>
+          <p class="mt-6 font-medium">
+            {item.score}/100 on{" "}
+            <a
+              class="text-accent underline-offset-4 hover:underline"
+              href={item.href}
+              rel="noopener noreferrer"
+              target="_blank"
+            >
+              {item.name}
+            </a>
+          </p>
+          <p class="mt-1 text-muted-foreground text-sm">by {item.by}</p>
+        </div>
+      ))
+    }
+  </div>
+
+  <p class="mx-auto mt-6 max-w-3xl text-center text-muted-foreground text-xs">
+    Scores are as reported by is-agentic.com and isitagentready.com on
+    September 20, 2026, and may have changed since.
+  </p>
+</section>

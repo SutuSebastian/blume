@@ -141,7 +141,7 @@ export default defineConfig({
     x: { creator: "@haydenbleasel", handle: "@haydenbleasel" },
   },
   theme: {
-    accent: "teal",
+    accent: "rgb(72 120 176)",
   },
   title: "Blume",
 });

@@ -1,7 +1,9 @@
 ---
 // A faithful, static mock of a docs site built with Blume — the fictional
-// "Comet" brand (see `sampleBrand` in shared.ts) — framed by a light-grey panel
-// it sits into (padded top/left/right, flush bottom). The code block is the
+// "Comet" brand (see `sampleBrand` in shared.ts) — framed by a thin frosted
+// white strip so it reads as a window floating over the hero gradient (the
+// strip wraps the top and sides; the bottom is clipped by the height cap). The
+// code block is the
 // real shipped <CodeBlock>, so it gets genuine Shiki highlighting, a language
 // icon, and the filename header exactly as a Markdown fence would.
 import CodeBlock from "blume/components/content/CodeBlock.astro";
@@ -76,10 +78,10 @@ const webhookCode = `app.post("/webhooks/comet", (req, res) => {
 
 <section>
   <div
-    class="h-[660px] overflow-y-hidden rounded-[2rem] bg-muted/50 px-4 pt-8 sm:px-12 sm:pt-14"
+    class="h-[660px] overflow-hidden rounded-t-[28px] bg-white/25 p-2 shadow-[0_100px_68px_0_rgba(28,40,64,0.18)] backdrop-blur-[24px]"
   >
     <div
-      class="overflow-hidden rounded-t-blume border border-border border-b-0 bg-background shadow-2xl shadow-foreground/10"
+      class="overflow-hidden rounded-t-[20px] border border-border border-b-0 bg-background"
     >
       <!-- App header -->
       <div

@@ -1,9 +1,19 @@
 ---
-// Landing hero: latest-release badge, headline, install box, and doc/GitHub
-// links. The install box copy button uses the page-level delegated
-// `data-blume-copy-install` handler in index.astro.
+// Landing hero: a full-bleed radial gradient, deep blue at the top fading into
+// the page background by the bottom, with the latest-release badge, headline,
+// install box, and doc/GitHub links in white on the blue and the product
+// preview sitting on the fade below them. It lives outside the page container
+// so the gradient spans the viewport, and pulls itself up under the sticky
+// header (`h-16` in Header.astro) so the blue starts at the top of the page;
+// the page passes `transparentHeader` to PageLayout so the header sits over it
+// see-through until the page scrolls. The gradient's tail is mixed toward
+// `--blume-background`, so it lands on white in light mode and on the dark
+// surface in dark mode. The install box copy
+// button uses the page-level delegated `data-blume-copy-install` handler in
+// index.astro.
 import data from "blume:data";
 import InstallBox from "./InstallBox.astro";
+import ProductPreview from "./ProductPreview.astro";
 import { glyph } from "./shared.ts";
 
 const { config } = data;
@@ -30,31 +40,38 @@ const latestVersion = latestRelease
   : "0.0.0";
 ---
 
-<section class="text-center">
-  <a
-    class="inline-flex items-center px-3 py-1 text-muted-foreground text-xs transition-colors hover:text-foreground"
-    href="/changelog"
-  >
-    Latest update, v{latestVersion}
-  </a>
-  <h1
-    class="mx-auto mt-6 max-w-3xl text-balance font-medium text-4xl sm:text-5xl lg:text-6xl"
-  >
-    <span class="block">World-class docs for</span>
-    <span class="block text-muted-foreground">everything you ship.</span>
-  </h1>
-  <p class="mx-auto mt-6 max-w-xl text-balance text-lg text-muted-foreground">
-    Fast, AI-ready, and zero-config. Drop Markdown into a folder and ship a
-    production-grade docs site, no app boilerplate to write or maintain. Free
-    and open source, forever.
-  </p>
-
-  <!-- Install command -->
-  <div class="mt-9"><InstallBox /></div>
-
-  <div class="mt-7 flex items-center justify-center gap-6 text-sm">
+<section
+  class="hero-gradient -mt-16 overflow-hidden px-6 pt-36 text-white sm:pt-44"
+>
+  <div class="mx-auto max-w-[1400px]">
     <a
-      class="inline-flex items-center gap-1 font-medium text-muted-foreground transition-colors hover:text-foreground"
+      class="inline-flex items-center py-1 text-white/70 text-xs transition-colors hover:text-white"
+      href="/changelog"
+    >
+      Latest update, v{latestVersion}
+    </a>
+    <h1
+      class="mt-6 max-w-3xl text-balance font-medium text-4xl sm:text-5xl lg:text-6xl"
+    >
+      <span class="block">World-class docs for</span>
+      <span class="block text-white/70">everything you ship.</span>
+    </h1>
+
+    <!-- Tagline and install command on the left, links on the right -->
+    <div
+      class="mt-8 flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between"
+    >
+      <div class="max-w-xl">
+        <p class="text-balance text-lg text-white/80">
+          Fast, AI-ready, and zero-config. Drop Markdown into a folder and ship
+          a production-grade docs site, no app boilerplate to write or
+          maintain. Free and open source, forever.
+        </p>
+        <div class="mt-8"><InstallBox /></div>
+      </div>
+      <div class="flex shrink-0 items-center gap-6 text-sm">
+    <a
+      class="inline-flex items-center gap-1 whitespace-nowrap font-medium text-white/80 transition-colors hover:text-white"
       href={docsHref}
     >
       Read the docs
@@ -72,30 +89,53 @@ const latestVersion = latestRelease
         set:html={chevronRight}
       ></svg>
     </a>
-    {
-      repoUrl && (
-        <a
-          class="inline-flex items-center gap-1 font-medium text-muted-foreground transition-colors hover:text-foreground"
-          href={repoUrl}
-          rel="noreferrer"
-          target="_blank"
-        >
-          View the code
-          <svg
-            class="size-3.5"
-            fill="none"
-            height="14"
-            stroke="currentColor"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="2"
-            viewBox="0 0 24 24"
-            width="14"
-            xmlns="http://www.w3.org/2000/svg"
-            set:html={chevronRight}
-          />
-        </a>
-      )
-    }
+        {
+          repoUrl && (
+          <a
+            class="inline-flex items-center gap-1 whitespace-nowrap font-medium text-white/80 transition-colors hover:text-white"
+            href={repoUrl}
+            rel="noreferrer"
+            target="_blank"
+          >
+            View the code
+            <svg
+              class="size-3.5"
+              fill="none"
+              height="14"
+              stroke="currentColor"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              viewBox="0 0 24 24"
+              width="14"
+              xmlns="http://www.w3.org/2000/svg"
+              set:html={chevronRight}
+            ></svg>
+          </a>
+          )
+        }
+      </div>
+    </div>
+  </div>
+
+  <div class="mx-auto mt-16 max-w-[1400px] sm:mt-24">
+    <ProductPreview />
   </div>
 </section>
+
+<style>
+  .hero-gradient {
+    background-image: radial-gradient(
+      150% 108% at 50% -4%,
+      rgb(31 83 144) 0%,
+      rgb(38 88 150) 8%,
+      rgb(47 95 156) 18%,
+      rgb(55 104 163) 29%,
+      rgb(72 120 176) 44%,
+      rgb(93 137 186) 60%,
+      color-mix(in oklab, rgb(93 137 186) 55%, var(--blume-background)) 72%,
+      color-mix(in oklab, rgb(93 137 186) 22%, var(--blume-background)) 84%,
+      var(--blume-background) 93%
+    );
+  }
+</style>
