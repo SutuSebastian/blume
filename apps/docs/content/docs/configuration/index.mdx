@@ -241,7 +241,7 @@ export default defineConfig({
 });
 ```
 
-Any [Standard Schema](https://standardschema.dev) library works — Zod (whichever version your project installs), Valibot, ArkType. Keys outside the extension stay strictly validated, so typo-catching is unchanged. See [Custom keys](/docs/reference/frontmatter#custom-keys) for the validation semantics.
+Any [Standard Schema](https://standardschema.dev) library works — Zod (whichever version your project installs), Valibot, ArkType. Keys outside the extension stay strictly validated, so typo-catching is unchanged. See [Custom keys](/docs/content/frontmatter#custom-keys) for the validation semantics.
 
 Keys under `extend` apply site-wide. To require keys only on pages of one content type — an RFC's `status`, a runbook's `service` — declare them per type under `content.types` instead:
 
@@ -264,7 +264,7 @@ export default defineConfig({
 });
 ```
 
-A key can be declared site-wide or per-type, not both. See [Per-type keys](/docs/reference/frontmatter#per-type-keys) for how the scoping resolves.
+A key can be declared site-wide or per-type, not both. See [Per-type keys](/docs/content/frontmatter#per-type-keys) for how the scoping resolves.
 
 `facets` names the custom keys whose values become filterable metadata: they ride along on search documents (`blume-search.json` and the MCP index), and the [MCP tools](/docs/discoverability/mcp) accept a `filters` input matching against them, so an agent can retrieve, say, only `enforced` RFCs in the `architecture` domain. Each facet must be a declared custom key — per-type or site-wide — and only string (or stringified number/boolean) values facet.
 

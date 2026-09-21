@@ -6,7 +6,7 @@
 
 Drop Markdown or MDX into a folder, run `blume dev`, and get a production-grade docs site — navigation, search, theming, Open Graph images, and a rich component library — with no app boilerplate to write or maintain. Blume generates and drives a hidden Astro project for you; run `blume eject` to get a standalone Astro app whenever you want full control.
 
-**[Documentation](https://useblume.dev)** · [Quickstart](https://useblume.dev/docs/quickstart) · [Components](https://useblume.dev/docs/content/components) · [CLI](https://useblume.dev/docs/reference/cli)
+**[Documentation](https://useblume.dev)** · [Quickstart](https://useblume.dev/docs/quickstart) · [Components](https://useblume.dev/docs/content/components) · [CLI](https://useblume.dev/docs/cli)
 
 ## Quickstart
 
@@ -66,7 +66,7 @@ Blume works with any package manager and never requires you to set up Astro or T
 | `blume translate` | Translate docs into the configured locales with a local agent CLI. |
 | `blume version [id]` | Freeze the current docs as an archived version (no id lists configured versions). |
 
-See the [CLI reference](https://useblume.dev/docs/reference/cli) for every flag.
+See the [CLI reference](https://useblume.dev/docs/cli) for every flag.
 
 ## How it works
 

@@ -21,7 +21,7 @@ i18n: {
 }
 ```
 
-Jede Locale hat einen `code` (wird in URLs verwendet), ein `label` (wird im Sprachumschalter angezeigt) und ein optionales `dir` für Rechts-nach-links-Schriften (standardmäßig `"ltr"`). Ein optionales `style` gibt [`blume translate`](/docs/reference/translate) freie Hinweise für die Locale – Register, Dialekt, Terminologie, z. B. `"Brazilian Portuguese, informal você"` – sodass die Wahl von der allerersten Übersetzung an festgelegt ist, statt vom Agenten entschieden zu werden.
+Jede Locale hat einen `code` (wird in URLs verwendet), ein `label` (wird im Sprachumschalter angezeigt) und ein optionales `dir` für Rechts-nach-links-Schriften (standardmäßig `"ltr"`). Ein optionales `style` gibt [`blume translate`](/docs/cli/translate) freie Hinweise für die Locale – Register, Dialekt, Terminologie, z. B. `"Brazilian Portuguese, informal você"` – sodass die Wahl von der allerersten Übersetzung an festgelegt ist, statt vom Agenten entschieden zu werden.
 
 ## Übersetzte Inhalte organisieren [#organize-translated-content]
 
@@ -107,11 +107,11 @@ Beginne damit, deine wichtigsten Seiten zu übersetzen – die Startseite, den S
 
 Schreibe interne Links so, wie du es in der Standard-Locale tun würdest – `[Setup](/guides/setup)`, `<Card href="/guides/setup">` – und zwar in jeder Sprache, auch auf übersetzten Seiten. Wenn eine Seite unter einem Locale-Präfix gerendert wird, verschiebt Blume jeden wurzelrelativen Seitenlink in diese Locale (`/fr/guides/setup`), sofern die Route dort bereitgestellt wird – als echte Übersetzung oder als Fallback-Seite. Ein Link ohne Variante pro Locale – eine benutzerdefinierte Seite, eine generierte Route oder eine fehlende Übersetzung auf einer Website mit deaktivierten Fallbacks – behält sein ursprüngliches Ziel, statt auf einen 404 zu zeigen, und ein Link, der bereits ein Locale-Präfix trägt (`/de/guides/setup`), bleibt unangetastet, sodass Links über Locales hinweg explizit bleiben.
 
-Anker wandern mit dem Link mit, daher müssen Heading-IDs über alle Sprachen hinweg übereinstimmen. [`blume translate`](/docs/reference/translate) erledigt das für dich: Jede übersetzte Überschrift wird mit einem angehängten `[#id]`-Marker an die ID ihrer Quellüberschrift gebunden. Bei einer von Hand geschriebenen Übersetzung bindest du die Überschriften selbst mit demselben [`[#custom-id]`-Marker](/docs/content/syntax#custom-anchors) – sonst passt `#ordering` nicht zum automatisch generierten `#ordre` der französischen Seite, und `blume validate` meldet die Abweichung gegenüber der übersetzten Seite, auf der eine Leserin oder ein Leser tatsächlich landet.
+Anker wandern mit dem Link mit, daher müssen Heading-IDs über alle Sprachen hinweg übereinstimmen. [`blume translate`](/docs/cli/translate) erledigt das für dich: Jede übersetzte Überschrift wird mit einem angehängten `[#id]`-Marker an die ID ihrer Quellüberschrift gebunden. Bei einer von Hand geschriebenen Übersetzung bindest du die Überschriften selbst mit demselben [`[#custom-id]`-Marker](/docs/content/syntax#custom-anchors) – sonst passt `#ordering` nicht zum automatisch generierten `#ordre` der französischen Seite, und `blume validate` meldet die Abweichung gegenüber der übersetzten Seite, auf der eine Leserin oder ein Leser tatsächlich landet.
 
 ## Übersetzen mit einem Agenten [#translating-with-an-agent]
 
-Du musst die Locales nicht von Hand ausfüllen. [`blume translate`](/docs/reference/translate) findet jede Seite, die in einer Locale fehlt oder veraltet ist, und übersetzt sie mit einer lokalen Agenten-CLI ([Claude Code](https://claude.com/claude-code) oder [Codex](https://developers.openai.com/codex/cli)):
+Du musst die Locales nicht von Hand ausfüllen. [`blume translate`](/docs/cli/translate) findet jede Seite, die in einer Locale fehlt oder veraltet ist, und übersetzt sie mit einer lokalen Agenten-CLI ([Claude Code](https://claude.com/claude-code) oder [Codex](https://developers.openai.com/codex/cli)):
 
 ```bash
 blume translate --claude

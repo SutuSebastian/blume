@@ -5,6 +5,7 @@ export default defineMeta({
   pages: [
     "navigation",
     "meta",
+    "frontmatter",
     "syntax",
     "includes",
     "components",

@@ -1,0 +1,25 @@
+---
+title: Doctor
+description: blume doctor diagnoses configuration and content problems before you build — the config, every page, the Node version, and features that need a server.
+---
+
+`blume doctor` scans the project exactly as `blume build` would and reports what it finds, without generating or building anything. It's the first thing to run when a build fails for a reason that isn't obvious, and a cheap gate to keep in CI:
+
+```bash
+blume doctor
+```
+
+## What it checks
+
+- **The Node version** against the range the installed `blume` package supports, read from its own `engines` field. A version outside it is a warning: things may work, but it isn't a combination Blume tests.
+- **`blume.config.ts`**, with the same validation a build runs. A removed or renamed key fails with a hint naming its replacement rather than a bare "unrecognized key".
+- **Every content page and folder meta**: the diagnostics `blume dev` and `blume build` print as they load the project — invalid frontmatter, navigation problems, missing include targets, and the rest — collected in one report.
+- **Features that need a server** on a site configured for static output — Ask AI, the MCP server, or the Try it playground's built-in proxy: an error naming the feature, with the deployment adapter to switch to.
+
+## The summary
+
+After the diagnostics, doctor prints what the project resolved to, so a mismatch between what you think is configured and what Blume sees is visible at a glance: the page count, the output mode and deployment adapter, the search provider, the configured reference, analytics, and content source adapters, and whether Ask AI is on and which backend it uses.
+
+## Exit code and JSON
+
+Doctor exits non-zero when there are error diagnostics, so it fails CI on the same problems a build would; warnings are reported and don't fail. `--json` emits the diagnostics as JSON on stdout instead of the terminal report, in the same shape [`blume validate --json`](/docs/cli/validate#json-output) uses.

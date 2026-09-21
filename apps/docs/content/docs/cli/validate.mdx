@@ -1,0 +1,41 @@
+---
+title: Validate
+description: blume validate checks every link in your content — pages, anchors, assets, and optionally external URLs — and fails CI when one is broken.
+---
+
+`blume validate` reads your content the way a build does and checks every link it finds. It doesn't generate or build anything, so it's the fast gate to put in front of `blume build`:
+
+```bash
+blume validate
+```
+
+- **Internal page links** (`/guides/intro`, `./sibling`) must resolve to a real page — broken ones are reported as errors.
+- **Anchor links** (`#section`, `/guides/intro#setup`) must match an anchor on the target page — a heading's id (generated or [pinned](/docs/content/syntax#custom-anchors)) or a raw HTML element's `id` attribute — with misses reported as warnings. Ids inside code blocks, inline code, HTML comments, and `<Prompt>` blocks don't count.
+- **Asset links** are checked where the file lives: an absolute path (`/logo.png`) against the `public/` directory, a relative image embed (`![](./diagram.png)`) against the page's own folder. A plain link to a relative path still resolves as a site route — only image embeds go through the image pipeline.
+- **External links** are only checked with [`--external`](#flags) (off by default since it requires the network); dead links (404/410/unreachable) are errors, while rate-limited or transient responses (403/429/5xx/timeout) are warnings.
+
+## What counts as a page
+
+Links resolve against everything the built site serves, not just Markdown pages: custom [`.astro` pages](/docs/advanced/custom-pages), the generated [changelog](/docs/advanced/changelog) index, every configured [redirect](/docs/configuration), and, on a [multi-language site](/docs/content/i18n), an untranslated page's fallback URL under each locale. A page that fails to parse is reported alongside the link findings, because a page that never loads is a link-validation blind spot rather than a clean result.
+
+## Flags
+
+- `--external` — also check external `http(s)` links over the network.
+- `--strict` — exit non-zero on warnings too. Info-level notes stay advisory.
+- `--json` — emit the diagnostics as JSON on stdout instead of the terminal report.
+
+## Diagnostics
+
+| Code | Severity | Meaning |
+| --- | --- | --- |
+| `BLUME_BROKEN_LINK` | error | An internal link points at a route no page serves. |
+| `BLUME_BROKEN_ANCHOR` | warning | The page exists but has no anchor matching the fragment. |
+| `BLUME_BROKEN_ASSET` | warning | An absolute path isn't in `public/`, or a relative image embed isn't beside the page. |
+| `BLUME_ASSETS_UNCHECKED` | info | There is no `public/` directory, so absolute asset paths weren't checked. |
+| `BLUME_DEAD_LINK` | error or warning | An external link (with `--external`) returned 404/410 or was unreachable (error), or a transient 403/429/5xx/timeout (warning). |
+
+The exit code is the contract: errors exit non-zero, and `--strict` makes warnings do the same.
+
+## JSON output
+
+With `--json`, `blume validate` (and [`blume doctor`](/docs/cli/doctor)) write one object to stdout: a `diagnostics` list, each entry carrying its `code`, `severity`, `message`, the `file` relative to the project root with `line` and `column` when the finding has a location, a `suggestion`, and a `docsUrl` pointing at the page that explains the code, plus a `summary` of counts per severity. The exit code is unchanged, so the same invocation gates CI and feeds an editor integration.

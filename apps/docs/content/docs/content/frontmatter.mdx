@@ -147,6 +147,6 @@ status: enforced
 
 Per-type keys follow the same validation rules as `extend`, scoped to pages whose resolved `type` matches — including pages that set no `type`, when the declaration is for [`content.defaultType`](/docs/configuration#content). A key belongs to one declaration, site-wide or per-type, not both. And a key declared only for another type stays unknown elsewhere, so a stray `status` on a plain doc page still fails the build.
 
-A page that fails validation fails `blume build` with a diagnostic naming the file and key. With [`--no-strict`](/docs/reference/cli#common-flags), the build succeeds anyway and the failing pages are dropped from the output — the build summary reports how many.
+A page that fails validation fails `blume build` with a diagnostic naming the file and key. With [`--no-strict`](/docs/cli#common-flags), the build succeeds anyway and the failing pages are dropped from the output — the build summary reports how many.
 
 Schemas are exported from `blume/schema` for editor and migration tooling.

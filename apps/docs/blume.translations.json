@@ -245,36 +245,6 @@
       "hi": "589b1294f24a3cb5",
       "ja": "589b1294f24a3cb5",
       "pt": "589b1294f24a3cb5"
-    },
-    "content/docs/reference/cli.mdx": {
-      "de": "31e769374ec3b2b8",
-      "hi": "31e769374ec3b2b8",
-      "ja": "31e769374ec3b2b8",
-      "pt": "31e769374ec3b2b8"
-    },
-    "content/docs/reference/eval.mdx": {
-      "de": "1bd8851c117910d9",
-      "hi": "1bd8851c117910d9",
-      "ja": "1bd8851c117910d9",
-      "pt": "1bd8851c117910d9"
-    },
-    "content/docs/reference/frontmatter.mdx": {
-      "de": "343335e1237388b8",
-      "hi": "343335e1237388b8",
-      "ja": "343335e1237388b8",
-      "pt": "343335e1237388b8"
-    },
-    "content/docs/reference/meta.ts": {
-      "de": "2d64ef65217cf3ca",
-      "hi": "2d64ef65217cf3ca",
-      "ja": "2d64ef65217cf3ca",
-      "pt": "2d64ef65217cf3ca"
-    },
-    "content/docs/reference/translate.mdx": {
-      "de": "8aeb16b475e778bb",
-      "hi": "8aeb16b475e778bb",
-      "ja": "8aeb16b475e778bb",
-      "pt": "8aeb16b475e778bb"
     }
   },
   "version": 1

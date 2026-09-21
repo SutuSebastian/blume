@@ -20,7 +20,7 @@ i18n: {
 }
 ```
 
-各ロケールは `code`(URL で使用)、`label`(言語スイッチャーに表示)、そして右から左に記述するスクリプト用の任意の `dir`(既定は `"ltr"`)を持ちます。任意の `style` は、[`blume translate`](/docs/reference/translate) にそのロケール向けの自由記述のガイダンス — 文体、方言、用語法、たとえば `"Brazilian Portuguese, informal você"` — を与えます。これにより、その選択はエージェント任せになるのではなく、最初の翻訳の時点から固定されます。
+各ロケールは `code`(URL で使用)、`label`(言語スイッチャーに表示)、そして右から左に記述するスクリプト用の任意の `dir`(既定は `"ltr"`)を持ちます。任意の `style` は、[`blume translate`](/docs/cli/translate) にそのロケール向けの自由記述のガイダンス — 文体、方言、用語法、たとえば `"Brazilian Portuguese, informal você"` — を与えます。これにより、その選択はエージェント任せになるのではなく、最初の翻訳の時点から固定されます。
 
 ## 翻訳コンテンツを整理する [#organize-translated-content]
 
@@ -106,11 +106,11 @@ i18n: {
 
 内部リンクは、翻訳ページを含むどの言語でも、デフォルトロケールで書くときと同じように — `[Setup](/guides/setup)`、`<Card href="/guides/setup">` のように — 記述します。ページがロケールプレフィックスの下でレンダリングされるとき、Blume はルートからの相対パスで書かれた各ページリンクを、そのルートがそのロケールで — 実際の翻訳としてであれ、フォールバックページとしてであれ — 配信されている限り、そのロケール(`/fr/guides/setup`)へ移し替えます。ロケールごとのバリアントがないリンク — カスタムページ、生成されたルート、あるいはフォールバックを無効にしたサイトで翻訳が欠けている場合 — は、404 を指す代わりに記述されたままのリンク先を保ちます。また、すでにロケールプレフィックスを持つリンク(`/de/guides/setup`)はそのまま残されるため、ロケールをまたぐリンクは明示的なまま保たれます。
 
-アンカーはリンクとともに移動するため、見出しの id は言語間で一致している必要があります。[`blume translate`](/docs/reference/translate) はこれを引き受けます: 翻訳された各見出しは、末尾の `[#id]` マーカーによってソースの見出しの id に固定されます。手作業で書く翻訳では、同じ [`[#custom-id]` マーカー](/docs/content/syntax#custom-anchors)を使って自分で見出しを固定してください — そうしないと `#ordering` はフランス語ページの自動生成された `#ordre` と一致せず、`blume validate` が、読者が実際にたどり着く翻訳ページに対する不一致として報告します。
+アンカーはリンクとともに移動するため、見出しの id は言語間で一致している必要があります。[`blume translate`](/docs/cli/translate) はこれを引き受けます: 翻訳された各見出しは、末尾の `[#id]` マーカーによってソースの見出しの id に固定されます。手作業で書く翻訳では、同じ [`[#custom-id]` マーカー](/docs/content/syntax#custom-anchors)を使って自分で見出しを固定してください — そうしないと `#ordering` はフランス語ページの自動生成された `#ordre` と一致せず、`blume validate` が、読者が実際にたどり着く翻訳ページに対する不一致として報告します。
 
 ## エージェントによる翻訳 [#translating-with-an-agent]
 
-ロケールを手作業で埋める必要はありません。[`blume translate`](/docs/reference/translate) は各ロケールで欠落している、または古くなっているページをすべて見つけ出し、ローカルのエージェント CLI([Claude Code](https://claude.com/claude-code) または [Codex](https://developers.openai.com/codex/cli))で翻訳します:
+ロケールを手作業で埋める必要はありません。[`blume translate`](/docs/cli/translate) は各ロケールで欠落している、または古くなっているページをすべて見つけ出し、ローカルのエージェント CLI([Claude Code](https://claude.com/claude-code) または [Codex](https://developers.openai.com/codex/cli))で翻訳します:
 
 ```bash
 blume translate --claude

@@ -31,7 +31,7 @@ The same tools are available over plain HTTP as the [JSON API](/docs/discoverabi
 
 ## Scoping by content type and facets
 
-`search_docs` and `list_pages` both accept an optional `contentTypes` filter, narrowing results to pages of the given frontmatter [`type`s](/docs/reference/frontmatter) — `["rfc"]`, `["blog", "changelog"]` — so an agent working against a site that mixes docs with RFCs, runbooks, or policies can scope retrieval to the kind of page it needs. Every result names its content type, and `list_pages` output shows the types in use.
+`search_docs` and `list_pages` both accept an optional `contentTypes` filter, narrowing results to pages of the given frontmatter [`type`s](/docs/content/frontmatter) — `["rfc"]`, `["blog", "changelog"]` — so an agent working against a site that mixes docs with RFCs, runbooks, or policies can scope retrieval to the kind of page it needs. Every result names its content type, and `list_pages` output shows the types in use.
 
 Both tools also accept a `filters` object matching against the facets a site declares per content type ([`content.types.<type>.facets`](/docs/configuration#frontmatter)) — custom frontmatter keys whose values become filterable metadata:
 

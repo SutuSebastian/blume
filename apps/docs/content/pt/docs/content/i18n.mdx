@@ -21,7 +21,7 @@ i18n: {
 }
 ```
 
-Cada locale tem um `code` (usado nas URLs), um `label` (exibido no seletor de idiomas) e um `dir` opcional para escritas da direita para a esquerda (`"ltr"` por padrão). Um `style` opcional dá ao [`blume translate`](/docs/reference/translate) orientações livres para o locale — registro, dialeto, terminologia, por exemplo `"Brazilian Portuguese, informal você"` — de modo que a escolha fica fixada desde a primeira tradução, em vez de ser decidida pelo agente.
+Cada locale tem um `code` (usado nas URLs), um `label` (exibido no seletor de idiomas) e um `dir` opcional para escritas da direita para a esquerda (`"ltr"` por padrão). Um `style` opcional dá ao [`blume translate`](/docs/cli/translate) orientações livres para o locale — registro, dialeto, terminologia, por exemplo `"Brazilian Portuguese, informal você"` — de modo que a escolha fica fixada desde a primeira tradução, em vez de ser decidida pelo agente.
 
 ## Organize o conteúdo traduzido [#organize-translated-content]
 
@@ -107,11 +107,11 @@ Comece traduzindo suas páginas mais importantes — a página inicial, o guia r
 
 Escreva os links internos como você faria no locale padrão — `[Setup](/guides/setup)`, `<Card href="/guides/setup">` — em todos os idiomas, inclusive nas páginas traduzidas. Quando uma página é renderizada sob um prefixo de locale, o Blume move cada link de página relativo à raiz para aquele locale (`/fr/guides/setup`), desde que a rota seja servida ali, como uma tradução real ou como página de fallback. Um link sem variante por locale — uma página personalizada, uma rota gerada ou uma tradução ausente em um site com fallbacks desativados — mantém o destino que você escreveu em vez de apontar para um 404, e um link que já carrega um prefixo de locale (`/de/guides/setup`) fica intocado, de modo que os links entre locales permanecem explícitos.
 
-As âncoras acompanham o link, então os ids dos títulos precisam coincidir entre os idiomas. O [`blume translate`](/docs/reference/translate) cuida disso: cada título traduzido é fixado ao id do título de origem com um marcador `[#id]` no final. Em uma tradução que você escreve à mão, fixe os títulos você mesmo com o mesmo [marcador `[#custom-id]`](/docs/content/syntax#custom-anchors) — caso contrário, `#ordering` não vai corresponder ao `#ordre` gerado automaticamente na página em francês, e o `blume validate` reporta a divergência na página traduzida em que o leitor de fato cai.
+As âncoras acompanham o link, então os ids dos títulos precisam coincidir entre os idiomas. O [`blume translate`](/docs/cli/translate) cuida disso: cada título traduzido é fixado ao id do título de origem com um marcador `[#id]` no final. Em uma tradução que você escreve à mão, fixe os títulos você mesmo com o mesmo [marcador `[#custom-id]`](/docs/content/syntax#custom-anchors) — caso contrário, `#ordering` não vai corresponder ao `#ordre` gerado automaticamente na página em francês, e o `blume validate` reporta a divergência na página traduzida em que o leitor de fato cai.
 
 ## Traduzindo com um agente [#translating-with-an-agent]
 
-Você não precisa preencher os locales manualmente. O [`blume translate`](/docs/reference/translate) encontra todas as páginas que estão faltando ou desatualizadas em cada locale e as traduz com uma CLI de agente local ([Claude Code](https://claude.com/claude-code) ou [Codex](https://developers.openai.com/codex/cli)):
+Você não precisa preencher os locales manualmente. O [`blume translate`](/docs/cli/translate) encontra todas as páginas que estão faltando ou desatualizadas em cada locale e as traduz com uma CLI de agente local ([Claude Code](https://claude.com/claude-code) ou [Codex](https://developers.openai.com/codex/cli)):
 
 ```bash
 blume translate --claude
