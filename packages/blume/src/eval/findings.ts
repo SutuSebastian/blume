@@ -3,7 +3,7 @@ import type { Diagnostic } from "../core/types.ts";
 import { locateQuestion } from "./schema.ts";
 import type { EvalQuestion } from "./schema.ts";
 
-const DOCS_URL = "https://useblume.dev/docs/reference/eval";
+const DOCS_URL = "https://useblume.dev/docs/cli/evals";
 
 /** Where a finding should anchor when no route hint matches a page. */
 export interface EvalsAnchor {

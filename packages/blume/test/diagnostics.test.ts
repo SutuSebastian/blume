@@ -158,7 +158,7 @@ describe("formatDiagnostic", () => {
 describe("resolveDocsUrl / enrichDiagnostic", () => {
   it("maps a known code to its docs page", () => {
     expect(resolveDocsUrl("BLUME_FRONTMATTER_INVALID")).toBe(
-      "https://useblume.dev/docs/reference/frontmatter"
+      "https://useblume.dev/docs/content/frontmatter"
     );
   });
 

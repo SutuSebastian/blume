@@ -806,7 +806,7 @@ export const checkMeta = (id: CheckId): CheckMeta => {
   return meta;
 };
 
-const DOCS_BASE = "https://useblume.dev/docs/reference/audit";
+const DOCS_BASE = "https://useblume.dev/docs/cli/audit";
 
 /** `BLUME_AUDIT_TITLE_TOO_LONG` -> `…/audit#title-too-long`. */
 export const checkDocsUrl = (id: CheckId): string =>

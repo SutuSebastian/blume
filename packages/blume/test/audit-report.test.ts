@@ -43,7 +43,7 @@ describe("catalog", () => {
 
   it("derives a docs anchor from the id", () => {
     expect(checkDocsUrl("BLUME_AUDIT_TITLE_MISSING")).toBe(
-      "https://useblume.dev/docs/reference/audit#title-missing"
+      "https://useblume.dev/docs/cli/audit#title-missing"
     );
   });
 
