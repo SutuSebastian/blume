@@ -75,7 +75,9 @@ const trackGlobals = (
   // Privacy-first counters take a name, some with properties.
   attempt(() => w.plausible?.(event, { props }));
   attempt(() => w.fathom?.trackEvent?.(event));
-  attempt(() => w.pirsch?.(event, { meta: props }));
+  // Pirsch stringifies `meta` values in place, so it gets its own copy and
+  // the `blume:track` listeners still see the original types.
+  attempt(() => w.pirsch?.(event, { meta: { ...props } }));
   // Behavior tools take a bare name.
   attempt(() => w.clarity?.("event", event));
   attempt(() => w.hj?.("event", event));

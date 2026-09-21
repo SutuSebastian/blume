@@ -47,11 +47,12 @@ export const fathom = (options: FathomOptions): FathomAdapter => ({
 
 /**
  * The deferred tag from the dashboard, with `site` as `data-site` and every
- * other option as its own `data-` attribute. Fathom's script tracks history
- * changes on its own, so client-router navigations need no extra hook.
+ * other option as its own `data-` attribute. Fathom only tracks history
+ * changes when the tag opts in, so `spa` defaults to `"auto"` — Blume's
+ * client router navigates without full loads — and an explicit `spa` wins.
  */
 export const fathomHead = (options: FathomOptions): HeadScript[] => {
-  const { site, ...settings } = options;
+  const { site, ...settings } = { spa: "auto", ...options };
   const attributes: HeadScript["attributes"] = {};
   for (const [setting, value] of Object.entries(settings)) {
     attributes[`data-${setting}`] = value;

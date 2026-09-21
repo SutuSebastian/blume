@@ -85,13 +85,15 @@ export const strapiSource = (
     let page = 1;
     let more = true;
     while (more) {
+      // The user's params go first so the paging controls always win — a
+      // `params` key that shadowed them would refetch the same page forever.
       const query = queryString({
+        ...options.params,
         locale: options.locale,
         "pagination[pageSize]": String(PAGE_SIZE),
         "pagination[page]": String(page),
         populate: options.populate ?? "*",
         status: preview ? "draft" : undefined,
-        ...options.params,
       });
       // oxlint-disable-next-line no-await-in-loop -- pages are sequential: each response says whether another exists.
       const result = asObject(await fetchJson(`${base}?${query}`, client));

@@ -251,8 +251,10 @@ const renderBlock = (
     }
     case "embedded-asset-block": {
       const asset = linkedAsset(node, options);
+      // Contentful's own rich-text renderer uses the description as alt text
+      // and the title only as a fallback.
       return asset
-        ? image(asset.title ?? asset.description ?? "", asset.url)
+        ? image(asset.description ?? asset.title ?? "", asset.url)
         : "";
     }
     case "embedded-entry-block": {

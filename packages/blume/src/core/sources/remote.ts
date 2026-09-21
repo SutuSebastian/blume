@@ -115,9 +115,18 @@ export interface RestClient {
 }
 
 /**
+ * How long one CMS request may take before the source gives up on it. A
+ * stalled CMS would otherwise hold `scanProject()` — and every `blume dev`
+ * rescan — indefinitely, and the cache fallback can only kick in once the
+ * request rejects.
+ */
+export const REMOTE_TIMEOUT_MS = 30_000;
+
+/**
  * GET a JSON endpoint. A non-2xx response is an error naming the status, so
  * the source's cache fallback reports why (`401 Unauthorized`) instead of a
- * parse failure on an error body.
+ * parse failure on an error body; a request past {@link REMOTE_TIMEOUT_MS}
+ * rejects with a `TimeoutError`.
  */
 export const fetchJson = async (
   url: string,
@@ -126,6 +135,7 @@ export const fetchJson = async (
   const doFetch = client.fetchImpl ?? globalThis.fetch;
   const res = await doFetch(url, {
     headers: { accept: "application/json", ...client.headers },
+    signal: AbortSignal.timeout(REMOTE_TIMEOUT_MS),
   });
   if (!res.ok) {
     throw new Error(`${url} responded ${res.status} ${res.statusText}`.trim());

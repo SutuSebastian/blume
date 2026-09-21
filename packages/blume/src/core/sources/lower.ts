@@ -14,8 +14,23 @@
 // literal asterisk.
 const MARKDOWN_SPECIALS = /[\\`*_[\]~<]/gu;
 
+// Block syntax is only syntax at the start of a line: `# `, `- `, `+ ` and
+// `1. `/`1) ` need the space (or line end) to become a heading or list item,
+// while `>` opens a quote on its own. A CMS paragraph that begins with one of
+// these — a soft break inside it counts as a line start too — must stay prose.
+const BLOCK_START = /^(?<marker>[#+-]|\d+[.)])(?=[ \t]|$)|^(?<quote>>)/gmu;
+
+const escapeBlockStart = (text: string): string =>
+  text.replaceAll(BLOCK_START, (marker: string) => {
+    // A numbered marker escapes its punctuation (`1\.`), the rest themselves.
+    const index = marker.search(/[.)]/u);
+    return index === -1
+      ? `\\${marker}`
+      : `${marker.slice(0, index)}\\${marker.slice(index)}`;
+  });
+
 export const escapeMarkdownText = (text: string): string =>
-  text.replaceAll(MARKDOWN_SPECIALS, String.raw`\$&`);
+  escapeBlockStart(text.replaceAll(MARKDOWN_SPECIALS, String.raw`\$&`));
 
 /** The marks a lowerer can put on an inline run. */
 export interface InlineMarks {
@@ -24,6 +39,28 @@ export interface InlineMarks {
   italic?: boolean;
   strike?: boolean;
 }
+
+const BACKTICK_RUN = /`+/gu;
+
+/** The longest run of backticks in `text`, 0 when there is none. */
+const longestBacktickRun = (text: string): number => {
+  let longest = 0;
+  for (const run of text.match(BACKTICK_RUN) ?? []) {
+    longest = Math.max(longest, run.length);
+  }
+  return longest;
+};
+
+/**
+ * A code span whose delimiter outruns any backtick run inside it, padded with
+ * a space on each side when the code starts or ends with a backtick (the
+ * CommonMark rule that keeps the padding out of the rendered code).
+ */
+export const codeSpan = (code: string): string => {
+  const fence = "`".repeat(longestBacktickRun(code) + 1);
+  const pad = code.startsWith("`") || code.endsWith("`") ? " " : "";
+  return `${fence}${pad}${code}${pad}${fence}`;
+};
 
 const EDGE_SPACE = /^(?<lead>\s*)(?<body>[\s\S]*?)(?<trail>\s*)$/u;
 
@@ -42,7 +79,7 @@ export const renderInline = (text: string, marks: InlineMarks): string => {
   if (body === "") {
     return text;
   }
-  let out = marks.code ? `\`${body}\`` : escapeMarkdownText(body);
+  let out = marks.code ? codeSpan(body) : escapeMarkdownText(body);
   if (marks.bold) {
     out = `**${out}**`;
   }
@@ -55,9 +92,17 @@ export const renderInline = (text: string, marks: InlineMarks): string => {
   return `${lead}${out}${trail}`;
 };
 
+// A destination with whitespace or parentheses ends early in `[label](…)`;
+// CommonMark's pointy-bracket form carries it intact.
+const UNSAFE_DESTINATION = /[\s()]/u;
+
+/** A link or image destination as Markdown can carry it verbatim. */
+export const destination = (url: string): string =>
+  UNSAFE_DESTINATION.test(url) ? `<${url}>` : url;
+
 /** A Markdown link, or the label alone when the target is missing. */
 export const renderLink = (label: string, href?: string): string =>
-  href ? `[${label}](${href})` : label;
+  href ? `[${label}](${destination(href)})` : label;
 
 /** The ATX prefix for a heading level, clamped to Markdown's six. */
 export const headingPrefix = (level: number): string =>
@@ -92,21 +137,15 @@ export const indent = (text: string, width: number): string => {
     .join("\n");
 };
 
-const BACKTICK_RUN = /`+/gu;
-
 /** A fenced code block whose fence outruns any backtick run in the code. */
 export const codeFence = (code: string, language = ""): string => {
-  let longest = 0;
-  for (const run of code.match(BACKTICK_RUN) ?? []) {
-    longest = Math.max(longest, run.length);
-  }
-  const fence = "`".repeat(Math.max(3, longest + 1));
+  const fence = "`".repeat(Math.max(3, longestBacktickRun(code) + 1));
   return `${fence}${language}\n${code}\n${fence}`;
 };
 
 /** A Markdown image; the alt is escaped so a `]` in a caption can't close it. */
 export const image = (alt: string, url: string): string =>
-  `![${escapeMarkdownText(alt)}](${url})`;
+  `![${escapeMarkdownText(alt)}](${destination(url)})`;
 
 /** A comment marking a node the lowerer has no Markdown for. */
 export const unsupported = (what: string): string =>

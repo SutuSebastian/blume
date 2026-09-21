@@ -17,6 +17,9 @@ import {
   absoluteUrl,
   blockquote,
   codeFence,
+  codeSpan,
+  destination,
+  escapeMarkdownText,
   headingPrefix,
   image,
   indent,
@@ -85,6 +88,37 @@ describe("lowering primitives", () => {
     expect(renderInline("a*b_c<d", {})).toBe(String.raw`a\*b\_c\<d`);
   });
 
+  it("keeps a run that starts like block syntax as prose", () => {
+    expect(escapeMarkdownText("# not a heading")).toBe(
+      String.raw`\# not a heading`
+    );
+    expect(escapeMarkdownText(">quoted")).toBe(String.raw`\>quoted`);
+    expect(escapeMarkdownText("- item")).toBe(String.raw`\- item`);
+    expect(escapeMarkdownText("+ item")).toBe(String.raw`\+ item`);
+    expect(escapeMarkdownText("1. first")).toBe(String.raw`1\. first`);
+    expect(escapeMarkdownText("2) second")).toBe(String.raw`2\) second`);
+    // A soft break inside the paragraph is a line start too.
+    expect(escapeMarkdownText("a\n- b\n#")).toBe("a\n\\- b\n\\#");
+    // Without the space these are ordinary text.
+    expect(escapeMarkdownText("#tag -dash 1.5")).toBe("#tag -dash 1.5");
+  });
+
+  it("picks a code-span delimiter longer than any backtick inside", () => {
+    expect(codeSpan("a`b")).toBe("``a`b``");
+    expect(codeSpan("`x")).toBe("`` `x ``");
+    expect(codeSpan("x`")).toBe("`` x` ``");
+    expect(renderInline("a``b", { code: true })).toBe("```a``b```");
+  });
+
+  it("carries a destination with spaces or parentheses in angle brackets", () => {
+    expect(destination("https://x.dev/a b")).toBe("<https://x.dev/a b>");
+    expect(destination("https://x.dev/f(1)")).toBe("<https://x.dev/f(1)>");
+    expect(renderLink("l", "https://x.dev/a b")).toBe(
+      "[l](<https://x.dev/a b>)"
+    );
+    expect(image("alt", "/img (1).png")).toBe("![alt](</img (1).png>)");
+  });
+
   it("leaves empty and whitespace-only runs alone", () => {
     expect(renderInline("", { bold: true })).toBe("");
     expect(renderInline("  ", { bold: true })).toBe("  ");
@@ -144,6 +178,8 @@ describe("remote helpers", () => {
       await fetchJson("https://api.test/x", { fetchImpl: ok.fetchImpl })
     ).toStrictEqual({ ok: true });
     expect(ok.calls[0]?.headers.get("accept")).toBe("application/json");
+    // Every request carries a deadline so a stalled CMS can't hold a build.
+    expect(ok.calls[0]?.signal).toBeInstanceOf(AbortSignal);
 
     const denied = recordingFetch(
       () => new Response("", { status: 401, statusText: "Unauthorized" })

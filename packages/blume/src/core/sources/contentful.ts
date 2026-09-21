@@ -107,11 +107,16 @@ export const contentfulSource = (
   const fetchEntries = async (): Promise<SourceEntry[]> => {
     const preview = ctx?.preview ?? false;
     const deliveryToken = options.token ?? process.env.CONTENTFUL_ACCESS_TOKEN;
-    const token = preview
-      ? (options.previewToken ??
-        process.env.CONTENTFUL_PREVIEW_TOKEN ??
-        deliveryToken)
-      : deliveryToken;
+    const previewToken =
+      options.previewToken ?? process.env.CONTENTFUL_PREVIEW_TOKEN;
+    // The Preview API rejects delivery tokens, so falling back to one would
+    // only trade a clear config error for a 401.
+    if (preview && !previewToken) {
+      throw new Error(
+        "Contentful --preview needs a Preview API token: set previewToken or CONTENTFUL_PREVIEW_TOKEN."
+      );
+    }
+    const token = preview ? previewToken : deliveryToken;
     const client: RestClient = {
       fetchImpl: options.fetchImpl,
       headers: token ? { authorization: `Bearer ${token}` } : {},
@@ -122,13 +127,15 @@ export const contentfulSource = (
     let skip = 0;
     let more = true;
     while (more) {
+      // The user's params go first so the paging controls always win — a
+      // `params` key that shadowed them would refetch the same page forever.
       const query = queryString({
+        ...options.params,
         content_type: options.contentType,
         include: "2",
         limit: String(PAGE_SIZE),
         locale: options.locale,
         skip: String(skip),
-        ...options.params,
       });
       // oxlint-disable-next-line no-await-in-loop -- pages are sequential: each response says whether another exists.
       const page = asObject(await fetchJson(`${base}?${query}`, client));

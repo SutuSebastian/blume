@@ -5,6 +5,7 @@
 Replace the top-level `openapi`, `asyncapi`, and `graphql` config blocks with a single `reference` list of adapters imported from `blume/reference`. Where the config used to enable each kind with its own keyed block, it now lists what to render, in order:
 
 ```ts
+import { defineConfig } from "blume";
 import { asyncapi, graphql, openapi, scalar } from "blume/reference";
 
 export default defineConfig({

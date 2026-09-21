@@ -140,7 +140,7 @@ plain **bold** *em* \`x*y\` ~~old~~ under [site](https://x.dev) entry [file](htt
 
 ---
 
-![Chart](https://images.ctfassets.net/s/chart.png)
+![A chart](https://images.ctfassets.net/s/chart.png)
 
 <Callout>Entry e1</Callout>
 
@@ -180,7 +180,7 @@ plain **bold** *em* \`x*y\` ~~old~~ under [site](https://x.dev) entry [file](htt
         },
       }
     );
-    expect(md).toBe(`![Chart](https://images.ctfassets.net/s/chart.png)
+    expect(md).toBe(`![A chart](https://images.ctfassets.net/s/chart.png)
 
 <Callout>Inline</Callout>
 
@@ -190,7 +190,7 @@ plain **bold** *em* \`x*y\` ~~old~~ under [site](https://x.dev) entry [file](htt
 `);
   });
 
-  it("keeps the asset description as alt when there is no title", () => {
+  it("uses the asset description as alt, falling back to the title", () => {
     expect(
       assetFromEntry({
         fields: { description: "Desc", file: { url: "/f.png" } },
@@ -208,6 +208,15 @@ plain **bold** *em* \`x*y\` ~~old~~ under [site](https://x.dev) entry [file](htt
         ])
       )
     ).toBe("![Desc](/f.png)\n");
+    expect(
+      contentfulRichTextToMarkdown(
+        node("document", [
+          node("embedded-asset-block", [], {
+            target: { fields: { file: { url: "/f.png" }, title: "Only" } },
+          }),
+        ])
+      )
+    ).toBe("![Only](/f.png)\n");
   });
 });
 
@@ -283,7 +292,7 @@ describe("contentfulSource", () => {
       title: "Getting Started",
     });
     expect(entries[0]?.body.text).toBe(
-      "Hello\n\n![Chart](https://images.ctfassets.net/s/chart.png)\n\n<Callout>Careful</Callout>\n"
+      "Hello\n\n![A chart](https://images.ctfassets.net/s/chart.png)\n\n<Callout>Careful</Callout>\n"
     );
     expect(entries[0]?.lastModified).toBe("2026-02-01T00:00:00Z");
     expect(entries[1]?.body.text).toBe("# Markdown\n");
@@ -347,10 +356,13 @@ describe("contentfulSource", () => {
           ctxFor(await tempDir("contentful-env"))
         ).load();
       });
-      await contentfulSource(
-        options,
-        ctxFor(await tempDir("contentful-env"), { preview: true })
-      ).load();
+      // Preview never borrows the delivery token: the Preview API rejects it.
+      await expect(
+        contentfulSource(
+          options,
+          ctxFor(await tempDir("contentful-env"), { preview: true })
+        ).load()
+      ).rejects.toThrow("needs a Preview API token");
     });
     await withEnv("CONTENTFUL_ACCESS_TOKEN", undefined, async () => {
       await contentfulSource(
@@ -360,12 +372,7 @@ describe("contentfulSource", () => {
     });
     expect(
       calls.map((call) => call.headers.get("authorization"))
-    ).toStrictEqual([
-      "Bearer env-preview",
-      "Bearer env-delivery",
-      "Bearer env-delivery",
-      null,
-    ]);
+    ).toStrictEqual(["Bearer env-preview", "Bearer env-delivery", null]);
   });
 
   it("fails the load when the API answers with a non-object or an error", async () => {

@@ -31,6 +31,7 @@ import {
 import { LOGROCKET_SCRIPT_SRC } from "../src/analytics/logrocket.ts";
 import { MIXPANEL_REGION_HOSTS } from "../src/analytics/mixpanel.ts";
 import { PIRSCH_SCRIPT_SRC } from "../src/analytics/pirsch.ts";
+import { PLAUSIBLE_QUEUE } from "../src/analytics/plausible.ts";
 import { analyticsConfigSchema } from "../src/analytics/schema.ts";
 import { SEGMENT_DEFAULT_CDN } from "../src/analytics/segment.ts";
 import { blumeConfigSchema } from "../src/core/schema.ts";
@@ -197,6 +198,13 @@ describe("provider adapter heads", () => {
     ]);
   });
 
+  it("fathom: tracks history changes by default, unless spa is set", () => {
+    const [tag] = scripts(fathom({ site: "YSVMSDAY" }));
+    expect(tag?.attributes["data-spa"]).toBe("auto");
+    const [pinned] = scripts(fathom({ site: "YSVMSDAY", spa: "history" }));
+    expect(pinned?.attributes["data-spa"]).toBe("history");
+  });
+
   it("fathom: the deferred tag with data-site and passthrough data attributes", () => {
     expect(
       scripts(fathom({ "honor-dnt": "true", site: "YSVMSDAY", spa: "auto" }))
@@ -345,6 +353,8 @@ describe("provider adapter heads", () => {
         },
         content: null,
       },
+      // The queue stub, so a `track()` before the script lands is replayed.
+      { attributes: {}, content: PLAUSIBLE_QUEUE },
     ]);
     const [hosted] = scripts(
       plausible({ domain: "d", host: "https://plausible.example.com/" })
@@ -415,6 +425,7 @@ describe("provider adapter heads", () => {
       )
     ).toEqual([
       "https://plausible.io/js/script.js",
+      "inline",
       `${GOOGLE_TAG_SRC}?id=G-X`,
       "inline",
       PIRSCH_SCRIPT_SRC,

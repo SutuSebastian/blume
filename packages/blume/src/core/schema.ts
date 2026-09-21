@@ -76,7 +76,20 @@ const removedKeysHint = (hints: Record<string, string>) => ({
     const messages = issue.keys.flatMap((key) =>
       Object.hasOwn(hints, key) ? [hints[key]] : []
     );
-    return messages.length > 0 ? messages.join(" ") : undefined;
+    if (messages.length === 0) {
+      return;
+    }
+    // A hinted key beside a plain unknown one: keep Zod's wording for the
+    // latter so it isn't silently dropped from the diagnostic.
+    const others = issue.keys.filter((key) => !Object.hasOwn(hints, key));
+    if (others.length > 0) {
+      messages.push(
+        `Unrecognized key${others.length > 1 ? "s" : ""}: ${others
+          .map((key) => JSON.stringify(key))
+          .join(", ")}`
+      );
+    }
+    return messages.join(" ");
   },
 });
 

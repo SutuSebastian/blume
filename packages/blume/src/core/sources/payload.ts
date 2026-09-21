@@ -85,12 +85,14 @@ export const payloadSource = (
     let page = 1;
     let more = true;
     while (more) {
+      // The user's params go first so the paging controls always win — a
+      // `params` key that shadowed them would refetch the same page forever.
       const query = queryString({
+        ...options.params,
         depth: String(options.depth ?? 1),
         draft: preview ? "true" : undefined,
         limit: String(PAGE_SIZE),
         page: String(page),
-        ...options.params,
       });
       // oxlint-disable-next-line no-await-in-loop -- pages are sequential: each response says whether another exists.
       const result = asObject(await fetchJson(`${base}?${query}`, client));

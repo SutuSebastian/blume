@@ -127,6 +127,17 @@ describe("agents", () => {
     }
   });
 
+  it("keeps reporting a plain unknown key beside a moved one", () => {
+    expect(messages(parse({ ai: { colour: "teal", llmsTxt: true } }))).toEqual([
+      'ai.llmsTxt moved to agents.llmsTxt. Unrecognized key: "colour"',
+    ]);
+    expect(
+      messages(parse({ ai: { colour: "teal", llmsTxt: true, size: 1 } }))
+    ).toEqual([
+      'ai.llmsTxt moved to agents.llmsTxt. Unrecognized keys: "colour", "size"',
+    ]);
+  });
+
   it("lists every moved key in one message when several are still under ai", () => {
     expect(
       messages(

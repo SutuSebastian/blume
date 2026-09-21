@@ -218,7 +218,8 @@ describe("payloadSource", () => {
         collection: "docs",
         fetchImpl,
         name: "cms",
-        params: { sort: "title" },
+        // `page` here must not shadow the adapter's own paging.
+        params: { page: "1", sort: "title" },
         prefix: "cms",
         token: "key",
         url: "https://cms.test/",

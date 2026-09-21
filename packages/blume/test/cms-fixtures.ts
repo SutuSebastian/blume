@@ -44,6 +44,8 @@ export const projectContext: ProjectContext = {
 export interface RecordedCall {
   headers: Headers;
   url: URL;
+  /** The abort signal the source attached, when it did. */
+  signal?: AbortSignal;
 }
 
 type FetchHandler = (
@@ -73,6 +75,7 @@ export const recordingFetch = (
   const fetchImpl = asFetch((input, init) => {
     const call = {
       headers: new Headers(init?.headers),
+      signal: init?.signal ?? undefined,
       url: new URL(String(input)),
     };
     calls.push(call);
