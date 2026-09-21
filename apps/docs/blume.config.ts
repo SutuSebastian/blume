@@ -107,6 +107,28 @@ export default defineConfig({
     ],
   },
   redirects: [
+    { from: "/docs/advanced/api-reference", to: "/docs/references/openapi" },
+    { from: "/docs/advanced/graphql", to: "/docs/references/graphql" },
+    {
+      from: "/de/docs/advanced/api-reference",
+      to: "/de/docs/references/openapi",
+    },
+    { from: "/de/docs/advanced/graphql", to: "/de/docs/references/graphql" },
+    {
+      from: "/hi/docs/advanced/api-reference",
+      to: "/hi/docs/references/openapi",
+    },
+    { from: "/hi/docs/advanced/graphql", to: "/hi/docs/references/graphql" },
+    {
+      from: "/ja/docs/advanced/api-reference",
+      to: "/ja/docs/references/openapi",
+    },
+    { from: "/ja/docs/advanced/graphql", to: "/ja/docs/references/graphql" },
+    {
+      from: "/pt/docs/advanced/api-reference",
+      to: "/pt/docs/references/openapi",
+    },
+    { from: "/pt/docs/advanced/graphql", to: "/pt/docs/references/graphql" },
     { from: "/docs/configuration/ai", to: "/docs/discoverability" },
     { from: "/docs/configuration/seo", to: "/docs/discoverability" },
     { from: "/de/docs/configuration/ai", to: "/de/docs/discoverability" },

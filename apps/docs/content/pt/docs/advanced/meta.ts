@@ -2,13 +2,6 @@
 // and rerun the translation instead of editing this copy.
 export default {
   order: 6,
-  pages: [
-    "skills",
-    "custom-pages",
-    "changelog",
-    "blog",
-    "api-reference",
-    "graphql",
-  ],
+  pages: ["skills", "custom-pages", "changelog", "blog"],
   title: "Avançado",
 };

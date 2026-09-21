@@ -24,12 +24,6 @@
       "ja": "8f2be520a2024119",
       "pt": "8f2be520a2024119"
     },
-    "content/docs/advanced/api-reference.mdx": {
-      "de": "8d751f4f9800dd07",
-      "hi": "8d751f4f9800dd07",
-      "ja": "8d751f4f9800dd07",
-      "pt": "8d751f4f9800dd07"
-    },
     "content/docs/advanced/blog.mdx": {
       "de": "1e8292830a2db710",
       "hi": "1e8292830a2db710",
@@ -47,12 +41,6 @@
       "hi": "4aeb1f4a2bead251",
       "ja": "4aeb1f4a2bead251",
       "pt": "4aeb1f4a2bead251"
-    },
-    "content/docs/advanced/graphql.mdx": {
-      "de": "2ecbc84a1574f1b1",
-      "hi": "2ecbc84a1574f1b1",
-      "ja": "2ecbc84a1574f1b1",
-      "pt": "2ecbc84a1574f1b1"
     },
     "content/docs/advanced/meta.ts": {
       "de": "8f4002debd952b45",

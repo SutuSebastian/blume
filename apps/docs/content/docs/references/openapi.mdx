@@ -1,0 +1,171 @@
+---
+title: OpenAPI
+description: Drop in an OpenAPI spec and get a native API reference — one real page per operation, in your sidebar and search.
+---
+
+Point Blume at an OpenAPI spec and it generates a native API reference: one **real page per operation**, grouped by tag in a tab-scoped sidebar, with schema tables, request/response examples, generated code samples, and an interactive [Try it](#try-it-playground) panel. Because each operation is a genuine Blume page, it gets its own URL, shows up in **site search** and `llms.txt`, and gets an Open Graph image — the same as any hand-written doc.
+
+Every reference is an **adapter** imported from `blume/reference` and listed under `reference`: `openapi()` for an OpenAPI document, [`asyncapi()`](/docs/references/asyncapi) for an AsyncAPI document, and [`graphql()`](/docs/references/graphql) for a GraphQL schema. Each adapter owns its spec sources, its mount route, and its display options, so the list can hold as many of each kind as you need. The config below points Blume at the public Petstore spec as an example.
+
+```ts blume.config.ts lineNumbers
+import { defineConfig } from "blume";
+import { openapi } from "blume/reference";
+
+export default defineConfig({
+  reference: [
+    openapi({ spec: "https://petstore3.swagger.io/api/v3/openapi.json" }),
+  ],
+});
+```
+
+That mounts the reference at `/reference` (an overview page) with each operation at `/reference/<tag>/<operation>`. The `spec` is either an `http(s)` URL or a path to a local file in your project. Blume parses it with [Scalar's OpenAPI parser](https://github.com/scalar/scalar) — Swagger 2.0 and OpenAPI 3.0 specs are upgraded to 3.1 automatically. An adapter is a plain description of the reference — not a parsed spec — so Blume can validate it up front and inline it into the generated site; leaving `reference` out (or empty) renders no reference at all. Documenting an event-driven or GraphQL API instead? See [AsyncAPI](/docs/references/asyncapi) and [GraphQL](/docs/references/graphql).
+
+The reference doesn't add a header tab on its own. To surface it, point a [navigation tab](/docs/content/navigation#tabs) at its route — this also scopes the operations sidebar for the native renderer:
+
+```ts blume.config.ts
+navigation: {
+  tabs: [{ label: "API", path: "/reference" }],
+}
+```
+
+:::note
+Operations are indexed for search by their **summary and tag**. The rendered schema tables and code samples aren't full-text indexed; search matches an operation's title and section, then links to its own page.
+:::
+
+## A local spec
+
+A relative path is resolved from your project root and read at build time. Both JSON and YAML work:
+
+```ts blume.config.ts lineNumbers
+reference: [openapi({ spec: "./openapi.yaml" })],
+```
+
+## Route
+
+`route` controls where the reference mounts — the overview page and the prefix for every operation route (and the route you point a navigation tab at):
+
+```ts blume.config.ts lineNumbers
+reference: [
+  openapi({
+    route: "/api",   // overview at /api, operations at /api/<tag>/<operation>
+    spec: "./openapi.yaml",
+  }),
+],
+```
+
+## Code samples and schemas
+
+`codeSamples` picks which languages render per operation (built in: `curl`, `js`, `python`); `expandSchemas` starts nested schema rows expanded rather than collapsed:
+
+```ts blume.config.ts lineNumbers
+reference: [
+  openapi({
+    spec: "./openapi.yaml",
+    codeSamples: ["curl", "js"],
+    expandSchemas: true,
+  }),
+],
+```
+
+## Try it playground
+
+Operation pages rendered natively ship an interactive **Try it** panel by default. Blume generates the form from the operation itself: an input per path, query, and header parameter, a body editor built from the request-body schema, everything prefilled from the spec's examples. A server picker lists the spec's `servers`, with a free-text field for any other base URL, and auth inputs match the operation's [resolved security](#authorization) — bearer token, API key, and basic credentials, with OAuth2 as a token paste field (bring an access token; Blume doesn't run the flow).
+
+The panel and the code samples stay in lockstep: values typed into the form update the generated samples live, so a copied curl command always matches exactly what **Send** would do. And it stays out of the way — the panel is server-rendered collapsed, and its JavaScript loads only when a reader first opens it. Readers who never touch it download none of it.
+
+`playground: false` is the entire off switch:
+
+```ts blume.config.ts lineNumbers
+reference: [openapi({ spec: "./openapi.yaml", playground: false })],
+```
+
+### Credentials
+
+Credentials typed into the auth inputs stay in memory and vanish on reload. Checking **Remember on this device** persists them in `localStorage`, scoped to the docs origin — they're never sent anywhere except the API being called. Code samples keep showing placeholders (`YOUR_TOKEN` and friends) whatever's typed, unless the reader toggles **Include my values in samples**.
+
+### CORS and the proxy
+
+As with a [Scalar embed](/docs/references/scalar), requests go **directly from the browser** to the target API, so the API must allow cross-origin requests from the docs site (`Access-Control-Allow-Origin`). For APIs that can't, set `playground.proxy`: a URL routes requests through a proxy you host, and `true` enables the built-in `/_api-proxy` route — which needs a server build, so it requires [`deployment.output: "server"`](/docs/deployment#server-rendering):
+
+```ts blume.config.ts lineNumbers
+reference: [
+  openapi({
+    spec: "./openapi.yaml",
+    playground: {
+      proxy: true,   // or a URL of your own
+    },
+  }),
+],
+```
+
+The built-in proxy only forwards requests to the origins your specs declare in `servers` — including across redirects — so a public docs deployment can't be aimed at other hosts on its network. A **Custom base URL** typed into the panel isn't a documented server: with the proxy enabled, requests to it are refused with a 403.
+
+## Multiple specs
+
+Use `sources` to publish more than one spec from one adapter. Each source gets its own overview route and operation pages, and shares the adapter's display options. Give each a `label` (used for the sidebar and to derive its route), or set an explicit `route`:
+
+```ts blume.config.ts lineNumbers
+reference: [
+  openapi({
+    sources: [
+      { label: "Public API", spec: "./public.json" },   // → /reference/public-api
+      { label: "Admin API", route: "/admin", spec: "./admin.json" },
+    ],
+  }),
+],
+```
+
+`spec` is shorthand for a single-entry `sources`, so you only reach for `sources` when you have more than one. When two specs need different display options — a different code-sample set, — list two `openapi()` adapters instead, each with its own `route`. An embedded [Scalar](/docs/references/scalar) reference beside native pages is its own `scalar()` adapter in the list. Sources are resolved in list order, and when two resolve to the same route the first one wins (the build warns about the one it dropped).
+
+### Per-source indexing
+
+Generated pages participate in search, `llms.txt`, and crawler indexing by default. A secondary or overlapping spec can opt out of any surface without hiding its pages or removing it from navigation:
+
+```ts blume.config.ts lineNumbers
+reference: [
+  openapi({
+    sources: [
+      { label: "Public API", route: "/api", spec: "./public.json" },
+      {
+        label: "Platform API",
+        route: "/platform",
+        spec: "./platform.json",
+        includeInSearch: false,
+        includeInLlms: false,
+        noindex: true,
+      },
+    ],
+  }),
+],
+```
+
+- `includeInSearch: false` keeps the source's overview and operations out of site search.
+- `includeInLlms: false` keeps them out of both `llms.txt` files.
+- `noindex: true` adds crawler noindex metadata and removes the pages from the sitemap.
+
+Each operation page's meta description is the operation's own `description` (or `summary`), followed by a generated sentence naming the endpoint — "Reference for the `GET /pets` endpoint in the Petstore API." — so a spec of terse one-line summaries still ships a distinct, snippet-length description per page. That sentence is English. On a site whose spec prose is written in another language, set `seoDescriptionSuffix: false` on the source to drop it and describe each page with the authored prose alone; an operation with neither a `description` nor a `summary` falls back to its title (`GET /pets`), so no page ships an empty description:
+
+```ts blume.config.ts lineNumbers
+reference: [
+  openapi({
+    sources: [{ spec: "./openapi.de.json", seoDescriptionSuffix: false }],
+  }),
+],
+```
+
+A [`scalar()`](/docs/references/scalar) embed takes only `noindex` of these — it already sits outside Blume's search and `llms.txt`, so the two `include*` settings have nothing to act on there.
+
+## Authorization
+
+Operations that declare [security requirements](https://spec.openapis.org/oas/v3.1.0#security-requirement-object) render an **Authorization** section above their parameters, and the generated code samples send a placeholder credential (`Authorization: Bearer YOUR_TOKEN`, an API-key header, or a query key — whatever the scheme calls for). There's nothing to configure: Blume reads `security` from the spec, so the reference always matches what the API actually enforces.
+
+The OpenAPI semantics carry over as written:
+
+- An operation's own `security` overrides the document's root default; `security: []` marks it **public** and renders no Authorization section.
+- Multiple requirement entries are alternatives — rendered as "or" groups; every scheme inside one entry is required together. The first alternative feeds the code samples.
+- An empty `{}` entry means auth is **optional** for that operation, and the section says so.
+- OAuth2 scopes are listed per scheme; scheme `description`s from `components.securitySchemes` render inline.
+
+## Embedding Scalar instead
+
+`openapi()` always renders Blume's own pages. To embed [Scalar](https://scalar.com)'s self-contained API reference UI on a single route instead — its own sidebar, search, theme, and request client — list a `scalar()` adapter from `blume/reference` in place of (or beside) this one. The [Scalar](/docs/references/scalar) page covers what the embed does and doesn't do, and how to pass Scalar's own options through.

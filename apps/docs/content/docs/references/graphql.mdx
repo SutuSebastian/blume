@@ -5,7 +5,7 @@ description: Drop in a GraphQL schema and get a native API reference — one rea
 
 Point Blume at a GraphQL schema and it generates a native API reference: one **real page per root field** — queries, mutations, and subscriptions — plus one **page per named type** (objects, input objects, enums, interfaces, unions, and custom scalars). Every page shows arguments, defaults, deprecations, and usage backlinks, alongside a generated example operation, code samples, and an interactive [Try it](#try-it-playground) panel. Because each page is a genuine Blume page, it gets its own URL, shows up in **site search** and `llms.txt`, and gets an Open Graph image — the same as any hand-written doc.
 
-The reference is the `graphql()` adapter from `blume/reference`, listed under `reference` beside any [OpenAPI or AsyncAPI](/docs/advanced/api-reference) adapters:
+The reference is the `graphql()` adapter from `blume/reference`, listed under `reference` beside any [OpenAPI](/docs/references/openapi) or [AsyncAPI](/docs/references/asyncapi) adapters:
 
 ```ts blume.config.ts lineNumbers
 import { defineConfig } from "blume";
@@ -76,13 +76,13 @@ reference: [
 ],
 ```
 
-`spec` is shorthand for a single-entry `sources`. Schemas that need different display options go in separate `graphql()` adapters, each with its own `route`. Each source takes the same [per-source controls](/docs/advanced/api-reference#per-source-indexing) as `openapi()`: `includeInSearch`, `includeInLlms`, `noindex`, and `seoDescriptionSuffix` (here the generated sentence names the query, mutation, or type — "Reference for the `pets` query in the GraphQL API.").
+`spec` is shorthand for a single-entry `sources`. Schemas that need different display options go in separate `graphql()` adapters, each with its own `route`. Each source takes the same [per-source controls](/docs/references/openapi#per-source-indexing) as `openapi()`: `includeInSearch`, `includeInLlms`, `noindex`, and `seoDescriptionSuffix` (here the generated sentence names the query, mutation, or type — "Reference for the `pets` query in the GraphQL API.").
 
 ## Try it playground
 
 Query and mutation pages render an interactive panel: edit the request body (the query and variables), point it at your endpoint or a custom URL, and send — the code samples update live so what you copy is byte-for-byte what was sent. Disable it with `playground: false`. Subscription pages show the generated operation and an example event instead: subscriptions run over a stateful transport (WebSocket or SSE) that the playground's single HTTP `POST` can't speak.
 
-If your GraphQL API doesn't allow cross-origin requests from the docs site, route sends through a CORS proxy — a URL of your own, or `true` for the built-in `/_api-proxy` endpoint (which requires `deployment.output: "server"`). The built-in proxy only forwards to origins your documented specs declare — each configured GraphQL `endpoint`, plus any absolute `servers[].url` from a documented [OpenAPI spec](/docs/advanced/api-reference) — so a public docs deployment can't be aimed at other hosts. That makes `endpoint` required for a working proxy: without one, the proxy has no origin to allow for this reference and refuses every send (the build warns about this).
+If your GraphQL API doesn't allow cross-origin requests from the docs site, route sends through a CORS proxy — a URL of your own, or `true` for the built-in `/_api-proxy` endpoint (which requires `deployment.output: "server"`). The built-in proxy only forwards to origins your documented specs declare — each configured GraphQL `endpoint`, plus any absolute `servers[].url` from a documented [OpenAPI spec](/docs/references/openapi) — so a public docs deployment can't be aimed at other hosts. That makes `endpoint` required for a working proxy: without one, the proxy has no origin to allow for this reference and refuses every send (the build warns about this).
 
 ```ts blume.config.ts lineNumbers
 reference: [
@@ -94,4 +94,4 @@ reference: [
 ],
 ```
 
-Unlike `openapi()` and `asyncapi()`, `graphql()` takes no `renderer`: the embedded [Scalar](/docs/advanced/api-reference#the-scalar-renderer) reference reads OpenAPI documents only, so a GraphQL reference is always rendered natively.
+There is no Scalar counterpart for GraphQL: the [`scalar()`](/docs/references/scalar) embed reads OpenAPI and AsyncAPI documents only, so a GraphQL reference is always rendered natively.

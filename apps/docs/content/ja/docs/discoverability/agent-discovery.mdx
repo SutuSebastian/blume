@@ -87,7 +87,7 @@ Link: </.well-known/api-catalog>; rel="api-catalog"; type="application/linkset+j
 
 ## API カタログ [#api-catalog]
 
-サイトが API を公開している場合、Blume は `/.well-known/api-catalog` に [RFC 9727](https://www.rfc-editor.org/rfc/rfc9727) API カタログを生成します — これはエージェントがドメインだけから API を列挙できるようにする[リンクセット](https://www.rfc-editor.org/rfc/rfc9264)で、すべてのビルドサーフェスで登録済みの `application/linkset+json` メディアタイプとともに配信されます。設定は不要です: カタログは `blume.config.ts` にすでにある内容から導出されます。各 [OpenAPI または AsyncAPI リファレンス](/docs/advanced/api-reference)は、レンダリングされたドキュメントのルートをアンカーとするエントリになり、`service-doc` がそのドキュメントを指し、仕様がフェッチ可能な URL にある場合は `service-desc` がその仕様を指します。サイト自身の [JSON API](/docs/discoverability/json-api) は `/openapi.json` によって記述されるエントリになり、[MCP サーバー](/docs/discoverability/mcp)はその検出ドキュメントをサービス記述とするエントリになります:
+サイトが API を公開している場合、Blume は `/.well-known/api-catalog` に [RFC 9727](https://www.rfc-editor.org/rfc/rfc9727) API カタログを生成します — これはエージェントがドメインだけから API を列挙できるようにする[リンクセット](https://www.rfc-editor.org/rfc/rfc9264)で、すべてのビルドサーフェスで登録済みの `application/linkset+json` メディアタイプとともに配信されます。設定は不要です: カタログは `blume.config.ts` にすでにある内容から導出されます。各 [OpenAPI または AsyncAPI リファレンス](/docs/references/openapi)は、レンダリングされたドキュメントのルートをアンカーとするエントリになり、`service-doc` がそのドキュメントを指し、仕様がフェッチ可能な URL にある場合は `service-desc` がその仕様を指します。サイト自身の [JSON API](/docs/discoverability/json-api) は `/openapi.json` によって記述されるエントリになり、[MCP サーバー](/docs/discoverability/mcp)はその検出ドキュメントをサービス記述とするエントリになります:
 
 ```json .well-known/api-catalog
 {
