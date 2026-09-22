@@ -866,6 +866,9 @@ describe("layout chrome sources", () => {
     expect(partial).toContain('rel="describedby"');
     expect(partial).toContain('rel="ai-catalog"');
     expect(partial).toContain('rel="ard"');
+    // `discovery={null}` drops every link the partial renders, the Markdown
+    // alternate included — it must not survive the opt-out on its own.
+    expect(partial).toContain("discovery && markdownMirror && (");
     expect(partial).toContain('rel="alternate" type="text/markdown"');
   });
 
@@ -878,6 +881,12 @@ describe("layout chrome sources", () => {
     const source = await layoutSource("PageLayout.astro");
     expect(source).toContain(
       'const markdownMirror = route === "/" ? withBase("/index.md") : null;'
+    );
+    // The documented homepage examples omit `page.route`; a non-root page that
+    // copies them must resolve its own route from the request URL, or it
+    // would advertise `/index.md` (and the homepage canonical) as its own.
+    expect(source).toContain(
+      'stripBase(import.meta.env.BASE_URL ?? "/", Astro.url.pathname)'
     );
     expect(source).toContain(
       "<DiscoveryLinks discovery={discovery} markdownMirror={markdownMirror} />"

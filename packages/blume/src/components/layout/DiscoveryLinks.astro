@@ -14,13 +14,14 @@ import { withBase } from "../islands/base-path.ts";
 interface Props {
   /**
    * Which resources exist, from the `blume:data` snapshot; `null` drops every
-   * link (a page opting out of the agent-facing surface).
+   * link this partial renders, the Markdown alternate included (a page opting
+   * out of the agent-facing surface).
    */
   discovery?: DiscoveryHeadLinks | null;
   /**
    * This page's raw-Markdown mirror (already under the deployment base), or
    * `null` when the route has none — only content routes and the homepage do
-   * (see `markdownRoutePaths`).
+   * (see `markdownRoutePaths`). Advertised only while `discovery` is set.
    */
   markdownMirror?: string | null;
 }
@@ -62,7 +63,7 @@ const { discovery, markdownMirror } = Astro.props;
   )
 }
 {
-  markdownMirror && (
+  discovery && markdownMirror && (
     <link href={markdownMirror} rel="alternate" type="text/markdown" />
   )
 }
