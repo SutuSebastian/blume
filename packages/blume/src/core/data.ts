@@ -133,10 +133,11 @@ export interface BlumeDataConfig {
   dateFormat: ResolvedConfig["dateFormat"];
   description: string | undefined;
   /**
-   * Which agent-discovery resources exist for the layout to advertise in every
-   * page's `<head>` (`agents.agentReadability`, `agents.llmsTxt.enabled`) — the HTML
-   * counterpart of the homepage-only HTTP `Link` header, for agents that enter
-   * on a deep page (see `ai/link-headers.ts`). `sitemap` (`seo.sitemap` with a
+   * Which agent-discovery resources exist for every layout to advertise in its
+   * page's `<head>` (`agents.agentReadability`, `agents.llmsTxt.enabled`) via
+   * the shared `DiscoveryLinks.astro` partial — the HTML counterpart of the
+   * homepage-only HTTP `Link` header, for agents that enter on a deep page
+   * (see `ai/link-headers.ts`). `sitemap` (`seo.sitemap` with a
    * `deployment.site`, the condition under which one is emitted) feeds the
    * 404 page's recovery links rather than the head.
    */
@@ -225,6 +226,16 @@ export interface BlumeDataConfig {
   /** X (Twitter) attribution: the site's account, and a default creator. */
   x: { creator?: string; handle?: string };
 }
+
+/**
+ * The `discovery` flags the head partial (`components/layout/DiscoveryLinks.astro`)
+ * advertises — every layout's `discovery` prop is typed from here so a renamed
+ * or added flag surfaces in the shells at typecheck instead of drifting.
+ */
+export type DiscoveryHeadLinks = Pick<
+  BlumeDataConfig["discovery"],
+  "agentReadability" | "aiCatalog" | "llmsTxt"
+>;
 
 /**
  * The compact snapshot the layout serializes into the page for React island

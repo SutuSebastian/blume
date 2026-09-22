@@ -54,6 +54,23 @@ test.describe("agent discovery", () => {
       ).toHaveCount(1);
     });
   }
+
+  test("/ advertises its Markdown mirror", async ({ page }) => {
+    // The homepage is a PageLayout page, but `/index.md` always exists, so its
+    // head carries the same `alternate` the docs pages do.
+    await page.goto("/");
+    await expect(
+      page.locator('link[rel="alternate"][type="text/markdown"]')
+    ).toHaveAttribute("href", "/index.md");
+  });
+
+  test("/cli advertises no Markdown mirror", async ({ page }) => {
+    // A non-root custom page has no `.md` mirror, so advertising one would 404.
+    await page.goto("/cli");
+    await expect(
+      page.locator('link[rel="alternate"][type="text/markdown"]')
+    ).toHaveCount(0);
+  });
 });
 
 test.describe("theme toggle", () => {

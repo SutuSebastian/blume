@@ -11,6 +11,7 @@ import type {
   BlumeClientData,
   BlumeDataConfig,
   BlumeFavicon,
+  DiscoveryHeadLinks,
 } from "../../core/data.ts";
 import type {
   Heading,
@@ -45,6 +46,7 @@ import WebMcp from "./WebMcp.astro";
 import Banner from "./Banner.astro";
 import Breadcrumbs from "./Breadcrumbs.astro";
 import Empty from "./Empty.astro";
+import DiscoveryLinks from "./DiscoveryLinks.astro";
 import Favicon from "./Favicon.astro";
 import Fonts from "./Fonts.astro";
 import {
@@ -139,13 +141,10 @@ interface Props {
    * result, a shared link) finds the machine-readable surface without probing
    * the site root. The HTML counterpart of the homepage-only HTTP `Link`
    * header (see `ai/link-headers.ts`). Defaults to the `blume:data` snapshot,
-   * so a custom page on this layout gets the links without passing a prop.
+   * so a custom page on this layout gets the links without passing a prop;
+   * `null` drops them for one page.
    */
-  discovery?: {
-    agentReadability: boolean;
-    aiCatalog: boolean;
-    llmsTxt: boolean;
-  } | null;
+  discovery?: DiscoveryHeadLinks | null;
   siteUrl?: string | null;
   pageType?: string;
   published?: string | Date | null;
@@ -529,48 +528,7 @@ createIconSprite(Astro.locals);
         />
       ))
     }
-    {/* Agent discovery on every page, not just the root: an agent that enters
-        on a deep page (a search result, a shared link) never sees the homepage
-        HTTP Link header, so the head carries the same describedby links plus
-        this page's own raw-Markdown mirror. Both rels are IANA-registered. */}
-    {
-      discovery?.agentReadability && (
-        <link
-          href={withBase("/agent-readability.json")}
-          rel="describedby"
-          type="application/json"
-        />
-      )
-    }
-    {
-      discovery?.llmsTxt && (
-        <link href={withBase("/llms.txt")} rel="describedby" type="text/plain" />
-      )
-    }
-    {/* The AI Catalog / ARD manifest under both relations its two specs
-        define: `ai-catalog` (ai-catalog spec) and `ard` (ARD v0.91), each
-        pointing at that spec's own well-known path. */}
-    {
-      discovery?.aiCatalog && (
-        <>
-          <link
-            href={withBase("/.well-known/ai-catalog.json")}
-            rel="ai-catalog"
-            type="application/ai-catalog+json"
-          />
-          <link
-            href={withBase("/.well-known/ard.json")}
-            rel="ard"
-            type="application/json"
-          />
-        </>
-      )
-    }
-    {
-      markdownMirror && (
-        <link href={markdownMirror} rel="alternate" type="text/markdown" />
-      )
-    }
+    <DiscoveryLinks discovery={discovery} markdownMirror={markdownMirror} />
     {
       structuredDataJson && (
         <script

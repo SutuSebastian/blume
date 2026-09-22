@@ -23,6 +23,7 @@ import type {
   BlumeDataConfig,
   BlumeFavicon,
   BlumeLogo,
+  DiscoveryHeadLinks,
 } from "../../core/data.ts";
 import data from "blume:data";
 import { EN_UI } from "../../core/i18n-ui.ts";
@@ -43,6 +44,7 @@ import "blume:theme";
 import { ClientRouter } from "astro:transitions";
 import Analytics from "./Analytics.astro";
 import Banner from "./Banner.astro";
+import DiscoveryLinks from "./DiscoveryLinks.astro";
 import Favicon from "./Favicon.astro";
 import Fonts from "./Fonts.astro";
 import {
@@ -114,15 +116,12 @@ interface Props {
   structuredDataEnabled?: boolean;
   /**
    * Which agent-discovery resources exist, advertised as `describedby` head
-   * links plus the AI Catalog/ARD pair, the same block RootLayout renders. A
-   * custom page gets this from the `blume:data` snapshot without wiring
-   * anything up; pass it to override, or `null` to drop the links.
+   * links plus the AI Catalog/ARD pair — the same `DiscoveryLinks` partial
+   * RootLayout renders. A custom page gets this from the `blume:data` snapshot
+   * without wiring anything up; pass it to override, or `null` to drop the
+   * links.
    */
-  discovery?: {
-    agentReadability: boolean;
-    aiCatalog: boolean;
-    llmsTxt: boolean;
-  } | null;
+  discovery?: DiscoveryHeadLinks | null;
   /**
    * X (Twitter) attribution (`data.config.x`): the site's account and an author
    * handle, emitted as `twitter:site`/`twitter:creator`.
@@ -202,6 +201,13 @@ const pageTitle = page?.title ?? site.title;
 const description = page?.description ?? site.description;
 const route = page?.route ?? "/";
 const activeTab = currentTabForRoute(navigation.tabs, route, navigation.root);
+
+// A custom page has no raw-Markdown mirror — except the homepage: `/index.md`
+// always exists (see `markdownRoutePaths`; a landing page gets the synthesized
+// llms.txt index), and the homepage HTTP `Link` header already advertises it,
+// so the head is its HTML counterpart on hosts that can't set that header.
+// Advertising a mirror for any other custom route would 404.
+const markdownMirror = route === "/" ? withBase("/index.md") : null;
 
 // Derive canonical + og:image from the site URL the same way the catch-all does
 // for content pages, so a custom page gets both for free. The matching OG card
@@ -341,40 +347,9 @@ createIconSprite(Astro.locals);
     {description && <meta content={description} name="twitter:description" />}
     {xSite && <meta content={xSite} name="twitter:site" />}
     {xCreator && <meta content={xCreator} name="twitter:creator" />}
-    {/* Agent discovery on every page, not just the root — and so a custom page
-        built on PageLayout is covered without passing a prop, the same way the
-        docs pages are. Mirrors RootLayout: the `describedby` resources plus
-        the AI Catalog / ARD pair under both relations their specs define. */}
-    {
-      discovery?.agentReadability && (
-        <link
-          href={withBase("/agent-readability.json")}
-          rel="describedby"
-          type="application/json"
-        />
-      )
-    }
-    {
-      discovery?.llmsTxt && (
-        <link href={withBase("/llms.txt")} rel="describedby" type="text/plain" />
-      )
-    }
-    {
-      discovery?.aiCatalog && (
-        <>
-          <link
-            href={withBase("/.well-known/ai-catalog.json")}
-            rel="ai-catalog"
-            type="application/ai-catalog+json"
-          />
-          <link
-            href={withBase("/.well-known/ard.json")}
-            rel="ard"
-            type="application/json"
-          />
-        </>
-      )
-    }
+    {/* Agent discovery on every page, so a custom page built on PageLayout is
+        covered without passing a prop, the same way the docs pages are. */}
+    <DiscoveryLinks discovery={discovery} markdownMirror={markdownMirror} />
     {
       structuredDataJson && (
         <script

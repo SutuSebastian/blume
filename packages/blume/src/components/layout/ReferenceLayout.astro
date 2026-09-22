@@ -3,7 +3,11 @@ import IconSprite from "./IconSprite.astro";
 import { createIconSprite } from "../icon-sprite.ts";
 import "blume:theme";
 import data from "blume:data";
-import type { BlumeDataConfig, BlumeFavicon } from "../../core/data.ts";
+import type {
+  BlumeDataConfig,
+  BlumeFavicon,
+  DiscoveryHeadLinks,
+} from "../../core/data.ts";
 import { EN_UI } from "../../core/i18n-ui.ts";
 import type { UIStrings } from "../../core/i18n-ui.ts";
 import type { FontHead } from "../../theme/fonts.ts";
@@ -11,6 +15,7 @@ import type { Navigation } from "../../core/types.ts";
 import Analytics from "./Analytics.astro";
 import WebMcp from "./WebMcp.astro";
 import Banner from "./Banner.astro";
+import DiscoveryLinks from "./DiscoveryLinks.astro";
 import Favicon from "./Favicon.astro";
 import Fonts from "./Fonts.astro";
 import {
@@ -60,6 +65,13 @@ interface Props {
   /** Keep the reference route out of crawler indexes. */
   noindex?: boolean;
   /**
+   * Which agent-discovery resources exist, advertised in the head by the same
+   * `DiscoveryLinks` partial the docs shells render; defaults to the
+   * `blume:data` snapshot, `null` drops the links. A reference route has no
+   * raw-Markdown mirror, so no `alternate` is emitted here.
+   */
+  discovery?: DiscoveryHeadLinks | null;
+  /**
    * Active locale code for `<html lang>`. Defaults to the locale Astro
    * resolved from the URL (`Astro.currentLocale`), then the site default.
    */
@@ -84,6 +96,7 @@ const {
   searchEnabled,
   pageTitle,
   noindex = false,
+  discovery = data.config.discovery,
   locale: localeProp,
   dir: dirProp,
   ui,
@@ -115,6 +128,7 @@ createIconSprite(Astro.locals);
     <title>{pageTitle}</title>
     <Favicon favicon={favicon} appleIcon={appleIcon} />
     <Fonts cssVars={fontCssVars ?? []} />
+    <DiscoveryLinks discovery={discovery} />
     {
       bannerKey && (
         <script data-key={bannerKey} is:inline set:html={BANNER_INIT_SCRIPT} />

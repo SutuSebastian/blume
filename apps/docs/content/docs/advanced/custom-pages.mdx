@@ -224,7 +224,7 @@ const { config } = data;
 
 The header a custom page gets is the same one the docs pages get, so the chrome that lives in it comes along: search, the theme toggle, the language switcher, and — when [Ask AI](/docs/configuration/ask-ai) is configured — the Ask AI trigger. None of it needs wiring up per page. Pass `askEnabled={false}` to leave the Ask trigger off one page while keeping it everywhere else.
 
-The [agent-discovery head links](/docs/discoverability/agent-discovery#discovery-link-header) come along too: the layout reads the resolved config, so a custom page carries the same `describedby`, `ai-catalog`, and `ard` links the docs pages do without passing a prop. Pass `discovery={null}` to drop them from one page.
+The [agent-discovery head links](/docs/discoverability/agent-discovery#discovery-link-header) come along too: the layout reads the resolved config, so a custom page carries the same `describedby`, `ai-catalog`, and `ard` links the docs pages do without passing a prop. The homepage also advertises its `/index.md` Markdown mirror as a `text/markdown` alternate, since that mirror always exists; other custom pages have none, so none is advertised. Pass `discovery={null}` to drop the links from one page.
 
 Pass `transparentHeader` to start the header see-through with its chrome in white, so it can sit over a dark hero at the top of the page; it becomes the usual frosted bar as soon as the page scrolls, and the search dialog keeps the page's own colors throughout. The hero has to run under the header for this to show — pull it up by the header's height (`-mt-16`) and pad its top to compensate.
 

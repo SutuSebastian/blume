@@ -24,8 +24,9 @@ import { OPENAPI_PATH } from "./api/paths.ts";
  * could. An agent that enters on a deep page (a search result, a shared link)
  * never sees this header at all — that path is covered in the HTML instead:
  * every page's `<head>` carries the same `describedby` links plus its own
- * Markdown mirror as an `alternate` (see `RootLayout.astro`), which also
- * reaches hosts where Blume can't set response headers. Targets are
+ * Markdown mirror as an `alternate` (the `DiscoveryLinks.astro` partial every
+ * layout renders), which also reaches hosts where Blume can't set response
+ * headers. Targets are
  * root-relative under `deployment.base` — RFC 8288 resolves them against the
  * request URL. Returns null when nothing is advertisable.
  */
