@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, spyOn } from "bun:test";
 import {
   flushStdout,
   reportDiagnostics,
+  reportDiagnosticsUnlessRepeated,
   reportDiagnosticsJson,
 } from "../src/cli/log.ts";
 import type { Diagnostic } from "../src/core/types.ts";
@@ -50,6 +51,74 @@ describe("reportDiagnostics", () => {
     const hadErrors = reportDiagnostics([error, warning]);
     expect(hadErrors).toBe(true);
     expect(output).toContain("1 error(s), 1 warning(s)");
+  });
+});
+
+describe("reportDiagnosticsUnlessRepeated", () => {
+  it("stays quiet when the batch repeats the one already printed", () => {
+    // `blume dev` prints the startup batch, then regenerates once when Vite
+    // bumps the port; that unchanged batch must not print a second time.
+    expect(
+      reportDiagnosticsUnlessRepeated([{ ...warning }], "/root", [warning])
+    ).toBe(false);
+    expect(output).toBe("");
+  });
+
+  it("stays quiet when the repeat lists the same diagnostics in another order", () => {
+    // A rescan collects include errors as their file reads finish, so the
+    // same batch can come back reordered. It still reports its errors.
+    expect(
+      reportDiagnosticsUnlessRepeated([error, warning], "/root", [
+        warning,
+        error,
+      ])
+    ).toBe(true);
+    expect(output).toBe("");
+  });
+
+  it("prints a batch that differs from the one already printed", () => {
+    expect(
+      reportDiagnosticsUnlessRepeated([warning, error], "/root", [warning])
+    ).toBe(true);
+    expect(output).toContain("1 error(s), 1 warning(s)");
+
+    output = "";
+    const located = { ...warning, file: "/root/docs/a.md", line: 2 };
+    reportDiagnosticsUnlessRepeated([{ ...located, line: 3 }], "/root", [
+      located,
+    ]);
+    expect(output).toContain("a warning");
+  });
+
+  it("prints a batch whose url, suggestion, or docs link changed", () => {
+    // These lines are part of what the terminal shows, so a change to any of
+    // them alone is a new report, not a repeat.
+    const printed = { ...warning, suggestion: "old fix" };
+    for (const changed of [
+      { ...printed, suggestion: "new fix" },
+      { ...printed, url: "/docs/page" },
+      { ...printed, docsUrl: "https://example.com/docs" },
+    ]) {
+      output = "";
+      reportDiagnosticsUnlessRepeated([changed], "/root", [printed]);
+      expect(output).toContain("a warning");
+    }
+  });
+
+  it("prints a batch where only a severity changed", () => {
+    // Without colors the printed lines don't name the severity, so the key
+    // has to: a warning that became an error is a new report.
+    reportDiagnosticsUnlessRepeated(
+      [{ ...warning, severity: "error" }],
+      "/root",
+      [warning]
+    );
+    expect(output).toContain("1 error(s)");
+  });
+
+  it("always prints when nothing was printed before", () => {
+    reportDiagnosticsUnlessRepeated([warning], "/root");
+    expect(output).toContain("a warning");
   });
 });
 

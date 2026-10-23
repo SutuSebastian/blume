@@ -47,6 +47,10 @@ export const reportDiagnosticsJson = (
   return hasErrors(diagnostics);
 };
 
+/** The lines {@link reportDiagnostics} prints for one diagnostic. */
+const renderDiagnostic = (diagnostic: Diagnostic, root?: string): string =>
+  formatDiagnostic(enrichDiagnostic(diagnostic), root);
+
 /** Print a batch of diagnostics and return whether any were errors. */
 export const reportDiagnostics = (
   diagnostics: Diagnostic[],
@@ -57,9 +61,7 @@ export const reportDiagnostics = (
   }
 
   for (const diagnostic of diagnostics) {
-    process.stderr.write(
-      `${formatDiagnostic(enrichDiagnostic(diagnostic), root)}\n`
-    );
+    process.stderr.write(`${renderDiagnostic(diagnostic, root)}\n`);
   }
 
   const counts = countBySeverity(diagnostics);
@@ -74,4 +76,38 @@ export const reportDiagnostics = (
   }
 
   return hasErrors(diagnostics);
+};
+
+/**
+ * What makes two batches the same report: each diagnostic's severity and
+ * exactly the lines {@link reportDiagnostics} prints for it, sorted. A rescan
+ * can collect the same diagnostics in another order (include errors land as
+ * their file reads finish), and that is still a repeat.
+ */
+const batchKeys = (diagnostics: Diagnostic[], root: string): string[] =>
+  diagnostics
+    .map(
+      (diagnostic) =>
+        `${diagnostic.severity} ${renderDiagnostic(diagnostic, root)}`
+    )
+    .toSorted();
+
+/**
+ * {@link reportDiagnostics}, but silent when `diagnostics` repeats the batch
+ * `printed` already showed, in any order. Without `printed` it always
+ * reports. Either way it returns whether any were errors.
+ */
+export const reportDiagnosticsUnlessRepeated = (
+  diagnostics: Diagnostic[],
+  root: string,
+  printed?: Diagnostic[]
+): boolean => {
+  if (printed?.length === diagnostics.length) {
+    const before = batchKeys(printed, root);
+    const after = batchKeys(diagnostics, root);
+    if (after.every((key, index) => key === before[index])) {
+      return hasErrors(diagnostics);
+    }
+  }
+  return reportDiagnostics(diagnostics, root);
 };
