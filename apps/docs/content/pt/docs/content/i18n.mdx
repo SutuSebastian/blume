@@ -168,6 +168,8 @@ O Blume inclui traduções nativas para os elementos da própria interface — �
 
 Há pacotes para mais de 30 idiomas — árabe, bengali, búlgaro, catalão, chinês (simplificado e tradicional), croata, tcheco, dinamarquês, holandês, finlandês, francês, alemão, grego, hebraico, híndi, húngaro, indonésio, italiano, japonês, coreano, norueguês, persa, polonês, português (e português brasileiro), romeno, russo, sérvio, eslovaco, espanhol, sueco, tailandês, turco, ucraniano e vietnamita. Eles são mantidos pela comunidade — abra um PR para adicionar um locale ou aprimorar uma tradução.
 
+Os pacotes também cobrem a [referência da API](/docs/references/openapi): os títulos, as tabelas de schema e o painel Try it de uma página de operação seguem o idioma da página. Os rótulos que a referência adiciona à barra lateral — a página de visão geral dela e os grupos que ela mesma nomeia (Operations, Webhooks e os tipos do GraphQL) — usam as palavras do locale padrão, já que a referência é publicada nesse locale. Só os rótulos mudam, então as URLs da referência permanecem as mesmas em todos os idiomas.
+
 Strings ausentes ou não incluídas recorrem ao locale padrão e, depois, ao inglês. Para substituir uma string ou fornecer seu próprio idioma, defina `i18n.ui`, com chaves por locale:
 
 ```ts blume.config.ts lineNumbers
@@ -177,6 +179,7 @@ i18n: {
     fr: {
       search: { button: "Rechercher", placeholder: "Rechercher…" },
       page: { previous: "Précédent", next: "Suivant" },
+      reference: { tryIt: "Essayer" },
     },
   },
 }

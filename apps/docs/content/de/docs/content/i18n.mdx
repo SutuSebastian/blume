@@ -168,6 +168,8 @@ Blume liefert integrierte Übersetzungen für seine eigene Oberfläche mit – �
 
 Pakete gibt es für über 30 Sprachen – Arabisch, Bengalisch, Bulgarisch, Katalanisch, Chinesisch (vereinfacht und traditionell), Kroatisch, Tschechisch, Dänisch, Niederländisch, Finnisch, Französisch, Deutsch, Griechisch, Hebräisch, Hindi, Ungarisch, Indonesisch, Italienisch, Japanisch, Koreanisch, Norwegisch, Persisch, Polnisch, Portugiesisch (und brasilianisches Portugiesisch), Rumänisch, Russisch, Serbisch, Slowakisch, Spanisch, Schwedisch, Thailändisch, Türkisch, Ukrainisch und Vietnamesisch. Sie werden von der Community gepflegt – öffne einen PR, um eine Locale hinzuzufügen oder eine Übersetzung zu verbessern.
 
+Die Pakete decken auch die [API-Referenz](/docs/references/openapi) ab: Überschriften, Schema-Tabellen und das Try-it-Panel einer Operationsseite folgen der Sprache der Seite. Die Beschriftungen, die die Referenz der Seitenleiste hinzufügt – ihre Übersichtsseite und die Gruppen, die sie selbst benennt (Operations, Webhooks und die Arten von GraphQL) –, verwenden die Begriffe der Standard-Locale, da die Referenz in dieser Locale veröffentlicht wird. Nur die Beschriftungen ändern sich, daher bleiben die URLs der Referenz in jeder Sprache gleich.
+
 Fehlende oder nicht mitgelieferte Strings greifen auf die Standard-Locale zurück, dann auf Englisch. Um einen String zu überschreiben oder deine eigene Sprache bereitzustellen, setze `i18n.ui`, aufgeschlüsselt nach Locale:
 
 ```ts blume.config.ts lineNumbers
@@ -177,6 +179,7 @@ i18n: {
     fr: {
       search: { button: "Rechercher", placeholder: "Rechercher…" },
       page: { previous: "Précédent", next: "Suivant" },
+      reference: { tryIt: "Essayer" },
     },
   },
 }
