@@ -38,6 +38,14 @@ type AlgoliaObject = Pick<SearchRecord, keyof SearchRecord> & {
   objectID: string;
 };
 
+/**
+ * How many times the sync polls each queued task before failing the build:
+ * the SDK's default for every wait but `replaceAllObjects`, whose 800 polls a
+ * stuck task for about an hour. 100 gives up after about seven minutes, which
+ * still leaves a batch room to publish on a busy indexing queue.
+ */
+const MAX_TASK_RETRIES = 100;
+
 /** A string's or record's size as Algolia measures it: UTF-8 bytes of its JSON. */
 const jsonBytes = (value: string | AlgoliaObject): number =>
   Buffer.byteLength(JSON.stringify(value), "utf-8");
@@ -105,18 +113,41 @@ const toObjects = (record: SearchRecord): AlgoliaObject[] => {
 };
 
 /**
+ * The index's settings, or `undefined` when the index doesn't exist yet. Any
+ * other failed read (a bad key, an unreachable host) is rethrown:
+ * `indexExists` tells the two apart the SDK's way, by the read's 404.
+ */
+const readSettings = async (
+  client: AlgoliaSdk.Algoliasearch,
+  indexName: string
+): Promise<AlgoliaSdk.SettingsResponse | undefined> => {
+  try {
+    return await client.getSettings({ indexName });
+  } catch (error) {
+    if (await client.indexExists({ indexName })) {
+      throw error;
+    }
+    return undefined;
+  }
+};
+
+/**
  * Upload the search records to Algolia. Uses the admin key from
  * `ALGOLIA_ADMIN_API_KEY` (never the adapter options, which hold only the
  * public, search-only key). Throws on a missing key so the caller can warn.
  *
  * Uses `replaceAllObjects`, which atomically replaces the index contents, so
  * pages deleted or renamed since the last sync don't linger as stale search
- * hits that 404 when clicked. A page too long for one record is split across
- * several (see {@link toObjects}). Then adds `filterOnly(locale)` and
- * `filterOnly(version)` to the index's `attributesForFaceting`, keeping any
- * the site declared itself, so the dialog's locale and version filters match,
- * and, once a page is split, `url` as the index's `attributeForDistinct`
- * unless the site set its own.
+ * hits that 404 when clicked. A missing index has nothing to replace, and the
+ * copy `replaceAllObjects` starts from it never publishes, so the records are
+ * uploaded straight into it instead, which creates it. A page too long for
+ * one record is split across several (see {@link toObjects}). Then adds
+ * `filterOnly(locale)` and `filterOnly(version)` to the index's
+ * `attributesForFaceting`, keeping any the site declared itself, so the
+ * dialog's locale and version filters match, and, once a page is split, `url`
+ * as the index's `attributeForDistinct` unless the site set its own. Every
+ * task is polled at most {@link MAX_TASK_RETRIES} times, so a stuck one fails
+ * the build instead of hanging it.
  */
 export const syncAlgolia = async (
   records: SearchRecord[],
@@ -132,12 +163,25 @@ export const syncAlgolia = async (
   const client = algoliasearch(config.appId, adminKey);
   const { indexName } = config;
   const objects = records.flatMap(toObjects);
-  await client.replaceAllObjects({ indexName, objects });
-  const {
-    attributeForDistinct,
-    attributesForFaceting = [],
-    customRanking = [],
-  } = await client.getSettings({ indexName });
+  const settings = await readSettings(client, indexName);
+  await (settings
+    ? client.replaceAllObjects({
+        indexName,
+        maxRetries: MAX_TASK_RETRIES,
+        objects,
+      })
+    : client.saveObjects({
+        indexName,
+        maxRetries: MAX_TASK_RETRIES,
+        objects,
+        waitForTasks: true,
+      }));
+  // `replaceAllObjects` copies the settings over, so the ones read before the
+  // upload still hold. A new index has none, and an index whose settings were
+  // never set answers `null` for each.
+  const attributeForDistinct = settings?.attributeForDistinct ?? undefined;
+  const attributesForFaceting = settings?.attributesForFaceting ?? [];
+  const customRanking = settings?.customRanking ?? [];
   const declared = new Set(attributesForFaceting.map(facetAttribute));
   const missing = FILTER_ATTRIBUTES.filter((name) => !declared.has(name));
   // Every record carries `boost` (search.boost, 1 by default): ranking by it
@@ -166,5 +210,9 @@ export const syncAlgolia = async (
       ...(setsDistinct && { attributeForDistinct: "url", distinct: true }),
     },
   });
-  await client.waitForTask({ indexName, taskID });
+  await client.waitForTask({
+    indexName,
+    maxRetries: MAX_TASK_RETRIES,
+    taskID,
+  });
 };
