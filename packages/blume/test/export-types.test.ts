@@ -83,7 +83,7 @@ const specifiers = (): Set<string> =>
         .map((file) =>
           join(
             "blume",
-            subpath.replace("*", file.slice(0, -suffix.length || undefined))
+            subpath.replaceAll("*", file.slice(0, -suffix.length || undefined))
           )
         );
     })
