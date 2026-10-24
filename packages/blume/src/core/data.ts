@@ -284,13 +284,14 @@ export interface BlumeDataConfig {
   title: string;
   /** Table-of-contents settings: whether to show it and the heading range. */
   toc: ResolvedConfig["toc"];
-  /**
-   * WebMCP in-page tools (`agents.webmcp`), plus whether llms.txt exists for the
-   * list tool to fetch (`agents.llmsTxt.enabled`).
-   */
   /** Docs versioning config; `null` when the site is unversioned. */
   versions: NonNullable<ResolvedConfig["versions"]> | null;
-  webmcp: { enabled: boolean; llms: boolean };
+  /**
+   * WebMCP in-page tools (`agents.webmcp`), plus whether llms.txt exists for the
+   * list tool to fetch (`agents.llmsTxt.enabled`) and whether a skills index
+   * is served for `read_skill`.
+   */
+  webmcp: { enabled: boolean; llms: boolean; skills: boolean };
   /** X (Twitter) attribution: the site's account, and a default creator. */
   x: { creator?: string; handle?: string };
 }
