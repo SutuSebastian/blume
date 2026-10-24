@@ -4,11 +4,12 @@ import { dirname, normalize, relative, resolve } from "pathe";
 
 import { mountBasePath } from "../core/base-path.ts";
 import {
+  defaultTreePath,
   isIndexFileName,
   resolveRelativeHref,
   resolveRootFileHref,
 } from "../core/links.ts";
-import type { RelativeLinkBase } from "../core/links.ts";
+import type { DefaultTreeFolders, RelativeLinkBase } from "../core/links.ts";
 import type { MdastNode, MdastValue } from "./mdast.ts";
 import { routeSnapshotReader } from "./route-snapshot.ts";
 
@@ -42,6 +43,7 @@ interface RelativeLinksContext {
 interface RouteData {
   config: {
     i18n?: { defaultLocale: string; locales: { code: string }[] } | null;
+    versions?: { archived: { id: string }[] } | null;
   };
   routes: {
     collection: string;
@@ -52,16 +54,17 @@ interface RouteData {
   }[];
 }
 
-/** What the plugin knows about where content files publish. */
-interface RouteIndex {
+/**
+ * What the plugin knows about where content files publish, and the folders
+ * a file's default tree is read past (see `defaultTreePath`).
+ */
+interface RouteIndex extends DefaultTreeFolders {
   /** `collection` + NUL + `entryId` → the route that entry publishes at. */
   routes: Map<string, string>;
   /** Every route the site serves, fallback copies included. */
   paths: Set<string>;
   /** Tokens an index file name may carry before its extension. */
   localeTokens: string[];
-  /** The locale folders beside the default tree (every locale but the default). */
-  localeFolders: string[];
 }
 
 /** A content file, located: its page, and how to find the files beside it. */
@@ -114,24 +117,9 @@ const indexRoutes = (data: RouteData): RouteIndex => {
     localeTokens: data.config.i18n ? ["$", ...locales] : [],
     paths: new Set(data.routes.map((route) => route.path)),
     routes,
+    versionFolders:
+      data.config.versions?.archived.map((version) => version.id) ?? [],
   };
-};
-
-/**
- * The same entry path in the default tree: a page in a locale folder that
- * links a sibling not translated yet (`fr/guides/setup.mdx` missing) means
- * the default tree's file (`guides/setup.mdx`), whose route — its own `slug`
- * included — moves into the reader's locale afterwards, onto the fallback
- * copy (see `LocaleLinks.astro`).
- */
-const defaultTreePath = (
-  entryId: string,
-  localeFolders: readonly string[]
-): string | undefined => {
-  const slash = entryId.indexOf("/");
-  return slash !== -1 && localeFolders.includes(entryId.slice(0, slash))
-    ? entryId.slice(slash + 1)
-    : undefined;
 };
 
 export interface RelativeLinksPluginOptions {
@@ -210,7 +198,7 @@ export const relativeLinksPlugin = (
         route,
         routeOf: (path) => {
           const target = relative(base, resolve(dirname(file), path));
-          const inDefaultTree = defaultTreePath(target, index.localeFolders);
+          const inDefaultTree = defaultTreePath(target, index);
           return (
             index.routes.get(entryKey(collection, target)) ??
             (inDefaultTree === undefined

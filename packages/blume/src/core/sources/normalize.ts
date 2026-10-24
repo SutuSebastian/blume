@@ -1163,18 +1163,16 @@ const writeDestination = (target: string, angled: boolean): string => {
 /**
  * Rewrite the target of every image embed on one line with `rewrite`, which
  * gets the target as the renderer reads it (see `readDestination`) and
- * returns the new one, or `null` to leave it as written. Inline code is
- * skipped: matches run on a copy with code spans blanked, and replacements
+ * returns the new one, or `null` to leave it as written. Code is skipped:
+ * matches run on `masked`, the line as `maskCode` blanks it, and replacements
  * splice into the real line by index, which the same-length mask keeps in
  * step. A rewritten target is written back in the form its destination took.
  */
-export const rewriteImageTargets = (
+const rewriteImageTargets = (
   line: string,
-  rewrite: (target: string) => string | null
+  rewrite: (target: string) => string | null,
+  masked: string
 ): string => {
-  const masked = line.replaceAll(INLINE_CODE, (span) =>
-    " ".repeat(span.length)
-  );
   let out = "";
   let cursor = 0;
   for (const match of masked.matchAll(MD_IMAGE)) {
@@ -1413,28 +1411,6 @@ const JSX_COMMENT = /\{\s*\/\*[\s\S]*?\*\/\s*\}/gu;
 // links and all, and MDX rejects `<!-- … -->` outright.
 const COMMENTS = { md: HTML_COMMENT, mdx: JSX_COMMENT } as const;
 
-/**
- * The body with fenced blocks and inline code blanked, shape preserved — and,
- * given the page's format, its comments too.
- */
-const maskCode = (lines: readonly string[], format?: "md" | "mdx"): string => {
-  let fence: FenceState = null;
-  const masked = lines.map((line) => {
-    const next = nextFenceState(line, fence);
-    const inFence = fence !== null || next !== null;
-    fence = next;
-    return inFence
-      ? " ".repeat(line.length)
-      : line.replaceAll(INLINE_CODE, (span) => " ".repeat(span.length));
-  });
-  const text = masked.join("\n");
-  return format === undefined
-    ? text
-    : text.replaceAll(COMMENTS[format], (comment) =>
-        comment.replaceAll(/[^\n]/gu, " ")
-      );
-};
-
 /** The offset each of `lines` starts at once they're joined with `\n`. */
 const lineStartsOf = (lines: readonly string[]): number[] => {
   const starts: number[] = [];
@@ -1472,6 +1448,117 @@ const positionIn = (
   };
 };
 
+// Where a `.md` text's code blocks are, read with the renderer's grammar, as
+// headings are read: Blume's `.md` feature set plus GFM. Front matter is off,
+// as for a page body: a body that opens with a `---` rule must not read up to
+// the next one as front matter. A whole file's YAML, when an agent surface
+// passes one, reads as a rule and a heading, which can't hide code.
+const CODE_PARSE = { features: HEADING_FEATURES };
+
+/**
+ * Code indentation (4 spaces or a tab) at a line's start, after any block
+ * quote and list markers.
+ */
+const CODE_INDENT = /^(?:[ \t>]|[-*+][ \t]|\d{1,9}[.)][ \t])*(?: {4}|\t)/u;
+
+/**
+ * What indented code has to be masked over: something `extractLinks` reads a
+ * link from (inline, definition, autolink, or attribute), or a comment's
+ * delimiter, which unmasked would pair with one outside the block and mask
+ * the real links between them.
+ */
+const MASKED_TOKEN = /\][(:]|<[a-z][\w+.-]*:|\b(?:href|img|src)=|<!--|-->/iu;
+
+/**
+ * Whether a line opens with code indentation and holds a link or a comment
+ * delimiter. Only such a line can need masking; the parser decides whether
+ * it is code.
+ */
+const mayNeedMask = (line: string): boolean =>
+  CODE_INDENT.test(line) && MASKED_TOKEN.test(line);
+
+// The last text whose indented code was parsed: a page's rewrite passes read
+// it in turn, and each pass hands its parse on with its output (see
+// `keepParse`).
+let lastParsed: { code: Set<number>; text: string } | undefined;
+
+/**
+ * `out`, a rewrite of `text`, with `text`'s parse handed on to it: a rewrite
+ * changes link targets inside lines, which never moves a code block, so the
+ * next pass over `out` reads the same blocks without parsing again.
+ */
+const keepParse = (text: string, out: string): string => {
+  if (out !== text && lastParsed?.text === text) {
+    lastParsed = { code: lastParsed.code, text: out };
+  }
+  return out;
+};
+
+/**
+ * The 0-based lines of a `.md` text's indented code blocks. A line scan can't
+ * tell one from a list item's indented paragraph, so the parser is asked, and
+ * only when an indented line holds a link or a comment delimiter. MDX has no
+ * indented code. Blocks are placed by offset, since the parser's line numbers
+ * count a lone `\r` as a line break and `lines` don't.
+ */
+const indentedCodeLines = (lines: readonly string[]): Set<number> => {
+  if (!lines.some(mayNeedMask)) {
+    return new Set();
+  }
+  const text = lines.join("\n");
+  if (lastParsed?.text === text) {
+    return lastParsed.code;
+  }
+  const code = new Set<number>();
+  const lineStarts = lineStartsOf(lines);
+  const lineAt = ({ line, offset }: { line: number; offset?: number }) =>
+    offset === undefined ? line - 1 : positionIn(lineStarts, offset, -1).line;
+  const visit = (nodes: readonly Nodes[]): void => {
+    for (const node of nodes) {
+      if (node.type === "code" && node.position) {
+        const last = lineAt(node.position.end);
+        for (let line = lineAt(node.position.start); line <= last; line += 1) {
+          code.add(line);
+        }
+      }
+      if ("children" in node) {
+        visit(node.children);
+      }
+    }
+  };
+  const tree = markdownToMdast(text, CODE_PARSE);
+  visit("children" in tree ? tree.children : []);
+  lastParsed = { code, text };
+  return code;
+};
+
+/**
+ * The body with fenced blocks and inline code blanked, shape preserved — and,
+ * given the page's format, its comments too, and a `.md` body's indented code
+ * blocks.
+ */
+const maskCode = (
+  lines: readonly string[],
+  format?: "md" | "mdx" | null
+): string => {
+  let fence: FenceState = null;
+  const indented = format === "md" ? indentedCodeLines(lines) : undefined;
+  const masked = lines.map((line, index) => {
+    const next = nextFenceState(line, fence);
+    const inFence = fence !== null || next !== null;
+    fence = next;
+    return inFence || indented?.has(index)
+      ? " ".repeat(line.length)
+      : line.replaceAll(INLINE_CODE, (span) => " ".repeat(span.length));
+  });
+  const text = masked.join("\n");
+  return format
+    ? text.replaceAll(COMMENTS[format], (comment) =>
+        comment.replaceAll(/[^\n]/gu, " ")
+      )
+    : text;
+};
+
 /**
  * Every media element's string `src` in the masked `text` (see
  * `ELEMENT_SRC`), with its 1-based position. Like a raw `<a href>`, the
@@ -1501,6 +1588,28 @@ const mediaSourceLinks = (
     ];
   });
 
+/**
+ * Rewrite the target of every image embed in `text` (outside code, and given
+ * the page's `format`, outside comments and a `.md` page's indented code)
+ * with `rewrite`, as {@link rewriteImageTargets} rewrites a line's.
+ */
+export const rewriteImageEmbeds = (
+  text: string,
+  rewrite: (target: string) => string | null,
+  format: "md" | "mdx" | null
+): string => {
+  const lines = text.split("\n");
+  const masked = maskCode(lines, format).split("\n");
+  return keepParse(
+    text,
+    lines
+      .map((line, index) =>
+        rewriteImageTargets(line, rewrite, masked[index] ?? line)
+      )
+      .join("\n")
+  );
+};
+
 /** Each `<Card img>` value in the masked `text`, with its offset there. */
 const cardImages = (text: string): { at: number; target: string }[] =>
   [...text.matchAll(CARD_IMG)].map((match) => {
@@ -1510,29 +1619,31 @@ const cardImages = (text: string): { at: number; target: string }[] =>
   });
 
 /**
- * Rewrite every `<Card img="…">` value in `text` (outside code) with
- * `rewrite`, which returns the new value or `null` to leave one as written.
- * The include expander rebases a partial's values with it and the
- * content-asset rewriter points them at their served URL, exactly as both
- * treat image embeds, so a card's image resolves like `![](./cover.png)`.
+ * Rewrite every `<Card img="…">` value in `text` (outside code, and given
+ * the page's `format`, outside comments) with `rewrite`, which returns the
+ * new value or `null` to leave one as written. The include expander rebases
+ * a partial's values with it and the content-asset rewriter points them at
+ * their served URL, exactly as both treat image embeds, so a card's image
+ * resolves like `![](./cover.png)`.
  */
 export const rewriteCardImages = (
   text: string,
-  rewrite: (target: string) => string | null
+  rewrite: (target: string) => string | null,
+  format: "md" | "mdx" | null
 ): string => {
   if (!text.includes("<Card")) {
     return text;
   }
   let out = "";
   let cursor = 0;
-  for (const { at, target } of cardImages(maskCode(text.split("\n")))) {
+  for (const { at, target } of cardImages(maskCode(text.split("\n"), format))) {
     const next = rewrite(target);
     if (next !== null) {
       out += text.slice(cursor, at) + next;
       cursor = at + target.length;
     }
   }
-  return out + text.slice(cursor);
+  return keepParse(text, out + text.slice(cursor));
 };
 
 /** A same-text edit: replace `length` characters at `at` with `text`. */
@@ -1554,21 +1665,25 @@ const applySplices = (text: string, splices: readonly Splice[]): string => {
 };
 
 /**
- * Rewrite every element's string `href` or `src` in `text` (outside code)
- * with `rewrite`, which returns the new value or `null` to leave one as
+ * Rewrite every element's string `href` or `src` in `text` (outside code,
+ * and given the page's `format`, outside comments and a `.md` page's indented
+ * code) with `rewrite`, which returns the new value or `null` to leave one as
  * written. The include expander rebases a partial's files with it, the
  * content-asset rewriter points them at their served URL, and the render
  * plugins rewrite raw HTML with it.
  */
 export const rewriteElementUrls = (
   text: string,
-  rewrite: (url: ElementUrl) => string | null
+  rewrite: (url: ElementUrl) => string | null,
+  format: "md" | "mdx" | null
 ): string => {
   if (!(text.includes("href=") || text.includes("src="))) {
     return text;
   }
   const splices: Splice[] = [];
-  for (const match of maskCode(text.split("\n")).matchAll(ELEMENT_URL)) {
+  for (const match of maskCode(text.split("\n"), format).matchAll(
+    ELEMENT_URL
+  )) {
     const value = match.groups?.double ?? match.groups?.single ?? "";
     const next = rewrite({
       attribute: match.groups?.attribute ?? "",
@@ -1581,7 +1696,7 @@ export const rewriteElementUrls = (
       splices.push({ at, length: value.length, text: next });
     }
   }
-  return applySplices(text, splices);
+  return keepParse(text, applySplices(text, splices));
 };
 
 /** A destination as written in a line, and its offset there. */
@@ -1611,11 +1726,14 @@ const definitionDestination = (
  * new one, or `null` to leave it as written: inline links (an image embed is
  * no link; see {@link rewriteImageTargets}), links whose label wraps onto
  * later lines, and link-reference definitions (`[spec]: ./spec.pdf`). Each
- * rewritten target is written back in the form its destination took.
+ * rewritten target is written back in the form its destination took. Given
+ * the page's `format`, comments and a `.md` page's indented code are skipped
+ * too.
  */
 export const rewriteLinkTargets = (
   text: string,
-  rewrite: (target: string) => string | null
+  rewrite: (target: string) => string | null,
+  format: "md" | "mdx" | null
 ): string => {
   if (!(text.includes("](") || text.includes("]:"))) {
     return text;
@@ -1633,7 +1751,7 @@ export const rewriteLinkTargets = (
     }
   };
   const lines = text.split("\n");
-  const masked = maskCode(lines);
+  const masked = maskCode(lines, format);
   const lineStarts = lineStartsOf(lines);
   for (const [index, line] of masked.split("\n").entries()) {
     const start = lineStarts[index] ?? 0;
@@ -1655,7 +1773,7 @@ export const rewriteLinkTargets = (
       add(match.index + targetStart(match), match.groups?.target ?? "");
     }
   }
-  return applySplices(text, splices);
+  return keepParse(text, applySplices(text, splices));
 };
 
 /** A link-reference definition, as {@link linkDefinitions} reads one. */
@@ -2025,8 +2143,11 @@ const deriveTitle = (
   headings: Heading[],
   id: string
 ): string => {
-  if (meta.title) {
-    return meta.title;
+  // On one line, as every surface shows a title: a folded YAML one
+  // (`title: >`) ends in a line break, and a literal one (`|`) holds more.
+  const title = meta.title?.replaceAll(/\s+/gu, " ").trim();
+  if (title) {
+    return title;
   }
   const firstHeading = headings.find((h) => h.depth === 1) ?? headings[0];
   if (firstHeading) {

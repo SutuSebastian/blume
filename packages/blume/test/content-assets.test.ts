@@ -45,6 +45,7 @@ const rewrite = (
   over: Partial<Parameters<typeof rewriteRelativeAssets>[0]> = {}
 ): string =>
   rewriteRelativeAssets({
+    format: null,
     projectRoot: root,
     source,
     sourcePath: pagePath,
@@ -65,9 +66,26 @@ const fileUrl = (target: string): string | null => {
  * relative.
  */
 const fullPasses = (source: string): string =>
-  rewriteElementUrls(rewriteLinkTargets(source, fileUrl), (url) =>
-    isLinkElementUrl(url) ? fileUrl(url.value) : null
+  rewriteElementUrls(
+    rewriteLinkTargets(source, fileUrl, null),
+    (url) => (isLinkElementUrl(url) ? fileUrl(url.value) : null),
+    null
   );
+
+/** A `.md` page that shows a comment's delimiters in indented code. */
+const commentsInCode = (spec: string, img: string): string =>
+  [
+    "Open a comment with",
+    "",
+    "    <!--",
+    "",
+    `Download [the spec](${spec}) or see <img src="${img}">.`,
+    "",
+    "and close it with",
+    "",
+    "    -->",
+    "",
+  ].join("\n");
 
 describe("rewriteRelativeAssets", () => {
   it("rewrites a colocated relative image to its served URL", () => {
@@ -246,6 +264,32 @@ describe("rewriteRelativeAssets — other files beside the page", () => {
       "```",
     ].join("\n");
     expect(rewrite(source)).toBe(source);
+  });
+
+  it("skips comments and a .md page's indented code, given the format", () => {
+    const refs =
+      '![p](./photo.png) [s](./spec.pdf) <a href="./spec.pdf">s</a> <Card img="./photo.png" />';
+    const md = `Text\n\n    ${refs}\n\n<!-- ${refs} -->\n`;
+    expect(rewrite(md, { format: "md" })).toBe(md);
+    const mdx = `{/* ${refs} */}\n`;
+    expect(rewrite(mdx, { format: "mdx" })).toBe(mdx);
+    // Without a format, or in MDX, which has no indented code, they're links.
+    const photo = `${CONTENT_ASSETS_PREFIX}/docs/photo.png`;
+    expect(rewrite(`<!-- ![p](./photo.png) -->`)).toBe(
+      `<!-- ![p](${photo}) -->`
+    );
+    expect(rewrite(`Text\n\n    ${refs}`, { format: "mdx" })).toBe(
+      `Text\n\n    ![p](${photo}) [s](${served}) <a href="${served}">s</a> <Card img="${photo}" />`
+    );
+  });
+
+  it("never pairs a comment delimiter in indented code with one outside it", () => {
+    // Shown as code, `<!--` opens no comment, so the file links between it
+    // and a later `-->` are real, and served.
+    const photo = `${CONTENT_ASSETS_PREFIX}/docs/photo.png`;
+    expect(
+      rewrite(commentsInCode("./spec.pdf", "./photo.png"), { format: "md" })
+    ).toBe(commentsInCode(served, photo));
   });
 
   it("leaves a page that links only to routes and anchors as it is", () => {

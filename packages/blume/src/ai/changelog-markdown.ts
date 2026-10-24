@@ -1,4 +1,4 @@
-import { mountBasePath, normalizeBasePath } from "../core/base-path.ts";
+import { normalizeBasePath } from "../core/base-path.ts";
 import { withChangelogIndexText } from "../core/changelog-index.ts";
 import {
   compareChangelogDates,
@@ -7,8 +7,8 @@ import {
 } from "../core/changelog-list.ts";
 import { EN_UI, resolveUIStrings } from "../core/i18n-ui.ts";
 import type { BlumeProject } from "../core/project-graph.ts";
-import { absoluteUrl } from "../core/site-url.ts";
 import type { PageRecord } from "../core/types.ts";
+import { linkText, pageUrl, routeTarget } from "./link-text.ts";
 
 /**
  * The generated `/changelog` index as Markdown, for its `/changelog.md`
@@ -24,21 +24,39 @@ interface IndexRow {
   page: PageRecord;
 }
 
-/** A row's link: absolute under a configured site, like llms.txt. */
-const entryUrl = (project: BlumeProject, route: string): string => {
+/** Who reads the list: the assistant's snapshot, or an agent fetching a URL. */
+interface IndexOptions {
+  assistant?: boolean;
+}
+
+/**
+ * A row's link: absolute under a configured site, like llms.txt — or, for
+ * the assistant's snapshot, the route alone, as its excerpts link pages.
+ */
+const entryUrl = (
+  project: BlumeProject,
+  route: string,
+  { assistant = false }: IndexOptions
+): string => {
+  if (assistant) {
+    return routeTarget(route);
+  }
   const { base, site } = project.config.deployment.options;
-  const path = mountBasePath(normalizeBasePath(base), route);
-  return encodeURI(site ? absoluteUrl(site, path) : path);
+  return pageUrl(route, site, normalizeBasePath(base));
 };
 
-const rowLine = (project: BlumeProject, { date, page }: IndexRow): string => {
+const rowLine = (
+  project: BlumeProject,
+  { date, page }: IndexRow,
+  options: IndexOptions
+): string => {
   const details = [
     date ? date.toISOString().slice(0, 10) : "",
     page.meta.changelog?.category ?? "",
   ].filter(Boolean);
-  const title = page.title.replaceAll(/[[\]]/gu, String.raw`\$&`);
+  const title = linkText(page.title);
   const tail = details.length > 0 ? ` — ${details.join(", ")}` : "";
-  return `- [${title}](${entryUrl(project, page.route)})${tail}`;
+  return `- [${title}](${entryUrl(project, page.route, options)})${tail}`;
 };
 
 /**
@@ -52,7 +70,10 @@ const rowLine = (project: BlumeProject, { date, page }: IndexRow): string => {
  * — see `components/content/Changelog.astro` for why the rule is the same on
  * the rendered page.
  */
-export const changelogIndexBlocks = (project: BlumeProject): string[] => {
+export const changelogIndexBlocks = (
+  project: BlumeProject,
+  options: IndexOptions = {}
+): string[] => {
   const { i18n } = project.config;
   const rows: IndexRow[] = project.graph.pages
     .filter(
@@ -75,7 +96,7 @@ export const changelogIndexBlocks = (project: BlumeProject): string[] => {
     row.date ? String(row.date.getUTCFullYear()) : null
   ).flatMap((group) => [
     `## ${group.year ?? "Undated"}`,
-    group.items.map((row) => rowLine(project, row)).join("\n"),
+    group.items.map((row) => rowLine(project, row, options)).join("\n"),
   ]);
 };
 
