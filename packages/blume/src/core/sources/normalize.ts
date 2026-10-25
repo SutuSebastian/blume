@@ -1465,9 +1465,10 @@ const CODE_INDENT = /^(?:[ \t>]|[-*+][ \t]|\d{1,9}[.)][ \t])*(?: {4}|\t)/u;
  * What indented code has to be masked over: something `extractLinks` reads a
  * link from (inline, definition, autolink, or attribute), or a comment's
  * delimiter, which unmasked would pair with one outside the block and mask
- * the real links between them.
+ * the real links between them. A browser's `--!>` closer counts too: Markdown
+ * never ends a comment there, but masking code hides no link either way.
  */
-const MASKED_TOKEN = /\][(:]|<[a-z][\w+.-]*:|\b(?:href|img|src)=|<!--|-->/iu;
+const MASKED_TOKEN = /\][(:]|<[a-z][\w+.-]*:|\b(?:href|img|src)=|<!--|--!?>/iu;
 
 /**
  * Whether a line opens with code indentation and holds a link or a comment
