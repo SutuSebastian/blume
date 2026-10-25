@@ -219,7 +219,7 @@ export default defineConfig({
 
 ## WebMCP
 
-[WebMCP](https://webmachinelearning.github.io/webmcp/) は、ページがエージェント型ブラウザに直接ツールを登録できるようにする新興のブラウザ API です — 別途サーバー接続を用意する必要はありません。Blume の各ページは、ドキュメントの読み取り専用サーフェスをページのモデルコンテキストに登録します: `search_docs`（サイト検索）、`get_page`（ページの[生の Markdown](/docs/discoverability/markdown)）、`list_pages`（[`llms.txt`](/docs/discoverability/llms-txt) インデックス）です。スクリプトは非常に小さく、ツールが実際に呼び出されるまで検索機構を読み込まず、この API を持たないブラウザでは静かに何もしません — 今日それは [Chrome の早期プレビュー](https://developer.chrome.com/blog/webmcp-epp)以外のすべてのブラウザです。変動中の仕様が公開するいずれかのサーフェス（`navigator.modelContext` または `document.modelContext`）に対して、`provideContext` またはツールごとの `registerTool` 経由で登録します。
+[WebMCP](https://webmachinelearning.github.io/webmcp/) は、ページがエージェント型ブラウザに直接ツールを登録できるようにする新興のブラウザ API です — 別途サーバー接続を用意する必要はありません。Blume の各ページは、ドキュメントのツールをページのモデルコンテキストに登録します: `search_docs`（サイト検索）、`get_page`（ページの[生の Markdown](/docs/discoverability/markdown)）、`list_pages`（[`llms.txt`](/docs/discoverability/llms-txt) インデックス）、`read_skill`（[サイトが公開するスキル](#skills-discovery)を列挙するか、そのうち 1 つの `SKILL.md` を返します）、そして `navigate_page`（読者のタブでサイトのページを開きます）です。`search_docs`、`list_pages`、`read_skill` は、それぞれが読み取る対象 — サイト検索、`llms.txt`、スキルインデックス — が存在する場合にのみ登録されます。`navigate_page` 以外のツールはすべて読み取り専用で、どのツールもサイトの外には出ません: 別オリジンに解決されるルートやスキル URL は拒否されます。スクリプトは非常に小さく、ツールが実際に呼び出されるまで検索機構を読み込まず、この API を持たないブラウザでは静かに何もしません — 今日それは [Chrome の早期プレビュー](https://developer.chrome.com/blog/webmcp-epp)以外のすべてのブラウザです。変動中の仕様が公開するいずれかのサーフェス（`navigator.modelContext` または `document.modelContext`）に対して、`provideContext` またはツールごとの `registerTool` 経由で登録します。
 
 デフォルトで有効です。オプトアウトするには `webmcp: false` を設定します:
 
